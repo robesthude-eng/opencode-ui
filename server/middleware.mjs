@@ -3,8 +3,8 @@
  */
 
 // Body size limits
-const MAX_BODY_BYTES = 50 * 1024 * 1024; // 50 MB for uploads
-const MAX_JSON_BODY_BYTES = 256 * 1024;  // 256 KB for JSON endpoints
+export const MAX_BODY_BYTES = 50 * 1024 * 1024; // 50 MB for uploads
+export const MAX_JSON_BODY_BYTES = 256 * 1024;  // 256 KB for JSON endpoints
 
 // Upload rate limiting (per-IP)
 const uploadAttempts = new Map();
@@ -14,7 +14,7 @@ const UPLOAD_MAX_PER_WINDOW = 20;   // max 20 uploads per minute per IP
 /**
  * Set security headers on response.
  */
-function setSecurityHeaders(res) {
+export function setSecurityHeaders(res) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -33,7 +33,7 @@ function setSecurityHeaders(res) {
 /**
  * Read request body with size limit.
  */
-function readBody(req, maxBytes = MAX_JSON_BODY_BYTES) {
+export function readBody(req, maxBytes = MAX_JSON_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let totalLen = 0;
@@ -55,7 +55,7 @@ function readBody(req, maxBytes = MAX_JSON_BODY_BYTES) {
  * Upload rate limit check (per-IP, per-minute window).
  * Returns true if allowed, false if rate limited.
  */
-function checkUploadRateLimit(req, res) {
+export function checkUploadRateLimit(req, res) {
   const ip = req.socket.remoteAddress || "unknown";
   const now = Date.now();
   let record = uploadAttempts.get(ip);
@@ -84,7 +84,7 @@ function checkUploadRateLimit(req, res) {
 let lastRebuildTime = 0;
 const REBUILD_COOLDOWN_MS = 10000;
 
-function checkRateLimit(res) {
+export function checkRateLimit(res) {
   const now = Date.now();
   if (now - lastRebuildTime < REBUILD_COOLDOWN_MS) {
     const waitSec = Math.ceil((REBUILD_COOLDOWN_MS - (now - lastRebuildTime)) / 1000);
@@ -95,12 +95,3 @@ function checkRateLimit(res) {
   lastRebuildTime = now;
   return true;
 }
-
-module.exports = {
-  MAX_BODY_BYTES,
-  MAX_JSON_BODY_BYTES,
-  setSecurityHeaders,
-  readBody,
-  checkUploadRateLimit,
-  checkRateLimit,
-};

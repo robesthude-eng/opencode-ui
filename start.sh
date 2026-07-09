@@ -13,7 +13,7 @@ mkdir -p "$HOME/.config"
 # Like Claude.ai, workspace should be clean - only sessions, opencode-ui, and essential config
 echo "Cleaning up dead files from workspace (like Claude.ai clean workspace)..."
 rm -rf "$WORKDIR/.config_opencode_parent" "$WORKDIR/.data_opencode_parent" 2>/dev/null || true
-rm -f "$WORKDIR/server.cjs" "$WORKDIR/Dockerfile" "$WORKDIR/package.json" "$WORKDIR/package-lock.json" "$WORKDIR/index.html" "$WORKDIR/railway.json" "$WORKDIR/preview.html" "$WORKDIR/vite.config.ts" "$WORKDIR/vite.config.js" "$WORKDIR/tsconfig.json" "$WORKDIR/tsconfig.node.json" "$WORKDIR/vite.config.d.ts" "$WORKDIR/start.sh" 2>/dev/null || true
+rm -f "$WORKDIR/server.mjs" "$WORKDIR/Dockerfile" "$WORKDIR/package.json" "$WORKDIR/package-lock.json" "$WORKDIR/index.html" "$WORKDIR/railway.json" "$WORKDIR/preview.html" "$WORKDIR/vite.config.ts" "$WORKDIR/vite.config.js" "$WORKDIR/tsconfig.json" "$WORKDIR/tsconfig.node.json" "$WORKDIR/vite.config.d.ts" "$WORKDIR/start.sh" 2>/dev/null || true
 rm -rf "$WORKDIR/src" "$WORKDIR/.git" 2>/dev/null || true
 rm -f "$WORKDIR/.dockerignore" "$WORKDIR/.env.example" "$WORKDIR/.gitignore" 2>/dev/null || true
 # Clean test files created by AI in global workspace (should be in session workspaces, not global)
@@ -151,7 +151,7 @@ echo "Model: ${OPENCODE_MODEL:-opencode/deepseek-v4-flash-free}"
 # Start UI server
 echo "Starting UI server on port 3000…"
 cd /app
-node server.cjs &
+node server.mjs &
 UI_PID=$!
 sleep 1
 

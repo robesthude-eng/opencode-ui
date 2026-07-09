@@ -1,11 +1,13 @@
+// @vitest-environment node
 /**
- * Tests for server/auth.cjs
+ * Tests for server/auth.mjs
  */
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
-const { hashPassword, verifyPassword, getUserEmail, checkAuth, checkAuthRateLimit, resetAuthRateLimit, isAdmin } = require("../auth");
-const { loadJson, saveJson, clearCache } = require("../db");
+import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
+import fs from "fs";
+import path from "path";
+import os from "os";
+import { hashPassword, verifyPassword, getUserEmail, checkAuth, checkAuthRateLimit, resetAuthRateLimit, isAdmin } from "../auth.mjs";
+import { loadJson, saveJson, clearCache } from "../db.mjs";
 
 // Create temp directory for tests
 let tmpDir;
@@ -69,37 +71,37 @@ describe("verifyPassword", () => {
 describe("getUserEmail", () => {
   test("returns email for valid token", () => {
     saveJson(sessionsFile, { "token123": { email: "test@example.com", createdAt: Date.now() } });
-    
+
     const req = { headers: { "x-auth-token": "token123" }, url: "/api/test" };
     const result = getUserEmail(req, sessionsFile, 7 * 24 * 60 * 60 * 1000);
-    
+
     expect(result).toBe("test@example.com");
   });
 
   test("returns null for invalid token", () => {
     saveJson(sessionsFile, {});
-    
+
     const req = { headers: { "x-auth-token": "invalid" }, url: "/api/test" };
     const result = getUserEmail(req, sessionsFile, 7 * 24 * 60 * 60 * 1000);
-    
+
     expect(result).toBeNull();
   });
 
   test("returns null for expired session", () => {
     saveJson(sessionsFile, { "token123": { email: "test@example.com", createdAt: Date.now() - 8 * 24 * 60 * 60 * 1000 } });
-    
+
     const req = { headers: { "x-auth-token": "token123" }, url: "/api/test" };
     const result = getUserEmail(req, sessionsFile, 7 * 24 * 60 * 60 * 1000);
-    
+
     expect(result).toBeNull();
   });
 
   test("extracts token from query string", () => {
     saveJson(sessionsFile, { "token123": { email: "test@example.com", createdAt: Date.now() } });
-    
+
     const req = { headers: {}, url: "/api/test?token=token123" };
     const result = getUserEmail(req, sessionsFile, 7 * 24 * 60 * 60 * 1000);
-    
+
     expect(result).toBe("test@example.com");
   });
 });
@@ -108,12 +110,12 @@ describe("checkAuth", () => {
   test("returns true for valid token", () => {
     saveJson(sessionsFile, { "token123": { email: "test@example.com", createdAt: Date.now() } });
     saveJson(usersFile, { "test@example.com": { email: "test@example.com" } });
-    
+
     const req = { headers: { "x-auth-token": "token123" }, url: "/api/test" };
-    const res = { writeHead: jest.fn(), end: jest.fn() };
-    
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+
     const result = checkAuth(req, res, usersFile, sessionsFile, 7 * 24 * 60 * 60 * 1000);
-    
+
     expect(result).toBe(true);
     expect(res.writeHead).not.toHaveBeenCalled();
   });
@@ -121,35 +123,35 @@ describe("checkAuth", () => {
   test("returns 401 for invalid token when users exist", () => {
     saveJson(sessionsFile, {});
     saveJson(usersFile, { "test@example.com": { email: "test@example.com" } });
-    
+
     const req = { headers: { "x-auth-token": "invalid" }, url: "/api/test" };
-    const res = { writeHead: jest.fn(), end: jest.fn() };
-    
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+
     const result = checkAuth(req, res, usersFile, sessionsFile, 7 * 24 * 60 * 60 * 1000);
-    
+
     expect(result).toBe(false);
     expect(res.writeHead).toHaveBeenCalledWith(401, { "Content-Type": "application/json" });
   });
 
   test("returns true for non-API endpoint when no users exist", () => {
     saveJson(usersFile, {});
-    
+
     const req = { headers: {}, url: "/static/test" };
-    const res = { writeHead: jest.fn(), end: jest.fn() };
-    
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+
     const result = checkAuth(req, res, usersFile, sessionsFile, 7 * 24 * 60 * 60 * 1000);
-    
+
     expect(result).toBe(true);
   });
 
   test("returns 401 for API endpoint when no users exist", () => {
     saveJson(usersFile, {});
-    
+
     const req = { headers: {}, url: "/api/test" };
-    const res = { writeHead: jest.fn(), end: jest.fn() };
-    
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+
     const result = checkAuth(req, res, usersFile, sessionsFile, 7 * 24 * 60 * 60 * 1000);
-    
+
     expect(result).toBe(false);
     expect(res.writeHead).toHaveBeenCalledWith(401, { "Content-Type": "application/json" });
   });
@@ -158,8 +160,8 @@ describe("checkAuth", () => {
 describe("rate limiting", () => {
   test("allows requests under limit", () => {
     const req = { socket: { remoteAddress: "127.0.0.1" } };
-    const res = { writeHead: jest.fn(), end: jest.fn() };
-    
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+
     for (let i = 0; i < 10; i++) {
       expect(checkAuthRateLimit(req, res)).toBe(true);
     }
@@ -167,24 +169,24 @@ describe("rate limiting", () => {
 
   test("blocks requests over limit", () => {
     const req = { socket: { remoteAddress: "192.168.1.1" } };
-    const res = { writeHead: jest.fn(), end: jest.fn() };
-    
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+
     for (let i = 0; i < 10; i++) {
       checkAuthRateLimit(req, res);
     }
-    
+
     expect(checkAuthRateLimit(req, res)).toBe(false);
     expect(res.writeHead).toHaveBeenCalledWith(429, { "Content-Type": "application/json" });
   });
 
   test("resets rate limit for IP", () => {
     const req = { socket: { remoteAddress: "10.0.0.1" } };
-    const res = { writeHead: jest.fn(), end: jest.fn() };
-    
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+
     for (let i = 0; i < 10; i++) {
       checkAuthRateLimit(req, res);
     }
-    
+
     resetAuthRateLimit(req);
     expect(checkAuthRateLimit(req, res)).toBe(true);
   });

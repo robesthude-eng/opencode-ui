@@ -1,13 +1,15 @@
+// @vitest-environment node
 /**
- * Tests for server/middleware.cjs
+ * Tests for server/middleware.mjs
  */
-const { setSecurityHeaders, readBody, checkRateLimit } = require("../middleware.cjs");
+import { describe, test, expect, vi } from "vitest";
+import { setSecurityHeaders, readBody, checkRateLimit } from "../middleware.mjs";
 
 describe("setSecurityHeaders", () => {
   test("sets all required security headers", () => {
-    const res = { setHeader: jest.fn() };
+    const res = { setHeader: vi.fn() };
     setSecurityHeaders(res);
-    
+
     expect(res.setHeader).toHaveBeenCalledWith("X-Content-Type-Options", "nosniff");
     expect(res.setHeader).toHaveBeenCalledWith("X-Frame-Options", "DENY");
     expect(res.setHeader).toHaveBeenCalledWith("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -24,9 +26,9 @@ describe("readBody", () => {
         if (event === "data") chunks.forEach(chunk => callback(chunk));
         else if (event === "end") callback();
       },
-      destroy: jest.fn(),
+      destroy: vi.fn(),
     };
-    
+
     const result = await readBody(req, 100);
     expect(result.toString()).toBe("hello world");
     expect(req.destroy).not.toHaveBeenCalled();
@@ -38,9 +40,9 @@ describe("readBody", () => {
         if (event === "data") { callback(Buffer.alloc(100)); callback(Buffer.alloc(100)); }
         else if (event === "end") callback();
       },
-      destroy: jest.fn(),
+      destroy: vi.fn(),
     };
-    
+
     await expect(readBody(req, 150)).rejects.toThrow("Body too large");
     expect(req.destroy).toHaveBeenCalled();
   });
@@ -50,16 +52,16 @@ describe("readBody", () => {
       on: (event, callback) => {
         if (event === "error") callback(new Error("Network error"));
       },
-      destroy: jest.fn(),
+      destroy: vi.fn(),
     };
-    
+
     await expect(readBody(req)).rejects.toThrow("Network error");
   });
 });
 
 describe("checkRateLimit", () => {
   test("allows first request", () => {
-    const res = { writeHead: jest.fn(), end: jest.fn() };
+    const res = { writeHead: vi.fn(), end: vi.fn() };
     // Use a unique mock to avoid state leakage
     expect(checkRateLimit(res)).toBe(true);
     expect(res.writeHead).not.toHaveBeenCalled();

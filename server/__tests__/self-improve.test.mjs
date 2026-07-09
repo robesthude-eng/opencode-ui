@@ -1,10 +1,12 @@
+// @vitest-environment node
 /**
- * Tests for server/self-improve.cjs
+ * Tests for server/self-improve.mjs
  */
-const fs = require("fs");
-const path = require("path");
-const os = require("os");
-const { getUiDir, isSelfImproveEnabled, toggleSelfImprove } = require("../self-improve.cjs");
+import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import fs from "fs";
+import path from "path";
+import os from "os";
+import { getUiDir, isSelfImproveEnabled, toggleSelfImprove } from "../self-improve.mjs";
 
 let tmpDir;
 

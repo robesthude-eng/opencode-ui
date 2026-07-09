@@ -1,7 +1,9 @@
+// @vitest-environment node
 /**
- * Tests for server/upload.cjs
+ * Tests for server/upload.mjs
  */
-const { parseMultipart } = require("../upload.cjs");
+import { describe, test, expect } from "vitest";
+import { parseMultipart } from "../upload.mjs";
 
 describe("parseMultipart", () => {
   test("parses single file upload", () => {
@@ -14,10 +16,10 @@ describe("parseMultipart", () => {
       `Hello World`,
       `------WebKitFormBoundary7MA4YWxkTrZu0gW--`,
     ].join("\r\n");
-    
+
     const buffer = Buffer.from(body);
     const parts = parseMultipart(buffer, boundary);
-    
+
     expect(parts).toHaveLength(1);
     expect(parts[0].name).toBe("file");
     expect(parts[0].filename).toBe("test.txt");
@@ -37,10 +39,10 @@ describe("parseMultipart", () => {
       `Content of file 2`,
       `------WebKitFormBoundary7MA4YWxkTrZu0gW--`,
     ].join("\r\n");
-    
+
     const buffer = Buffer.from(body);
     const parts = parseMultipart(buffer, boundary);
-    
+
     expect(parts).toHaveLength(2);
     expect(parts[0].filename).toBe("file1.txt");
     expect(parts[1].filename).toBe("file2.txt");
@@ -69,7 +71,7 @@ describe("parseMultipart", () => {
   test("returns empty array for no parts", () => {
     const buffer = Buffer.from("no multipart data");
     const parts = parseMultipart(buffer, "boundary");
-    
+
     expect(parts).toHaveLength(0);
   });
 
@@ -82,10 +84,10 @@ describe("parseMultipart", () => {
       `content`,
       `------WebKitFormBoundary7MA4YWxkTrZu0gW--`,
     ].join("\r\n");
-    
+
     const buffer = Buffer.from(body);
     const parts = parseMultipart(buffer, boundary);
-    
+
     expect(parts).toHaveLength(1);
     expect(parts[0].filename).toBe("file with spaces.txt");
   });

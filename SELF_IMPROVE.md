@@ -17,7 +17,7 @@ that you (the AI agent) are running through right now.
 - `src/api/client.ts` — OpenCode API client
 - `src/styles.css` — all styling
 - `src/components/icons.tsx` — SVG icons
-- `server.cjs` — production server (proxy + static files)
+- `server.mjs` — production server (proxy + static files)
 
 ## Rebuild command
 

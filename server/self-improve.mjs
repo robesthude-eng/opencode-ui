@@ -6,9 +6,13 @@
  * (root can always override). It's a soft guardrail against accidental
  * writes, not a defense against prompt injection.
  */
-const fs = require("fs");
-const path = require("path");
-const { execFile, spawn } = require("child_process");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { execFile } from "child_process";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Hardcoded build output — never derived from user input
 const BUILD_OUT_DIR = "/app/dist";
@@ -16,7 +20,7 @@ const BUILD_OUT_DIR = "/app/dist";
 /**
  * Get the UI directory path.
  */
-function getUiDir(workdir) {
+export function getUiDir(workdir) {
   const p = path.join(workdir, "opencode-ui");
   if (fs.existsSync(p)) return p;
   if (fs.existsSync(path.join(__dirname, "..", "package.json"))) return path.join(__dirname, "..");
@@ -26,7 +30,7 @@ function getUiDir(workdir) {
 /**
  * Check if self-improve mode is enabled.
  */
-function isSelfImproveEnabled(workdir) {
+export function isSelfImproveEnabled(workdir) {
   const flagFile = path.join(workdir, ".self_improve_mode");
   try {
     return fs.existsSync(flagFile) && fs.readFileSync(flagFile, "utf8").trim() === "true";
@@ -38,7 +42,7 @@ function isSelfImproveEnabled(workdir) {
 /**
  * Toggle self-improve mode.
  */
-function toggleSelfImprove(workdir, enabled) {
+export function toggleSelfImprove(workdir, enabled) {
   const flagFile = path.join(workdir, ".self_improve_mode");
   fs.mkdirSync(workdir, { recursive: true });
   fs.writeFileSync(flagFile, String(!!enabled), "utf8");
@@ -76,7 +80,7 @@ function runBuild(cwd, callback) {
 /**
  * Rebuild the UI (npm install + vite build).
  */
-function rebuildUi(workdir, callback) {
+export function rebuildUi(workdir, callback) {
   const uiDir = getUiDir(workdir);
   if (!fs.existsSync(uiDir)) {
     return callback(new Error("Directory opencode-ui not found in workspace."));
@@ -96,7 +100,7 @@ function rebuildUi(workdir, callback) {
 /**
  * Reset UI to factory version and rebuild.
  */
-function resetUi(workdir, callback) {
+export function resetUi(workdir, callback) {
   const uiDir = getUiDir(workdir);
   const srcDir = "/app/workspace-src";
 
@@ -145,7 +149,7 @@ function resetUi(workdir, callback) {
 /**
  * Create a git checkpoint.
  */
-function createCheckpoint(workdir, callback) {
+export function createCheckpoint(workdir, callback) {
   const uiDir = getUiDir(workdir);
   if (!fs.existsSync(uiDir)) {
     return callback(new Error("Directory opencode-ui not found."));
@@ -184,7 +188,7 @@ function createCheckpoint(workdir, callback) {
 /**
  * List git checkpoints.
  */
-function listCheckpoints(workdir, callback) {
+export function listCheckpoints(workdir, callback) {
   const uiDir = getUiDir(workdir);
   if (!fs.existsSync(uiDir)) {
     return callback(null, []);
@@ -206,7 +210,7 @@ function listCheckpoints(workdir, callback) {
  * Rollback to a specific commit and rebuild.
  * hash is validated by caller (regex /^[a-fA-F0-9]{4,40}$/) — safe for execFile.
  */
-function rollbackToCommit(workdir, hash, callback) {
+export function rollbackToCommit(workdir, hash, callback) {
   const uiDir = getUiDir(workdir);
 
   execFile("git", ["reset", "--hard", hash], { cwd: uiDir, timeout: 30000 }, (err1) => {
@@ -234,14 +238,3 @@ function rollbackToCommit(workdir, hash, callback) {
     });
   });
 }
-
-module.exports = {
-  getUiDir,
-  isSelfImproveEnabled,
-  toggleSelfImprove,
-  rebuildUi,
-  resetUi,
-  createCheckpoint,
-  listCheckpoints,
-  rollbackToCommit,
-};

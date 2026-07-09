@@ -1,8 +1,6 @@
 /**
  * Upload handling: multipart parsing, file upload endpoints.
  */
-const fs = require("fs");
-const path = require("path");
 
 /**
  * Binary-safe Buffer.indexOf
@@ -17,7 +15,7 @@ function bufferIndexOf(buf, needle, start = 0) {
  * Parse multipart form data (binary-safe).
  * Returns array of { name, filename, data } objects.
  */
-function parseMultipart(buffer, boundary) {
+export function parseMultipart(buffer, boundary) {
   const parts = [];
   const boundaryBuf = Buffer.from(`--${boundary}`);
   const delimiterBuf = Buffer.from(`\r\n\r\n`);
@@ -67,7 +65,3 @@ function parseMultipart(buffer, boundary) {
   }
   return parts;
 }
-
-module.exports = {
-  parseMultipart,
-};

@@ -1,14 +1,15 @@
 /**
  * Tests for src/api/client.ts
  */
-import { configure, getConfig, api } from "../client";
+import { describe, test, expect, beforeEach, vi } from "vitest";
+import { configure, getConfig, api } from "../api/client";
 
 // Mock fetch
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 describe("client", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     configure({ baseUrl: "/api" });
   });
 
@@ -30,7 +31,7 @@ describe("client", () => {
 
   describe("api.health", () => {
     test("fetches health endpoint", async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: { get: () => "application/json" },
@@ -53,7 +54,7 @@ describe("client", () => {
   describe("api.listSessions", () => {
     test("fetches sessions", async () => {
       const sessions = [{ id: "1", title: "Test" }];
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: { get: () => "application/json" },
@@ -68,7 +69,7 @@ describe("client", () => {
   describe("api.prompt", () => {
     test("sends prompt with correct format", async () => {
       const message = { id: "1", content: "Response" };
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: { get: () => "application/json" },
@@ -92,7 +93,7 @@ describe("client", () => {
 
   describe("error handling", () => {
     test("throws on non-OK response", async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: false,
         status: 500,
         statusText: "Internal Server Error",
@@ -103,7 +104,7 @@ describe("client", () => {
     });
 
     test("throws on non-JSON response", async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: { get: () => "text/html" },
@@ -120,7 +121,7 @@ describe("client", () => {
     test("includes token from localStorage", async () => {
       localStorage.setItem("opencode_auth_token", "test-token");
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         status: 200,
         headers: { get: () => "application/json" },

@@ -1,13 +1,13 @@
 /**
  * Authentication module: password hashing, session management, rate limiting.
  */
-const crypto = require("crypto");
-const { loadJson, saveAuthJson } = require("./db.cjs");
+import crypto from "crypto";
+import { loadJson, saveAuthJson } from "./db.mjs";
 
 /**
  * Hash a password with scrypt. Returns "salt:hash" string.
  */
-function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+export function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const hash = crypto.scryptSync(password, salt, 64).toString("hex");
   return `${salt}:${hash}`;
 }
@@ -16,7 +16,7 @@ function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
  * Verify a password against a stored "salt:hash" string.
  * Uses timing-safe comparison to prevent timing attacks.
  */
-function verifyPassword(password, storedHash) {
+export function verifyPassword(password, storedHash) {
   if (!storedHash || typeof storedHash !== "string" || !storedHash.includes(":")) return false;
   if (!password || typeof password !== "string" || password.length === 0) return false;
   const [salt, originalHash] = storedHash.split(":");
@@ -52,9 +52,9 @@ function getConfiguredAdminEmails() {
  * A user is admin if:
  *  - their email is listed in OPENCODE_ADMIN_EMAILS, or
  *  - their stored user record has role === "admin" (set for the very first
- *    account registered on a fresh instance — see index.cjs register handler).
+ *    account registered on a fresh instance — see index.mjs register handler).
  */
-function isAdmin(email, usersFile) {
+export function isAdmin(email, usersFile) {
   if (!email) return false;
   const cleanEmail = email.toLowerCase().trim();
   if (getConfiguredAdminEmails().has(cleanEmail)) return true;
@@ -67,7 +67,7 @@ function isAdmin(email, usersFile) {
  * Extract user email from request token.
  * Returns null if token is invalid or expired.
  */
-function getUserEmail(req, sessionsFile, sessionTtlMs) {
+export function getUserEmail(req, sessionsFile, sessionTtlMs) {
   let token = (req.headers["x-auth-token"] || req.headers["authorization"] || "").replace(/^Bearer\s+/i, "").trim();
   if (!token && req.url.includes("token=")) {
     try { token = new URL(req.url, "http://localhost").searchParams.get("token") || ""; } catch (e) {}
@@ -83,7 +83,7 @@ function getUserEmail(req, sessionsFile, sessionTtlMs) {
  * Check if request has valid auth token.
  * Returns true if authenticated, false if unauthorized (sends 401 response).
  */
-function checkAuth(req, res, usersFile, sessionsFile, sessionTtlMs) {
+export function checkAuth(req, res, usersFile, sessionsFile, sessionTtlMs) {
   let token = (req.headers["x-auth-token"] || req.headers["authorization"] || "").replace(/^Bearer\s+/i, "").trim();
   if (!token && req.url.includes("token=")) {
     try { token = new URL(req.url, "http://localhost").searchParams.get("token") || ""; } catch (e) {}
@@ -123,7 +123,7 @@ const AUTH_MAX_ATTEMPTS = 10;
 /**
  * Check auth rate limit. Returns true if allowed, false if rate limited.
  */
-function checkAuthRateLimit(req, res) {
+export function checkAuthRateLimit(req, res) {
   const ip = req.socket.remoteAddress || "unknown";
   const now = Date.now();
   let record = authAttempts.get(ip);
@@ -150,17 +150,7 @@ function checkAuthRateLimit(req, res) {
 /**
  * Reset rate limit for a request (after successful auth).
  */
-function resetAuthRateLimit(req) {
+export function resetAuthRateLimit(req) {
   const ip = req.socket.remoteAddress || "unknown";
   authAttempts.delete(ip);
 }
-
-module.exports = {
-  hashPassword,
-  verifyPassword,
-  getUserEmail,
-  checkAuth,
-  checkAuthRateLimit,
-  resetAuthRateLimit,
-  isAdmin,
-};

@@ -1,6 +1,6 @@
 /**
  * Production server: serves the built React frontend AND proxies /api/* to OpenCode system instance.
- * 
+ *
  * ARCHITECTURE (post-fix, cleaned):
  * - Single OpenCode system instance on :4096 handles all sessions
  * - Per-session workspace isolation via ?directory=/app/workspace/sessions/{id}/workspace
@@ -9,24 +9,29 @@
  * - Frontend polls listMessages every 500ms as fallback for smooth streaming, plus global SSE
  */
 
-const http = require("http");
-const httpProxy = require("http-proxy");
-const fs = require("fs");
-const path = require("path");
+import http from "http";
+import httpProxy from "http-proxy";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import { fileURLToPath } from "url";
 
 // Import modules
-const { loadJson, saveJson, saveAuthJson } = require("./db.cjs");
-const { hashPassword, verifyPassword, getUserEmail, checkAuth, checkAuthRateLimit, resetAuthRateLimit, isAdmin } = require("./auth.cjs");
-const { setSecurityHeaders, readBody, checkRateLimit, MAX_BODY_BYTES, MAX_JSON_BODY_BYTES, checkUploadRateLimit } = require("./middleware.cjs");
-const { parseMultipart } = require("./upload.cjs");
-const { getUiDir, isSelfImproveEnabled, toggleSelfImprove, rebuildUi, resetUi, createCheckpoint, listCheckpoints, rollbackToCommit } = require("./self-improve.cjs");
+import { loadJson, saveJson, saveAuthJson } from "./db.mjs";
+import { hashPassword, verifyPassword, getUserEmail, checkAuth, checkAuthRateLimit, resetAuthRateLimit, isAdmin } from "./auth.mjs";
+import { setSecurityHeaders, readBody, checkRateLimit, MAX_BODY_BYTES, MAX_JSON_BODY_BYTES, checkUploadRateLimit } from "./middleware.mjs";
+import { parseMultipart } from "./upload.mjs";
+import { getUiDir, isSelfImproveEnabled, toggleSelfImprove, rebuildUi, resetUi, createCheckpoint, listCheckpoints, rollbackToCommit } from "./self-improve.mjs";
+import AdmZip from "adm-zip";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Config
 const SYSTEM_PORT = parseInt(process.env.OC_SYSTEM_PORT || "4096", 10);
 const PORT = process.env.PORT || 3000;
 const DIST = path.join(__dirname, "..", "dist");
 const WORKDIR = process.env.OPENCODE_WORKDIR || "/app/workspace";
-const crypto = require("crypto");
 
 // Files
 const USERS_FILE = path.join(WORKDIR, ".users.json");
@@ -284,7 +289,7 @@ const server = http.createServer((req, res) => {
         // The very first account registered on a fresh instance becomes admin.
         // Admin is required to enable Self-Improvement Mode and trigger rebuilds/
         // rollbacks, since those operations mutate the shared UI source for
-        // every user of this deployment (see server/self-improve.cjs).
+        // every user of this deployment (see server/self-improve.mjs).
         const role = Object.keys(users).length === 0 ? "admin" : "user";
         users[cleanEmail] = { email: cleanEmail, passwordHash: hashPassword(password), createdAt: Date.now(), role };
         saveAuthJson(USERS_FILE, users);
@@ -552,7 +557,12 @@ const server = http.createServer((req, res) => {
       console.log("[Upload] Saved: " + dest + " (" + part.data.length + " bytes)");
       let entryCount = null;
       const ext = path.extname(safeName).toLowerCase();
-      if (ext === ".zip") { try { const AdmZip = require("adm-zip"); const zip = new AdmZip(dest); entryCount = zip.getEntries().filter((e) => !e.isDirectory).length; } catch (e) { console.error("[Upload] Failed to read zip entries for " + safeName + ":", e.message); } }
+      if (ext === ".zip") {
+        try {
+          const zip = new AdmZip(dest);
+          entryCount = zip.getEntries().filter((e) => !e.isDirectory).length;
+        } catch (e) { console.error("[Upload] Failed to read zip entries for " + safeName + ":", e.message); }
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, path: relativePath, size: part.data.length, entryCount: entryCount }));
     }).catch(() => { res.writeHead(413, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "File too large (max 50 MB)" })); });
@@ -579,7 +589,7 @@ const server = http.createServer((req, res) => {
           "Content-Length": Buffer.byteLength(body),
         },
       };
-      const proxyReq = require("http").request(opts, (proxyRes) => {
+      const proxyReq = http.request(opts, (proxyRes) => {
         let respBody = "";
         proxyRes.on("data", (c) => { respBody += c; });
         proxyRes.on("end", () => {
@@ -587,13 +597,13 @@ const server = http.createServer((req, res) => {
             const session = JSON.parse(respBody);
             const sid = session.id;
             if (sid && isValidSessionId(sid)) {
-              const sessionWorkspace = require("path").join(WORKDIR, "sessions", sid, "workspace");
+              const sessionWorkspace = path.join(WORKDIR, "sessions", sid, "workspace");
               try {
-                if (require("fs").existsSync(sessionWorkspace)) {
-                  require("fs").rmSync(sessionWorkspace, { recursive: true, force: true });
+                if (fs.existsSync(sessionWorkspace)) {
+                  fs.rmSync(sessionWorkspace, { recursive: true, force: true });
                 }
-                require("fs").mkdirSync(sessionWorkspace, { recursive: true });
-                require("fs").mkdirSync(require("path").join(sessionWorkspace, "uploads"), { recursive: true });
+                fs.mkdirSync(sessionWorkspace, { recursive: true });
+                fs.mkdirSync(path.join(sessionWorkspace, "uploads"), { recursive: true });
                 console.log(`[New Chat] Created empty workspace for ${sid}: ${sessionWorkspace} (Claude-like isolation)`);
               } catch (e) {
                 console.error(`[New Chat] Failed to create workspace for ${sid}:`, e.message);

@@ -1,7 +1,8 @@
 /**
  * Tests for src/api/events.ts
  */
-import { EventStream } from "../events";
+import { describe, test, expect, beforeEach, vi } from "vitest";
+import { EventStream } from "../api/events";
 
 // Mock EventSource
 class MockEventSource {
@@ -16,11 +17,6 @@ class MockEventSource {
   constructor(url: string) {
     this.url = url;
     MockEventSource.instances.push(this);
-    // Simulate async connection
-    setTimeout(() => {
-      this.readyState = 1;
-      this.onopen?.();
-    }, 0);
   }
 
   addEventListener(type: string, listener: (event: { data: string }) => void) {
@@ -53,10 +49,10 @@ class MockEventSource {
 
 // Mock localStorage
 const localStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
 };
 Object.defineProperty(window, "localStorage", { value: localStorageMock });
 
@@ -83,9 +79,9 @@ describe("EventStream", () => {
     expect(MockEventSource.instances[0].url).toContain("token=test-token");
   });
 
-  test("dispatches named events to handlers", (done) => {
+  test("dispatches named events to handlers", () => new Promise<void>((done) => {
     const stream = new EventStream("http://localhost:3000/api/event");
-    
+
     stream.on((event) => {
       expect(event.type).toBe("session.created");
       expect(event.properties).toEqual({ id: "123" });
@@ -101,11 +97,11 @@ describe("EventStream", () => {
         JSON.stringify({ id: "123" })
       );
     }, 10);
-  });
+  }));
 
-  test("dispatches unnamed events as 'message'", (done) => {
+  test("dispatches unnamed events as 'message'", () => new Promise<void>((done) => {
     const stream = new EventStream("http://localhost:3000/api/event");
-    
+
     stream.on((event) => {
       expect(event.type).toBe("message");
       done();
@@ -116,9 +112,9 @@ describe("EventStream", () => {
     setTimeout(() => {
       MockEventSource.instances[0].simulateEvent("message", "test data");
     }, 10);
-  });
+  }));
 
-  test("reconnects on error", (done) => {
+  test("reconnects on error", () => new Promise<void>((done) => {
     const stream = new EventStream("http://localhost:3000/api/event");
     stream.connect();
 
@@ -130,28 +126,29 @@ describe("EventStream", () => {
       expect(MockEventSource.instances).toHaveLength(2);
       done();
     }, 1100);
-  });
+  }));
 
-  test("stops reconnecting after max attempts", (done) => {
-    const stream = new EventStream("http://localhost:3000/api/event");
-    stream.connect();
+  test("stops reconnecting after max attempts", () => {
+    vi.useFakeTimers();
+    try {
+      const stream = new EventStream("http://localhost:3000/api/event");
+      stream.connect();
 
-    // Simulate many errors
-    for (let i = 0; i < 50; i++) {
-      MockEventSource.instances[i].simulateError();
-      jest.advanceTimersByTime(1000 * Math.pow(2, i));
-    }
+      // Drive 50 errors; advance fake timers so each scheduled reconnect fires.
+      for (let i = 0; i < 50; i++) {
+        MockEventSource.instances[i].simulateError();
+        vi.advanceTimersByTime(60000);
+      }
 
-    // Should not create more instances
-    setTimeout(() => {
       const initialCount = MockEventSource.instances.length;
+      // One more error must NOT create a new instance (max reached).
       MockEventSource.instances[initialCount - 1].simulateError();
-      
-      setTimeout(() => {
-        expect(MockEventSource.instances.length).toBe(initialCount);
-        done();
-      }, 100);
-    }, 100);
+      vi.advanceTimersByTime(60000);
+
+      expect(MockEventSource.instances.length).toBe(initialCount);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("cleans up on close", () => {
@@ -166,7 +163,7 @@ describe("EventStream", () => {
 
   test("removes handler when unsubscribing", () => {
     const stream = new EventStream("http://localhost:3000/api/event");
-    const handler = jest.fn();
+    const handler = vi.fn();
     
     const unsubscribe = stream.on(handler);
     stream.connect();

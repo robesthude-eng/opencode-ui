@@ -2,13 +2,13 @@ import React, { memo } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Part } from "../api/types";
-import { ReactNode } from "react";
+import { ReactNode, ComponentPropsWithoutRef } from "react";
 import ToolCard from "./ToolCard";
 import CopyButton from "./CopyButton";
 import { formatSize } from "../api/files";
 
-const SAFE_MD_COMPONENTS: Components = {
-  a: ({ href, children }) => {
+const SAFE_MD_COMPONENTS = {
+  a: ({ href, children }: { href?: string; children?: ReactNode }) => {
     if (typeof href === "string" && /^javascript:/i.test(href.trim())) {
       return <span>{children as ReactNode}</span>;
     }
@@ -18,10 +18,10 @@ const SAFE_MD_COMPONENTS: Components = {
       </a>
     );
   },
-  pre: ({ children, ...props }) => {
+  pre: ({ children, ...props }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => {
     let codeText = "";
     try {
-      const child = React.Children.only(children) as React.ReactElement;
+      const child = React.Children.only(children) as React.ReactElement<{ children?: string | string[] }>;
       if (child && child.props && typeof child.props.children === "string") {
         codeText = child.props.children;
       } else if (child && child.props && Array.isArray(child.props.children)) {
@@ -37,7 +37,7 @@ const SAFE_MD_COMPONENTS: Components = {
       </div>
     );
   },
-};
+} as Components;
 
 const HIDDEN_TYPES = new Set([
   "file",
