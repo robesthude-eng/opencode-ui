@@ -1,0 +1,67 @@
+/**
+ * Tests for server/middleware.cjs
+ */
+const { setSecurityHeaders, readBody, checkRateLimit } = require("../middleware.cjs");
+
+describe("setSecurityHeaders", () => {
+  test("sets all required security headers", () => {
+    const res = { setHeader: jest.fn() };
+    setSecurityHeaders(res);
+    
+    expect(res.setHeader).toHaveBeenCalledWith("X-Content-Type-Options", "nosniff");
+    expect(res.setHeader).toHaveBeenCalledWith("X-Frame-Options", "DENY");
+    expect(res.setHeader).toHaveBeenCalledWith("Referrer-Policy", "strict-origin-when-cross-origin");
+    expect(res.setHeader).toHaveBeenCalledWith("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    expect(res.setHeader).toHaveBeenCalledWith("Content-Security-Policy", expect.stringContaining("default-src 'self'"));
+  });
+});
+
+describe("readBody", () => {
+  test("reads body within size limit", async () => {
+    const chunks = [Buffer.from("hello"), Buffer.from(" world")];
+    const req = {
+      on: (event, callback) => {
+        if (event === "data") chunks.forEach(chunk => callback(chunk));
+        else if (event === "end") callback();
+      },
+      destroy: jest.fn(),
+    };
+    
+    const result = await readBody(req, 100);
+    expect(result.toString()).toBe("hello world");
+    expect(req.destroy).not.toHaveBeenCalled();
+  });
+
+  test("destroys request when body exceeds limit", async () => {
+    const req = {
+      on: (event, callback) => {
+        if (event === "data") { callback(Buffer.alloc(100)); callback(Buffer.alloc(100)); }
+        else if (event === "end") callback();
+      },
+      destroy: jest.fn(),
+    };
+    
+    await expect(readBody(req, 150)).rejects.toThrow("Body too large");
+    expect(req.destroy).toHaveBeenCalled();
+  });
+
+  test("rejects on request error", async () => {
+    const req = {
+      on: (event, callback) => {
+        if (event === "error") callback(new Error("Network error"));
+      },
+      destroy: jest.fn(),
+    };
+    
+    await expect(readBody(req)).rejects.toThrow("Network error");
+  });
+});
+
+describe("checkRateLimit", () => {
+  test("allows first request", () => {
+    const res = { writeHead: jest.fn(), end: jest.fn() };
+    // Use a unique mock to avoid state leakage
+    expect(checkRateLimit(res)).toBe(true);
+    expect(res.writeHead).not.toHaveBeenCalled();
+  });
+});
