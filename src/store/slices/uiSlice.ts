@@ -6,7 +6,8 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
   settingsOpen: false,
   sidebarOpen: false,
   sidebarCollapsed: false,
-  workspaceOpen: typeof window !== "undefined" && window.innerWidth >= 1024,
+  // Default closed — opening workspace on every load + self-improve toggle was heavy
+  workspaceOpen: false,
   selfImproveEnabled:
     typeof window !== "undefined" && localStorage.getItem("opencode_self_improve") === "true",
 

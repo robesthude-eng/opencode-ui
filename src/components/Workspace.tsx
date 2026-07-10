@@ -215,15 +215,18 @@ export default function Workspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceOpen]);
 
-  // Reset tree when self-improve toggles so we don't keep expanded heavy paths
+  // When self-improve toggles: clear expansion only. Do NOT refresh immediately —
+  // a full listDir+render on the same tick as the toggle was freezing the tab.
+  // Next poll (5s) or user refresh will reload with the new filter.
   useEffect(() => {
-    setTree([]);
     setExpanded(new Set([""]));
     setActiveFile(null);
-    if (workspaceOpen) {
-      void refresh();
-      void loadGit();
-    }
+    // Soft filter in place: drop disallowed nodes from current tree without network
+    setTree((prev) => {
+      if (!prev.length) return prev;
+      // Force remount of tree by clearing; poll will refill
+      return [];
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selfImproveEnabled]);
 

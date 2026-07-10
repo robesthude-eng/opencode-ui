@@ -45,56 +45,30 @@ export function isSelfImproveEnabled(workdir) {
 }
 
 /**
- * Soft write-guard on UI sources only (never full-tree chmod).
- * chmod -R on node_modules/.git/dist freezes the container for seconds–minutes.
- */
-function softChmodUiSources(uiDir, writable) {
-  const targets = [
-    uiDir,
-    path.join(uiDir, "src"),
-    path.join(uiDir, "public"),
-    path.join(uiDir, "index.html"),
-    path.join(uiDir, "package.json"),
-    path.join(uiDir, "vite.config.ts"),
-    path.join(uiDir, "tsconfig.json"),
-    path.join(uiDir, "tsconfig.node.json"),
-    path.join(uiDir, "biome.json"),
-    path.join(uiDir, "vitest.config.ts"),
-    path.join(uiDir, "SELF_IMPROVE.md"),
-    path.join(uiDir, "SELF_IMPROVE_GUIDE.md"),
-  ];
-  const mode = writable ? "u+w" : "a-w";
-  for (const t of targets) {
-    if (!fs.existsSync(t)) continue;
-    // Non-recursive for files; shallow for directories (src only, recursive but small)
-    const args = fs.statSync(t).isDirectory()
-      ? t.endsWith(`${path.sep}src`) || t.endsWith("/src") || t === path.join(uiDir, "src")
-        ? ["-R", mode, t]
-        : [mode, t]
-      : [mode, t];
-    execFile("chmod", args, { timeout: 5000 }, () => {});
-  }
-}
-
-/**
  * Toggle self-improve mode.
- * Writes flag immediately; chmod is best-effort and never walks node_modules.
+ * Flag-only — never chmod. In Docker, chmod -R was freezing the event loop
+ * (and is not a real security boundary for root processes anyway).
+ * Write access is gated by sandbox allowlist + admin routes, not filesystem mode.
  */
 export function toggleSelfImprove(workdir, enabled) {
   const flagFile = path.join(workdir, ".self_improve_mode");
   fs.mkdirSync(workdir, { recursive: true });
-  fs.writeFileSync(flagFile, String(!!enabled), "utf8");
-
-  const uiDir = getUiDir(workdir);
+  // Always keep the flag file writable for the next toggle
   try {
-    softChmodUiSources(uiDir, !!enabled);
-  } catch (e) {
-    console.warn("[Self-Improvement] soft chmod skipped:", e.message);
+    fs.chmodSync(flagFile, 0o644);
+  } catch {
+    /* may not exist yet */
+  }
+  fs.writeFileSync(flagFile, String(!!enabled), "utf8");
+  try {
+    fs.chmodSync(flagFile, 0o644);
+  } catch {
+    /* ignore */
   }
   console.log(
     enabled
-      ? "[Self-Improvement] ENABLED (src write permissions restored)"
-      : "[Self-Improvement] DISABLED (src soft read-only)",
+      ? "[Self-Improvement] ENABLED (flag only, no chmod)"
+      : "[Self-Improvement] DISABLED (flag only, no chmod)",
   );
 }
 

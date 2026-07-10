@@ -336,17 +336,20 @@ export default function SettingsPanel() {
     }
   }, [open, loadAuth, isAdminUser]);
 
-  // Keep health + logs fresh while admin is on self-improve tab
+  // Keep health + logs fresh while admin is on self-improve tab (staggered, not 4 parallel)
   useEffect(() => {
-    if (!open || activeTab !== "self-improve" || !isAdminUser) return;
+    if (!open || activeTab !== "self-improve" || !isAdminUser || toggleBusy) return;
+    let tick = 0;
     const id = setInterval(() => {
-      loadHealth();
-      loadAuditLogs();
-      loadDistSnapshots();
-      loadDbBackups();
-    }, 8000);
+      tick += 1;
+      // Round-robin so we never hammer the server with 4 concurrent requests
+      if (tick % 4 === 1) void loadHealth();
+      else if (tick % 4 === 2) void loadAuditLogs();
+      else if (tick % 4 === 3) void loadDistSnapshots();
+      else void loadDbBackups();
+    }, 10000);
     return () => clearInterval(id);
-  }, [open, activeTab, isAdminUser]);
+  }, [open, activeTab, isAdminUser, toggleBusy]);
 
   if (!open) return null;
 
