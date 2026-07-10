@@ -1,6 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { memo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ToolPart } from "../api/types";
 import { toolIcon } from "../utils/toolUtils";
@@ -8,9 +7,7 @@ import ToolCard from "./ToolCard";
 
 function getState(part: ToolPart): string {
   const s = part.state;
-  if (typeof s === "string") {
-    return s === "pending" ? "running" : s;
-  }
+  if (typeof s === "string") return s === "pending" ? "running" : s;
   if (s && typeof s === "object") {
     const status = (s as any).status ?? "running";
     return status === "pending" ? "running" : status;
@@ -18,59 +15,56 @@ function getState(part: ToolPart): string {
   return "running";
 }
 
-const stateStyles: Record<string, string> = {
-  running: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-  pending: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-  completed: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-  error: "text-red-400 bg-red-500/10 border-red-500/20",
-};
+function groupLabel(tool: string, count: number): string {
+  const t = tool.toLowerCase();
+  if (t === "bash" || t === "shell" || t === "cmd") {
+    return count === 1 ? "Ran command" : `Ran commands ${count}`;
+  }
+  if (t === "edit" || t === "write" || t === "applypatch") {
+    return count === 1 ? "Edited file" : `Edited files ${count}`;
+  }
+  if (t === "read") return count === 1 ? "Read file" : `Read files ${count}`;
+  return `${tool} ×${count}`;
+}
 
 const ToolGroup = ({ tool, parts }: { tool: string; parts: ToolPart[] }) => {
   const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
   const anyRunning = parts.some((p) => getState(p) === "running");
   const anyError = parts.some((p) => getState(p) === "error");
-  const aggState = anyRunning ? "running" : anyError ? "error" : "completed";
-  const toolName = typeof tool === "string" ? tool : "tool";
+  // Arena-like: groups collapsed unless running
   const expanded = manuallyToggled ?? anyRunning;
+  const toolName = typeof tool === "string" ? tool : "tool";
 
   return (
-    <div className="not-prose my-2 overflow-hidden rounded-xl border border-border bg-card/60">
+    <div className="not-prose my-1.5 overflow-hidden rounded-xl border border-border/70 bg-[#12121a]/90">
       <button
         type="button"
-        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/50 transition"
+        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-white/[0.03] transition"
         onClick={() => setManuallyToggled((e) => (e === null ? false : !e))}
       >
         <span
           className={cn(
-            "flex h-6 w-6 items-center justify-center rounded-md border text-[11px]",
-            stateStyles[aggState] ?? stateStyles.running,
+            "h-1.5 w-1.5 shrink-0 rounded-full",
+            anyRunning ? "bg-amber-400 animate-pulse" : anyError ? "bg-red-400" : "bg-emerald-400",
           )}
-        >
+        />
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground">
           {toolIcon(toolName)}
         </span>
-        <span className="text-xs font-semibold">{toolName}</span>
-        <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-          {parts.length}
-        </Badge>
+        <span className="text-[12.5px] font-medium text-foreground/90">
+          {groupLabel(toolName, parts.length)}
+        </span>
         <span className="flex-1" />
-        <span className="text-muted-foreground">
+        <span className="text-muted-foreground/80">
           {expanded ? (
             <ChevronDown className="h-3.5 w-3.5" />
           ) : (
             <ChevronRight className="h-3.5 w-3.5" />
           )}
         </span>
-        <span
-          className={cn(
-            "rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-            stateStyles[aggState] ?? stateStyles.running,
-          )}
-        >
-          {anyRunning ? "running" : aggState}
-        </span>
       </button>
       {expanded && (
-        <div className="space-y-1 border-t border-border p-2">
+        <div className="space-y-1 border-t border-border/50 p-1.5">
           {parts.map((part, i) => (
             <ToolCard key={i} part={part} />
           ))}

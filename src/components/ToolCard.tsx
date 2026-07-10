@@ -1,4 +1,4 @@
-import { ArrowRight, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, Terminal } from "lucide-react";
 import { memo, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,9 +19,7 @@ function fmt(value: unknown): string {
 
 function getState(part: ToolPart): string {
   const s = part.state;
-  if (typeof s === "string") {
-    return s === "pending" ? "running" : s;
-  }
+  if (typeof s === "string") return s === "pending" ? "running" : s;
   if (s && typeof s === "object") {
     const status = (s as ToolState).status ?? "running";
     return status === "pending" ? "running" : status;
@@ -38,11 +36,8 @@ function getInput(part: ToolPart): unknown {
 function getOutput(part: ToolPart): string {
   const s = part.state;
   let out: unknown;
-  if (s && typeof s === "object") {
-    out = (s as ToolState).output;
-  } else {
-    out = part.output;
-  }
+  if (s && typeof s === "object") out = (s as ToolState).output;
+  else out = part.output;
   if (out == null) return "";
   if (typeof out === "string") return out;
   if (typeof out === "object") {
@@ -57,22 +52,34 @@ function getSummary(part: ToolPart): string {
   const s = part.state;
   if (s && typeof s === "object") {
     const title = (s as ToolState).title;
-    if (title) return title.length > 60 ? `${title.slice(0, 57)}…` : title;
+    if (title) return title.length > 72 ? `${title.slice(0, 69)}…` : title;
   }
   const input = getInput(part) as Record<string, unknown> | undefined;
   if (!input) return "";
   for (const k of ["filePath", "path", "command", "pattern", "query", "description"]) {
     const v = input[k];
-    if (typeof v === "string" && v) return v.length > 60 ? `${v.slice(0, 57)}…` : v;
+    if (typeof v === "string" && v) return v.length > 72 ? `${v.slice(0, 69)}…` : v;
   }
   return "";
 }
 
-const stateStyles: Record<string, string> = {
-  running: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-  pending: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-  completed: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-  error: "text-red-400 bg-red-500/10 border-red-500/20",
+function friendlyToolLabel(tool?: string): string {
+  const t = (tool || "tool").toLowerCase();
+  if (t === "bash" || t === "shell" || t === "cmd") return "Ran command";
+  if (t === "edit" || t === "applypatch" || t === "write") return "Edited file";
+  if (t === "read") return "Read file";
+  if (t === "glob" || t === "grep" || t === "list" || t === "ls") return "Searched";
+  if (t === "webfetch" || t === "websearch" || t === "fetch" || t === "search") return "Web";
+  if (t === "task") return "Task";
+  if (t === "question") return "Question";
+  return tool || "Tool";
+}
+
+const stateDot: Record<string, string> = {
+  running: "bg-amber-400 animate-pulse",
+  pending: "bg-amber-400 animate-pulse",
+  completed: "bg-emerald-400",
+  error: "bg-red-400",
 };
 
 /* ---------- Question tool card ---------- */
@@ -87,7 +94,6 @@ interface QuestionItem {
 function parseQuestions(input: unknown): QuestionItem[] {
   if (!input || typeof input !== "object") return [];
   const obj = input as Record<string, unknown>;
-
   if (Array.isArray(obj.questions)) {
     return obj.questions.map((q: any) => ({
       question: q.question || q.text || "",
@@ -106,7 +112,6 @@ function parseQuestions(input: unknown): QuestionItem[] {
       allowCustomResponse: q.allowCustomResponse ?? q.allowCustom ?? true,
     }));
   }
-
   if (obj.question || obj.options) {
     return [
       {
@@ -127,7 +132,6 @@ function parseQuestions(input: unknown): QuestionItem[] {
       },
     ];
   }
-
   return [];
 }
 
@@ -139,7 +143,6 @@ function QuestionCard({ part }: { part: ToolPart }) {
   const [customText, setCustomText] = useState<Record<number, string>>({});
   const [answered, setAnswered] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState<Record<number, number | null>>({});
-
   const isWaiting = state === "running";
 
   const handleOptionClick = useCallback(
@@ -163,38 +166,30 @@ function QuestionCard({ part }: { part: ToolPart }) {
     [answered, isWaiting, customText, send],
   );
 
-  if (questions.length === 0) {
-    return <DefaultToolCard part={part} />;
-  }
+  if (questions.length === 0) return <DefaultToolCard part={part} />;
 
   return (
     <div
       className={cn(
-        "not-prose my-2 overflow-hidden rounded-xl border",
+        "not-prose my-1.5 overflow-hidden rounded-xl border",
         answered || !isWaiting
-          ? "border-emerald-500/30 bg-emerald-500/5"
-          : "border-info/30 bg-info/5",
+          ? "border-emerald-500/25 bg-emerald-500/[0.04]"
+          : "border-violet-500/25 bg-violet-500/[0.04]",
       )}
     >
       {questions.map((q, qIdx) => (
         <div
           key={qIdx}
-          className={cn("flex flex-col gap-2.5 p-4", qIdx > 0 && "border-t border-border")}
+          className={cn("flex flex-col gap-2 p-3", qIdx > 0 && "border-t border-border/60")}
         >
           {q.header && (
-            <div
-              className={cn(
-                "text-[11px] font-bold uppercase tracking-wider",
-                answered || !isWaiting ? "text-emerald-400" : "text-info",
-              )}
-            >
+            <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300/90">
               {q.header}
             </div>
           )}
-          {q.question && <div className="text-sm font-medium leading-relaxed">{q.question}</div>}
-
+          {q.question && <div className="text-[13.5px] font-medium leading-snug">{q.question}</div>}
           {q.options && q.options.length > 0 && (
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               {q.options.map((opt, optIdx) => {
                 const selected = selectedIdx[qIdx] === optIdx;
                 const disabled = answered || !isWaiting;
@@ -203,34 +198,30 @@ function QuestionCard({ part }: { part: ToolPart }) {
                     key={optIdx}
                     type="button"
                     className={cn(
-                      "flex w-full flex-col gap-0.5 rounded-xl border px-3.5 py-2.5 text-left transition",
+                      "flex w-full flex-col gap-0.5 rounded-lg border px-3 py-2 text-left transition",
                       selected
                         ? "border-primary bg-primary/10"
-                        : "border-border bg-card hover:border-primary/50 hover:bg-muted/50",
-                      disabled && !selected && "opacity-60 cursor-default",
-                      disabled && "cursor-default",
+                        : "border-border/80 bg-card/50 hover:border-primary/40 hover:bg-muted/40",
+                      disabled && "cursor-default opacity-70",
                     )}
                     onClick={() => handleOptionClick(qIdx, optIdx, opt.label || "")}
                     disabled={disabled}
                   >
-                    <span className="text-sm font-semibold">{opt.label}</span>
+                    <span className="text-[13px] font-semibold">{opt.label}</span>
                     {opt.description && (
-                      <span className="text-xs text-muted-foreground leading-snug">
-                        {opt.description}
-                      </span>
+                      <span className="text-[11px] text-muted-foreground">{opt.description}</span>
                     )}
                   </button>
                 );
               })}
             </div>
           )}
-
           {q.allowCustomResponse !== false && isWaiting && !answered && (
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-0.5 flex items-center gap-1.5">
               <Input
                 type="text"
-                className="h-9"
-                placeholder="Или введите свой ответ…"
+                className="h-8 text-[13px]"
+                placeholder="Или свой ответ…"
                 value={customText[qIdx] || ""}
                 onChange={(e) => setCustomText((prev) => ({ ...prev, [qIdx]: e.target.value }))}
                 onKeyDown={(e) => {
@@ -239,18 +230,17 @@ function QuestionCard({ part }: { part: ToolPart }) {
               />
               <Button
                 size="icon"
-                className="h-9 w-9 shrink-0 rounded-full"
+                className="h-8 w-8 shrink-0 rounded-full"
                 onClick={() => handleCustomSubmit(qIdx)}
                 disabled={!customText[qIdx]?.trim()}
               >
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </div>
           )}
-
           {answered && (
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-              <Check className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
+              <Check className="h-3 w-3" />
               Ответ отправлен
             </div>
           )}
@@ -260,8 +250,6 @@ function QuestionCard({ part }: { part: ToolPart }) {
   );
 }
 
-/* ---------- Default tool card ---------- */
-
 function DefaultToolCard({ part }: { part: ToolPart }) {
   const state = getState(part);
   const input = fmt(getInput(part));
@@ -269,35 +257,36 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
   const summary = getSummary(part);
   const hasBody = Boolean(input || output);
   const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
+  // Arena-like: collapse completed tools by default
   const expanded = manuallyToggled ?? state === "running";
   const toolName = part.tool;
+  const label = friendlyToolLabel(toolName);
 
   return (
-    <div className="not-prose my-1.5 overflow-hidden rounded-xl border border-border bg-card/60">
-      <div
+    <div className="not-prose my-1 overflow-hidden rounded-xl border border-border/70 bg-[#12121a]/90">
+      <button
+        type="button"
         className={cn(
-          "flex items-center gap-2 px-3 py-2",
-          hasBody && "cursor-pointer hover:bg-muted/40 transition",
+          "flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition",
+          hasBody && "hover:bg-white/[0.03]",
         )}
         onClick={hasBody ? () => setManuallyToggled((e) => (e === null ? false : !e)) : undefined}
       >
         <span
-          className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-[11px]",
-            stateStyles[state] ?? stateStyles.running,
-          )}
-        >
-          {toolIcon(toolName)}
+          className={cn("h-1.5 w-1.5 shrink-0 rounded-full", stateDot[state] || stateDot.running)}
+        />
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground">
+          {toolIcon(toolName) || <Terminal className="h-3.5 w-3.5" />}
         </span>
-        <span className="text-xs font-semibold">{toolName}</span>
+        <span className="text-[12.5px] font-medium text-foreground/90">{label}</span>
         {summary && (
-          <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
             {summary}
           </span>
         )}
         {!summary && <span className="flex-1" />}
         {hasBody && (
-          <span className="text-muted-foreground">
+          <span className="text-muted-foreground/80">
             {expanded ? (
               <ChevronDown className="h-3.5 w-3.5" />
             ) : (
@@ -305,29 +294,16 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
             )}
           </span>
         )}
-        <span
-          className={cn(
-            "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide border",
-            stateStyles[state] ?? stateStyles.running,
-          )}
-        >
-          {state}
-        </span>
-      </div>
+      </button>
       {hasBody && expanded && (
-        <div className="space-y-2 border-t border-border px-3 py-2">
+        <div className="space-y-1.5 border-t border-border/50 px-2.5 py-2">
           {input && (
-            <details open={state === "running" || state === "pending"} className="group">
-              <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
-                input
-              </summary>
-              <pre className="mt-1.5 max-h-40 overflow-auto rounded-lg bg-background/80 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
-                {input}
-              </pre>
-            </details>
+            <pre className="max-h-36 overflow-auto rounded-lg bg-black/35 p-2 font-mono text-[11px] leading-relaxed text-zinc-300/90 whitespace-pre-wrap break-all">
+              {input}
+            </pre>
           )}
           {output && (
-            <pre className="max-h-52 overflow-auto rounded-lg bg-background/80 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
+            <pre className="max-h-44 overflow-auto rounded-lg bg-black/35 p-2 font-mono text-[11px] leading-relaxed text-zinc-400 whitespace-pre-wrap break-all">
               {output}
             </pre>
           )}
@@ -337,15 +313,8 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
   );
 }
 
-/* ---------- Main ToolCard component ---------- */
-
 const ToolCard = ({ part }: { part: ToolPart }) => {
-  const toolName = part.tool?.toLowerCase() ?? "";
-
-  if (toolName === "question") {
-    return <QuestionCard part={part} />;
-  }
-
+  if ((part.tool || "").toLowerCase() === "question") return <QuestionCard part={part} />;
   return <DefaultToolCard part={part} />;
 };
 

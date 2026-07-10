@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -51,7 +51,7 @@ function toTree(nodes: { path: string; type?: string; isDirectory?: boolean }[])
   }
   const sort = (nodes: TreeNode[]): TreeNode[] => {
     nodes.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
-    nodes.forEach((n) => n.children && sort(n.children));
+    for (const n of nodes) if (n.children) sort(n.children);
     return nodes;
   };
   return sort(root.children ?? []);
@@ -73,6 +73,34 @@ const STATUS_COLORS: Record<string, string> = {
   renamed: "#60a5fa",
 };
 
+const HIDDEN_SEGMENTS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "dist-ssr",
+  "coverage",
+  ".vite",
+  ".cache",
+  ".turbo",
+  ".next",
+  ".arena",
+  "__pycache__",
+  ".config_opencode",
+  ".opencode_data",
+  ".local",
+  ".config",
+  ".users.json",
+  ".sessions.json",
+  ".session_owners.json",
+  ".admin_password",
+  ".self_improve_mode",
+  "package-lock.json",
+  "opencode.db",
+  "opencode.db-wal",
+  "opencode.db-shm",
+  "backups",
+]);
+
 export default function Workspace() {
   const workspaceOpen = useStore((s) => s.workspaceOpen);
   const setWorkspaceOpen = useStore((s) => s.setWorkspaceOpen);
@@ -92,191 +120,120 @@ export default function Workspace() {
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const treeRef = useRef<TreeNode[]>([]);
-
-  useEffect(() => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.multiple = true;
-    (input as any).webkitdirectory = true;
-    (input as any).directory = true;
-    (input as any).mozdirectory = true;
-    input.style.display = "none";
-    input.addEventListener("change", handleFolderUpload);
-    document.body.appendChild(input);
-    folderInputRef.current = input;
-    return () => {
-      input.removeEventListener("change", handleFolderUpload);
-      input.remove();
-      folderInputRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleFolderUpload]);
-
   const loadingDirs = useRef<Set<string>>(new Set());
+  const loadGen = useRef(0);
 
-  const HIDDEN_SEGMENTS = new Set([
-    "node_modules",
-    ".git",
-    "dist",
-    "dist-ssr",
-    "coverage",
-    ".vite",
-    ".cache",
-    ".turbo",
-    ".next",
-    ".arena",
-    "__pycache__",
-    ".config_opencode",
-    ".opencode_data",
-    ".local",
-    ".config",
-    ".users.json",
-    ".sessions.json",
-    ".session_owners.json",
-    ".admin_password",
-    ".self_improve_mode",
-    "package-lock.json",
-    "opencode.db",
-    "opencode.db-wal",
-    "opencode.db-shm",
-    "backups",
-  ]);
+  const filterNodes = useCallback(
+    (nodes: any[]) => {
+      if (!Array.isArray(nodes)) return [];
+      const mySessionIds = new Set(useStore.getState().sessions.map((s) => s.id));
+      return nodes.filter((n) => {
+        const raw = (n.path || "").replace(/\\/g, "/");
+        const parts = raw.split("/").filter(Boolean);
+        const p = parts[0] || "";
 
-  const filterNodes = (nodes: any[]) => {
-    if (!Array.isArray(nodes)) return [];
-    const mySessionIds = new Set(useStore.getState().sessions.map((s) => s.id));
-    return nodes.filter((n) => {
-      const raw = (n.path || "").replace(/\\/g, "/");
-      const parts = raw.split("/").filter(Boolean);
-      const p = parts[0] || "";
+        if (parts.some((seg: string) => HIDDEN_SEGMENTS.has(seg))) return false;
+        if (raw.endsWith(".tsbuildinfo") || raw.endsWith(".map")) return false;
 
-      // Hide heavy / secret segments anywhere in the path (not only root)
-      if (parts.some((seg: string) => HIDDEN_SEGMENTS.has(seg))) return false;
-      if (raw.endsWith(".tsbuildinfo") || raw.endsWith(".map")) return false;
+        if (!selfImproveEnabled && p === "opencode-ui") return false;
 
-      // UI sources only when self-improve is on; never dump whole monorepo tree by default
-      if (!selfImproveEnabled && p === "opencode-ui") {
-        return false;
-      }
-      // Even with self-improve, only show opencode-ui/src + a few config files at top level
-      if (selfImproveEnabled && p === "opencode-ui" && parts.length >= 2) {
-        const second = parts[1];
-        const allowedTop = new Set([
-          "src",
-          "public",
-          "index.html",
-          "package.json",
-          "vite.config.ts",
-          "tsconfig.json",
-          "tsconfig.node.json",
-          "biome.json",
-          "vitest.config.ts",
-          "SELF_IMPROVE.md",
-          "SELF_IMPROVE_GUIDE.md",
-        ]);
-        if (!allowedTop.has(second)) return false;
-      }
-
-      if ((p === "sessions" || p === "uploads" || p === "temp") && parts.length > 1) {
-        const sid = parts[1];
-        if (sid?.startsWith("ses_") && !mySessionIds.has(sid)) {
-          return false;
+        if (selfImproveEnabled && p === "opencode-ui" && parts.length >= 2) {
+          const allowedTop = new Set([
+            "src",
+            "public",
+            "index.html",
+            "package.json",
+            "vite.config.ts",
+            "tsconfig.json",
+            "tsconfig.node.json",
+            "biome.json",
+            "vitest.config.ts",
+            "SELF_IMPROVE.md",
+            "SELF_IMPROVE_GUIDE.md",
+          ]);
+          if (!allowedTop.has(parts[1])) return false;
         }
+
+        if ((p === "sessions" || p === "uploads" || p === "temp") && parts.length > 1) {
+          const sid = parts[1];
+          if (sid?.startsWith("ses_") && !mySessionIds.has(sid)) return false;
+        }
+        return true;
+      });
+    },
+    [selfImproveEnabled],
+  );
+
+  const loadDir = useCallback(
+    async (path: string) => {
+      if (!currentID) return [];
+      try {
+        const nodes = await api.listDir(path, currentID);
+        return Array.isArray(nodes)
+          ? toTree(filterNodes(nodes) as { path: string; type?: string; isDirectory?: boolean }[])
+          : [];
+      } catch (e: any) {
+        throw e instanceof Error ? e : new Error(String(e));
       }
-      return true;
-    });
-  };
+    },
+    [currentID, filterNodes],
+  );
 
-  const loadDir = async (path: string) => {
-    if (!currentID) return [];
-    try {
-      const nodes = await api.listDir(path, currentID);
-      return Array.isArray(nodes)
-        ? toTree(filterNodes(nodes) as { path: string; type?: string; isDirectory?: boolean }[])
-        : [];
-    } catch {
-      return [];
+  const refresh = useCallback(async () => {
+    if (!currentID) {
+      setTree([]);
+      setLoading(false);
+      setError(null);
+      return;
     }
-  };
-
-  treeRef.current = tree;
-  expandedRef.current = expanded;
-
-  useEffect(() => {
-    if (!workspaceOpen) return;
-    if (tree.length === 0) void refresh();
-    void loadGit();
-    // 5s is enough; 3s + heavy trees freezes UI when self-improve reveals sources
-    const poll = setInterval(() => {
-      void autoRefresh();
-      void loadGit();
-    }, 5000);
-    return () => clearInterval(poll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceOpen]);
-
-  // When self-improve toggles: clear expansion only. Do NOT refresh immediately —
-  // a full listDir+render on the same tick as the toggle was freezing the tab.
-  // Next poll (5s) or user refresh will reload with the new filter.
-  useEffect(() => {
-    setExpanded(new Set([""]));
-    setActiveFile(null);
-    // Soft filter in place: drop disallowed nodes from current tree without network
-    setTree((prev) => {
-      if (!prev.length) return prev;
-      // Force remount of tree by clearing; poll will refill
-      return [];
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selfImproveEnabled]);
-
-  // Reset when switching chats
-  useEffect(() => {
-    setTree([]);
-    setExpanded(new Set([""]));
-    setActiveFile(null);
-    if (workspaceOpen) void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentID]);
-
-  async function refresh() {
+    const gen = ++loadGen.current;
     setLoading(true);
     setError(null);
-    const t = await loadDir(".");
-    setTree(t);
-    setLoading(false);
-  }
+    try {
+      const t = await loadDir(".");
+      if (gen !== loadGen.current) return;
+      setTree(t);
+    } catch (e: any) {
+      if (gen !== loadGen.current) return;
+      setError(e?.message || "Не удалось загрузить файлы");
+      setTree([]);
+    } finally {
+      if (gen === loadGen.current) setLoading(false);
+    }
+  }, [currentID, loadDir]);
 
-  async function autoRefresh() {
-    const t = await loadDir(".");
-    const curExpanded = expandedRef.current;
-    const curTree = treeRef.current;
-
-    const merge = (fresh: TreeNode[], old: TreeNode[]): TreeNode[] =>
-      fresh.map((fn) => {
-        const oldNode = old.find((o) => o.path === fn.path);
-        if (fn.isDir && oldNode) {
-          if (curExpanded.has(fn.path)) {
+  const autoRefresh = useCallback(async () => {
+    if (!currentID) return;
+    try {
+      const t = await loadDir(".");
+      const curExpanded = expandedRef.current;
+      const curTree = treeRef.current;
+      const merge = (fresh: TreeNode[], old: TreeNode[]): TreeNode[] =>
+        fresh.map((fn) => {
+          const oldNode = old.find((o) => o.path === fn.path);
+          if (fn.isDir && oldNode) {
+            if (curExpanded.has(fn.path)) {
+              return {
+                ...fn,
+                children: oldNode.children ?? [],
+                loaded: oldNode.loaded ?? true,
+              };
+            }
             return {
               ...fn,
               children: oldNode.children ?? [],
-              loaded: oldNode.loaded ?? true,
+              loaded: oldNode.loaded ?? false,
             };
           }
-          return {
-            ...fn,
-            children: oldNode.children ?? [],
-            loaded: oldNode.loaded ?? false,
-          };
-        }
-        return fn;
-      });
+          return fn;
+        });
+      setTree(curTree.length === 0 ? t : merge(t, curTree));
+    } catch {
+      // silent poll errors
+    }
+  }, [currentID, loadDir]);
 
-    const merged = curTree.length === 0 ? t : merge(t, curTree);
-    setTree(merged);
-  }
-
-  async function loadGit() {
+  const loadGit = useCallback(async () => {
     if (!currentID) {
       setGitFiles([]);
       return;
@@ -288,9 +245,85 @@ export default function Workspace() {
     } catch {
       setGitFiles([]);
     }
-  }
+  }, [currentID, filterNodes]);
 
-  async function toggleDir(node: TreeNode) {
+  useEffect(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.multiple = true;
+    (input as any).webkitdirectory = true;
+    (input as any).directory = true;
+    (input as any).mozdirectory = true;
+    input.style.display = "none";
+    document.body.appendChild(input);
+    folderInputRef.current = input;
+    return () => {
+      input.remove();
+      folderInputRef.current = null;
+    };
+  }, []);
+
+  // bind upload handler
+  useEffect(() => {
+    const input = folderInputRef.current;
+    if (!input) return;
+    const handler = async (e: Event) => {
+      const el = e.target as HTMLInputElement;
+      const fileList = el.files;
+      if (!fileList || fileList.length === 0) return;
+      const files: { path: string; file: File }[] = [];
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        const relPath = (file as any).webkitRelativePath || file.name;
+        files.push({ path: relPath, file });
+      }
+      setUploading(true);
+      setUploadTotal(files.length);
+      setUploadProgress(0);
+      setUploadMsg(`Uploading ${files.length} files…`);
+      try {
+        const BATCH = 20;
+        for (let i = 0; i < files.length; i += BATCH) {
+          const batch = files.slice(i, i + BATCH);
+          await api.uploadFolder(batch);
+          setUploadProgress(Math.min(i + BATCH, files.length));
+        }
+        setUploadMsg(`Done! ${files.length} file(s) uploaded.`);
+        void refresh();
+        setTimeout(() => setUploadMsg(null), 3000);
+      } catch (err: any) {
+        setUploadMsg(`Error: ${err.message}`);
+        setTimeout(() => setUploadMsg(null), 5000);
+      } finally {
+        setUploading(false);
+        el.value = "";
+      }
+    };
+    input.addEventListener("change", handler);
+    return () => input.removeEventListener("change", handler);
+  }, [refresh]);
+
+  treeRef.current = tree;
+  expandedRef.current = expanded;
+
+  useEffect(() => {
+    if (!workspaceOpen) return;
+    void refresh();
+    void loadGit();
+    const poll = setInterval(() => {
+      void autoRefresh();
+      void loadGit();
+    }, 8000);
+    return () => clearInterval(poll);
+  }, [workspaceOpen, currentID, selfImproveEnabled, refresh, loadGit, autoRefresh]);
+
+  useEffect(() => {
+    setExpanded(new Set([""]));
+    setActiveFile(null);
+    setTree([]);
+  }, [selfImproveEnabled, currentID]);
+
+  const toggleDir = async (node: TreeNode) => {
     const next = new Set(expanded);
     expandedRef.current = next;
     if (next.has(node.path)) {
@@ -307,59 +340,23 @@ export default function Workspace() {
               if (n.children) return { ...n, children: update(n.children) };
               return n;
             });
-          setTree(update(tree));
+          setTree((prev) => update(prev));
         } finally {
           loadingDirs.current.delete(node.path);
         }
       }
     }
     setExpanded(next);
-  }
+  };
 
-  async function openFile(path: string) {
+  const openFile = async (path: string) => {
     try {
       const res = await api.readFile(path, currentID);
       setActiveFile({ path, content: res.content ?? res.text ?? "" });
     } catch {
       // ignore
     }
-  }
-
-  async function handleFolderUpload(e: Event) {
-    const input = e.target as HTMLInputElement;
-    const fileList = input.files;
-    if (!fileList || fileList.length === 0) return;
-
-    const files: { path: string; file: File }[] = [];
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      const relPath = (file as any).webkitRelativePath || file.name;
-      files.push({ path: relPath, file });
-    }
-
-    setUploading(true);
-    setUploadTotal(files.length);
-    setUploadProgress(0);
-    setUploadMsg(`Uploading ${files.length} files…`);
-
-    try {
-      const BATCH = 20;
-      for (let i = 0; i < files.length; i += BATCH) {
-        const batch = files.slice(i, i + BATCH);
-        await api.uploadFolder(batch);
-        setUploadProgress(Math.min(i + BATCH, files.length));
-      }
-      setUploadMsg(`Done! ${files.length} file(s) uploaded.`);
-      refresh();
-      setTimeout(() => setUploadMsg(null), 3000);
-    } catch (err: any) {
-      setUploadMsg(`Error: ${err.message}`);
-      setTimeout(() => setUploadMsg(null), 5000);
-    } finally {
-      setUploading(false);
-      input.value = "";
-    }
-  }
+  };
 
   const renderNode = (node: TreeNode, depth: number): ReactNode => {
     if (filter && !node.path.toLowerCase().includes(filter.toLowerCase())) {
@@ -374,11 +371,11 @@ export default function Workspace() {
       <div key={node.path}>
         <div
           className={cn(
-            "flex cursor-pointer select-none items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground",
+            "flex cursor-pointer select-none items-center gap-1.5 rounded-md px-1.5 py-1.5 text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground",
             !node.isDir && activeFile?.path === node.path && "bg-muted text-foreground",
           )}
           style={{ paddingLeft: 8 + depth * 14 }}
-          onClick={() => (node.isDir ? toggleDir(node) : openFile(node.path))}
+          onClick={() => (node.isDir ? void toggleDir(node) : void openFile(node.path))}
         >
           {node.isDir ? (
             <>
@@ -409,13 +406,19 @@ export default function Workspace() {
 
   return (
     <>
+      {/* Mobile backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+        onClick={() => setWorkspaceOpen(false)}
+      />
+
       {activeFile && (
         <>
           <div
             className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
             onClick={() => setActiveFile(null)}
           />
-          <div className="fixed left-1/2 top-1/2 z-[65] flex h-[min(560px,80vh)] w-[min(720px,90vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+          <div className="fixed left-1/2 top-1/2 z-[65] flex h-[min(560px,85dvh)] w-[min(720px,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <span className="truncate font-mono text-sm">{toRelPath(activeFile.path)}</span>
               <Button
@@ -434,27 +437,34 @@ export default function Workspace() {
         </>
       )}
 
-      <aside className="flex h-screen w-[300px] shrink-0 flex-col border-l border-border bg-card">
-        <header className="flex items-center justify-between border-b border-border px-3 py-3">
+      <aside
+        className={cn(
+          "z-50 flex flex-col border-border bg-card",
+          // Mobile: full-screen sheet from right
+          "fixed inset-y-0 right-0 w-full max-w-full border-l shadow-2xl md:static md:h-screen md:w-[300px] md:max-w-[300px] md:shrink-0 md:shadow-none",
+        )}
+      >
+        <header className="flex items-center justify-between border-b border-border px-3 py-3 safe-top">
           <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <GitBranchIcon size={15} />
             Workspace
-            <span className="live-dot" title="Auto-refreshing every 3s" />
+            <span className="live-dot" title="Auto-refresh" />
           </span>
           <div className="flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
-              onClick={refresh}
+              className="h-8 w-8"
+              onClick={() => void refresh()}
               title="Refresh now"
+              disabled={loading}
             >
               <RefreshIcon size={15} />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-8 w-8"
               onClick={() => setWorkspaceOpen(false)}
               title="Close"
             >
@@ -466,8 +476,8 @@ export default function Workspace() {
         <div className="border-b border-border px-2 py-2">
           <Button
             variant="outline"
-            className="h-8 w-full justify-start gap-2 border-dashed text-xs"
-            disabled={uploading}
+            className="h-9 w-full justify-start gap-2 border-dashed text-xs"
+            disabled={uploading || !currentID}
             onClick={() => folderInputRef.current?.click()}
             title="Upload entire folder with subfolders"
           >
@@ -495,7 +505,7 @@ export default function Workspace() {
               <SearchIcon size={14} />
             </span>
             <Input
-              className="h-8 pl-8 text-xs"
+              className="h-9 pl-8 text-xs"
               placeholder="Filter files…"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
@@ -513,9 +523,9 @@ export default function Workspace() {
               {gitFiles.slice(0, 8).map((f) => (
                 <button
                   type="button"
-                  className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs hover:bg-muted"
+                  className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-xs hover:bg-muted"
                   key={f.path}
-                  onClick={() => openFile(f.path)}
+                  onClick={() => void openFile(f.path)}
                   title={toRelPath(f.path)}
                 >
                   <span
@@ -534,23 +544,47 @@ export default function Workspace() {
         )}
 
         <ScrollArea className="flex-1">
-          <div className="px-2 py-2">
+          <div className="px-2 py-2 pb-8">
             {!currentID ? (
               <p className="px-2 py-3 text-xs text-muted-foreground">
-                Select or create a chat to see its workspace.
+                Выберите или создайте чат, чтобы увидеть workspace.
               </p>
             ) : (
               <>
                 {loading && tree.length === 0 && (
-                  <p className="px-2 py-3 text-xs text-muted-foreground">Loading…</p>
+                  <div className="px-2 py-6 text-center">
+                    <div className="mx-auto mb-2 h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+                    <p className="text-xs text-muted-foreground">Загрузка файлов…</p>
+                  </div>
                 )}
                 {error && (
-                  <div className="mx-1 mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-xs text-red-400">
-                    {error}
+                  <div className="mx-1 mb-2 space-y-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-2 text-xs text-red-400">
+                    <div>{error}</div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => void refresh()}
+                    >
+                      Повторить
+                    </Button>
                   </div>
                 )}
                 {!loading && tree.length === 0 && !error && (
-                  <p className="px-2 py-3 text-xs text-muted-foreground">No files found.</p>
+                  <div className="px-2 py-4 text-xs text-muted-foreground space-y-2">
+                    <p>Файлов пока нет в workspace этого чата.</p>
+                    <p className="text-[11px] opacity-80">
+                      Загрузите папку кнопкой выше или попросите агента создать файлы.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-8"
+                      onClick={() => void refresh()}
+                    >
+                      Обновить
+                    </Button>
+                  </div>
                 )}
                 {tree.map((n) => renderNode(n, 0))}
               </>

@@ -31,7 +31,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
 
@@ -55,10 +55,20 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
-    font-size: 15px;
-    line-height: 1.6;
+    font-size: 14.5px;
+    line-height: 1.55;
+    letter-spacing: -0.01em;
     position: fixed;
     inset: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safer mobile keyboard / notch */
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   /* Light theme tokens (set via [data-theme="light"] on <html>) */

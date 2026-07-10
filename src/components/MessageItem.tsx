@@ -64,43 +64,49 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
   const items = groupParts(message.parts || []);
   const msgText = getMessageText(message);
 
-  return (
-    <div className={cn("flex gap-3 py-5 px-3 md:px-6", isUser ? "justify-end" : "justify-start")}>
-      {!isUser && (
+  // User: compact purple bubble (Arena-like)
+  if (isUser) {
+    return (
+      <div className="flex justify-end px-3 md:px-6 py-2">
         <div
-          className={cn(
-            "h-8 w-8 rounded-full flex items-center justify-center shrink-0 mt-0.5",
-            "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-sm",
-            isWorking && "animate-pulse",
-          )}
+          className="group relative max-w-[85%] md:max-w-[70%]"
+          onClick={() => setShowUserActions((v) => !v)}
         >
-          ✦
-        </div>
-      )}
-      <div
-        className={cn(
-          "relative max-w-[78%] md:max-w-[720px] rounded-2xl px-4 py-3",
-          isUser ? "bg-primary text-primary-foreground shadow" : "bg-card border border-border",
-          "group",
-        )}
-        onClick={isUser ? () => setShowUserActions((v) => !v) : undefined}
-      >
-        {isUser && (
           <div
             className={cn(
-              "absolute -top-2 right-2 transition-opacity",
+              "absolute -top-2 right-1 transition-opacity z-10",
               showUserActions ? "opacity-100" : "opacity-0 group-hover:opacity-100",
             )}
           >
             <CopyButton
               text={msgText}
-              title="Copy message"
-              className="!bg-background/80 !text-foreground backdrop-blur rounded-lg shadow"
+              title="Copy"
+              className="!bg-background/90 !text-foreground backdrop-blur rounded-lg shadow h-7 w-7"
             />
           </div>
+          <div className="rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-[14.5px] leading-relaxed text-primary-foreground shadow-sm">
+            <div className="whitespace-pre-wrap break-words">{msgText || "…"}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Assistant: open layout, avatar + content column (Arena-like, not heavy card)
+  return (
+    <div className="flex gap-2.5 px-3 md:px-6 py-3">
+      <div
+        className={cn(
+          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+          "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[12px] text-white shadow-sm",
+          isWorking && "animate-pulse",
         )}
+      >
+        ✦
+      </div>
+      <div className="min-w-0 flex-1 max-w-[min(100%,720px)] space-y-1.5">
         {message.info?.error && (
-          <div className="mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
             {message.info.error.message ||
               (message.info.error as any).data?.message ||
               (typeof message.info.error === "string"
@@ -108,20 +114,14 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
                 : "Ошибка API: проверьте тариф модели или ключ")}
           </div>
         )}
-        <div
-          className={cn(
-            "prose prose-invert prose-sm max-w-none",
-            "prose-p:my-2 prose-pre:my-2",
-            isUser && "prose-invert",
-          )}
-        >
+        <div className="text-[14.5px] leading-[1.55] text-foreground/95">
           {(() => {
             const attParts = items.filter((item) => (item as any).type === "attachment");
             const otherParts = items.filter((item) => (item as any).type !== "attachment");
             return (
               <>
                 {attParts.length > 0 && (
-                  <div className="flex flex-wrap gap-2 not-prose mb-2">
+                  <div className="mb-2 flex flex-wrap gap-2">
                     {attParts.map((item, i) => (
                       <PartView key={`att-${i}`} part={item as Part} />
                     ))}
@@ -144,9 +144,9 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
             );
           })()}
         </div>
-        {!isUser && msgText && (
-          <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <CopyButton text={msgText} title="Copy message" />
+        {msgText && (
+          <div className="pt-0.5 opacity-0 transition-opacity hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+            <CopyButton text={msgText} title="Copy message" className="h-7 w-7" />
           </div>
         )}
       </div>

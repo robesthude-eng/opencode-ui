@@ -147,7 +147,7 @@ const OptimizedPartView = ({
     case "text":
       if (!p.text) return null;
       return (
-        <div className="part-text break-words">
+        <div className="break-words text-[14.5px] leading-[1.55] [&_p]:my-1.5 [&_pre]:my-2 [&_ul]:my-1.5 [&_ol]:my-1.5">
           {renderMarkdown(p.text)}
           {isLastStreaming && <span className="streaming-cursor" />}
         </div>
@@ -156,15 +156,15 @@ const OptimizedPartView = ({
       if (!p.text) return null;
       return (
         <details
-          className="not-prose group my-2 overflow-hidden rounded-xl border border-info/20 bg-info/5"
-          open
+          className="not-prose group my-1.5 overflow-hidden rounded-xl border border-border/60 bg-[#12121a]/70"
+          open={!!isLastStreaming}
         >
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium text-info marker:content-none [&::-webkit-details-marker]:hidden">
-            <span>💭</span>
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-[12.5px] font-medium text-sky-300/90 marker:content-none [&::-webkit-details-marker]:hidden hover:bg-white/[0.02]">
+            <span className="text-[13px]">💭</span>
             <span className="flex-1">Рассуждение</span>
-            <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
+            <ChevronDown className="h-3.5 w-3.5 opacity-70 transition group-open:rotate-180" />
           </summary>
-          <div className="border-t border-info/15 px-3 py-2 text-sm text-muted-foreground prose prose-invert prose-sm max-w-none">
+          <div className="border-t border-border/50 px-2.5 py-2 text-[13px] leading-relaxed text-muted-foreground prose prose-invert prose-sm max-w-none prose-p:my-1.5">
             {renderMarkdown(p.text)}
             {isLastStreaming && <span className="streaming-cursor" />}
           </div>
