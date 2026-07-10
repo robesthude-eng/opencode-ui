@@ -44,6 +44,8 @@ export default function SettingsPanel() {
     uptime?: number;
   } | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
+  const [dbBackups, setDbBackups] = useState<{ name: string; bytes: number; time: string }[]>([]);
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
 
   const getHeaders = () => ({
     "Content-Type": "application/json",
@@ -132,6 +134,45 @@ export default function SettingsPanel() {
     } catch {
       setHealthError("Нет связи");
       setHealth(null);
+    }
+  };
+
+  const loadDbBackups = async () => {
+    if (!isAdminUser) return;
+    try {
+      const res = await fetch("/api/db/backups", {
+        credentials: "include",
+        headers: getHeaders(),
+      });
+      if (res.ok) {
+        const list = await res.json();
+        setDbBackups(Array.isArray(list) ? list : []);
+      }
+    } catch {
+      setDbBackups([]);
+    }
+  };
+
+  const handleCreateBackup = async () => {
+    setBackupStatus("Создание…");
+    try {
+      const res = await fetch("/api/db/backup", {
+        credentials: "include",
+        method: "POST",
+        headers: getHeaders(),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBackupStatus(`✔ ${data.name || "ok"}`);
+        await loadDbBackups();
+        setTimeout(() => setBackupStatus(null), 4000);
+      } else {
+        setBackupStatus(`Ошибка: ${data.error || data.detail || "failed"}`);
+        setTimeout(() => setBackupStatus(null), 5000);
+      }
+    } catch {
+      setBackupStatus("Ошибка сети");
+      setTimeout(() => setBackupStatus(null), 3000);
     }
   };
 
@@ -285,6 +326,7 @@ export default function SettingsPanel() {
       loadAuditLogs();
       loadDistSnapshots();
       loadHealth();
+      loadDbBackups();
     }
   }, [open, loadAuth, isAdminUser]);
 
@@ -295,6 +337,7 @@ export default function SettingsPanel() {
       loadHealth();
       loadAuditLogs();
       loadDistSnapshots();
+      loadDbBackups();
     }, 8000);
     return () => clearInterval(id);
   }, [open, activeTab, isAdminUser]);
@@ -441,6 +484,50 @@ export default function SettingsPanel() {
                     {selfImproveEnabled ? " · саморазвитие ●" : " · саморазвитие ○"}
                   </p>
                 </div>
+
+                {isAdminUser && (
+                  <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="font-semibold text-sm flex items-center gap-2">
+                          💾 Бэкап базы (SQLite)
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Снимок users/sessions на volume. Автоматически раз в сутки + вручную.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0"
+                        disabled={!!backupStatus}
+                        onClick={handleCreateBackup}
+                      >
+                        {backupStatus || "Создать бэкап"}
+                      </Button>
+                    </div>
+                    <div className="max-h-28 overflow-y-auto space-y-1">
+                      {dbBackups.length === 0 ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Бэкапов пока нет. Нажмите «Создать бэкап» или дождитесь ночного снимка.
+                        </p>
+                      ) : (
+                        dbBackups.slice(0, 8).map((b) => (
+                          <div
+                            key={b.name}
+                            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[11px]"
+                          >
+                            <span className="font-mono truncate">{b.name}</span>
+                            <span className="text-muted-foreground shrink-0">
+                              {(b.bytes / 1024).toFixed(1)} KB ·{" "}
+                              {b.time ? new Date(b.time).toLocaleString() : ""}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {!isAdminUser && (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">

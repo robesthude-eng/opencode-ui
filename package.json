@@ -1,9 +1,10 @@
 {
   "name": "opencode-ui",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "A custom web UI for OpenCode (sst/opencode), built on its headless HTTP + SSE API.",
+  "packageManager": "npm@10.8.2",
   "engines": {
     "node": ">=22"
   },

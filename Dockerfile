@@ -46,6 +46,7 @@ RUN node --input-type=module -e "\
   import './server/sandbox.mjs'; \
   import './server/logger.mjs'; \
   import './server/rate-limit.mjs'; \
+  import './server/backup.mjs'; \
   console.log('All modules OK');"
 
 COPY start.sh ./

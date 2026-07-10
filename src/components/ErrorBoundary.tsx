@@ -2,6 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import { Component, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { captureException } from "@/lib/sentry";
 
 interface Props {
   children: ReactNode;
@@ -24,6 +25,10 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, message: error.message };
+  }
+
+  componentDidCatch(error: Error) {
+    captureException(error);
   }
 
   handleReload = () => {

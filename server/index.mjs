@@ -29,6 +29,7 @@ import {
   verifyPassword,
 } from "./auth.mjs";
 // Import modules
+import { createDbBackup, listDbBackups, startBackupScheduler } from "./backup.mjs";
 import { closeDb, initDb, loadJson, saveAuthJson, saveJson } from "./db.mjs";
 import { logger } from "./logger.mjs";
 import {
@@ -853,6 +854,38 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify(listDistSnapshots()));
     return;
   }
+  if (req.url === "/api/db/backups" && req.method === "GET") {
+    if (!isRequestAdmin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Admin access required." }));
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify(
+        listDbBackups(WORKDIR).map(({ name, bytes, time }) => ({ name, bytes, time })),
+      ),
+    );
+    return;
+  }
+  if (req.url === "/api/db/backup" && req.method === "POST") {
+    if (!isRequestAdmin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Admin access required." }));
+      return;
+    }
+    if (!checkRateLimit(res)) return;
+    try {
+      const result = createDbBackup(WORKDIR);
+      logAudit(WORKDIR, userEmail, "DB_BACKUP", result.name);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "success", ...result, path: undefined }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Backup failed", detail: e.message }));
+    }
+    return;
+  }
   if (req.url === "/api/dist/instant-rollback" && req.method === "POST") {
     if (!isRequestAdmin) {
       res.writeHead(403, { "Content-Type": "application/json" });
@@ -1263,6 +1296,13 @@ server.listen(PORT, "0.0.0.0", () => {
     logger.info("basic auth protection enabled");
   } else {
     logger.warn("no OPENCODE_SERVER_PASSWORD set; unsecured until first user registers");
+  }
+  // Nightly SQLite backups under $WORKDIR/backups (also manual via admin UI)
+  try {
+    startBackupScheduler(WORKDIR);
+    logger.info("sqlite backup scheduler started (daily)");
+  } catch (e) {
+    logger.warn({ err: e.message }, "backup scheduler failed to start");
   }
 });
 

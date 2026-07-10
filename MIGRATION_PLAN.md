@@ -1,54 +1,53 @@
 # OpenCode UI – Full Modernization Plan
-_Last updated: 2026-07-10 – backlog execution (Biome hard gate, sandbox, dist rollback, slim Docker)_
+_Last updated: 2026-07-10 – ops: e2e CI, SQLite backups, Sentry-ready, admin UX_
 
 **Stack (2026 production baseline):**
-React 19.2 · Vite 7 · Tailwind CSS 4 · shadcn/ui (Radix) · TanStack Router · Zustand persist (idb) · Biome · React Compiler · PWA · Vitest + Playwright · better-sqlite3 · pino · Node 22
+React 19.2 · Vite 7 · Tailwind CSS 4 · shadcn/ui · TanStack Router · Zustand persist · Biome · React Compiler · PWA · Vitest + Playwright · better-sqlite3 · pino · Node 22
 
 ---
 
-## ✅ Phase 1 – Core stack & security
-- React 19.2, react-markdown 10, zustand 5, drop http-proxy, sandbox `src/**` only, CI, 0 vulns
+## ✅ Completed phases 1–9 (summary)
 
-## ✅ Phase 2 – Tailwind / shadcn (complete)
-- Tailwind 4 + shadcn primitives, all components migrated, `styles.css` **deleted**
-- `@tailwindcss/typography` + `rehype-highlight` (github-dark)
-
-## ✅ Phase 3 – DX
-- Biome, React Compiler, PWA, path alias `@/*`
-
-## ✅ Phase 4/5 – Quality
-- Vitest **110+ tests**, coverage script
-- Playwright smoke + auth-chat specs
-- Dependabot, npm audit in CI
-- **Biome hard gate** in CI (`npm run lint` must pass)
-
-## ✅ Phase 6 – Security
-- **SQLite** auth store (`opencode.db`) via better-sqlite3; auto-migrates legacy JSON
-- **HttpOnly cookie** `opencode_session` only
-- **CSRF** Origin/Referer for cookie-authenticated mutations
-- **Per-user rate limit** on heavy endpoints
-- Structured logs (**pino**)
-- **Password pepper** via `OPENCODE_PASSWORD_PEPPER` (v2 hashes + legacy verify)
-
-## ✅ Phase 7 – Frontend modern
-- **TanStack Router** – `/`, `/chat/$sessionId`
-- **Zustand persist** – theme, sidebar, workspace, last model → IndexedDB
-- Markdown syntax highlighting
-
-## ✅ Phase 8/9 – Ops / self-improve
-- Sandbox pipeline: **Biome → tsc → vitest → vite build**
-- **Instant dist rollback**: snapshots in `/app/dist-versions` (last 3), APIs:
-  - `GET /api/dist/snapshots`
-  - `POST /api/dist/instant-rollback` `{ index?: number }`
-- Slimmer multi-stage Docker (`npm prune --omit=dev` runtime)
-- Optional Sentry stub (`src/lib/sentry.ts`, `VITE_SENTRY_DSN`)
+| Area | Status |
+|---|---|
+| Core stack / security sandbox | ✅ |
+| Tailwind + shadcn full UI | ✅ (`styles.css` deleted) |
+| Biome hard CI gate | ✅ |
+| SQLite auth + cookie sessions + CSRF | ✅ |
+| TanStack Router + persist + highlight | ✅ |
+| Sandbox: Biome → tsc → vitest → vite build | ✅ |
+| Instant dist rollback + admin UI | ✅ |
+| Admin health panel | ✅ |
+| Password pepper (optional) | ✅ |
+| **Playwright e2e-local always-on in CI** | ✅ |
+| **SQLite backups (daily + admin manual)** | ✅ |
+| **Sentry-ready (optional DSN)** | ✅ |
+| SECURITY.md | ✅ |
 
 ## ⏳ Remaining backlog
-- [ ] Full Playwright suite always-on in CI (needs secrets/vars)
-- [ ] better-auth full rewrite (beyond SQLite compatibility layer)
-- [ ] Sentry packages installed + wired when DSN present
-- [ ] pnpm migration
-- [ ] **Rotate leaked GitHub PAT + Railway token** (URGENT – human action)
+
+- [ ] **Rotate leaked GitHub PAT + Railway token** (URGENT – human only)
+- [ ] Set `OPENCODE_PASSWORD_PEPPER` in Railway
+- [ ] Optional: `PLAYWRIGHT_BASE_URL` + `E2E_*` secrets for prod e2e job
+- [ ] Optional: `npm i @sentry/react` + `VITE_SENTRY_DSN` for real Sentry
+- [ ] better-auth full rewrite (large; not required for current SQLite layer)
+- [ ] pnpm migration (packageManager field prepared; lockfile still npm)
+- [ ] Off-site backup upload (S3/R2) for `backups/*.db`
+- [ ] Slimmer runtime image without full devDeps (trade-off vs self-improve)
+
+---
+
+## Admin runbook (product)
+
+1. **Health** — Settings → Саморазвитие → top cards  
+2. **Broken UI after agent** — Instant rollback (needs ≥2 builds)  
+3. **Need source history** — Git checkpoint / Git rollback  
+4. **Before risky change** — Create DB backup + Git checkpoint  
+5. **Nuclear** — Factory reset  
+
+APIs:  
+`GET /api/dist/snapshots` · `POST /api/dist/instant-rollback` ·  
+`GET /api/db/backups` · `POST /api/db/backup`
 
 ---
 
@@ -56,21 +55,19 @@ React 19.2 · Vite 7 · Tailwind CSS 4 · shadcn/ui (Radix) · TanStack Router �
 
 | Metric | Now |
 |---|---|
-| Tests | **110+** |
-| Auth storage | **SQLite** |
-| Session | **HttpOnly cookie only** |
-| Sandbox gates | Biome + tsc + vitest + vite build |
-| Dist rollback | instant snapshots (≤3) |
-| Biome CI | **hard gate** |
-| Logs | pino |
-| Password pepper | optional env |
+| Version | **0.3.0** |
+| Tests | **112+** (+ backup unit) |
+| CI | lint · audit · unit · build · **e2e-local** |
+| Auth DB | SQLite + daily backups |
+| Session | HttpOnly cookie only |
 
 ---
 
 ## Changelog (recent)
-- `ea7cb24` – finish Tailwind, delete styles.css
-- `89be913` – HttpOnly cookie + CSRF + CI quality
-- `c6aad43` – SQLite, router, cookie-only, highlight, persist, pino, rate-limit
-- *(this)* – Biome hard gate, sandbox biome+vite build, instant dist rollback, pepper, slim Docker, e2e auth-chat, Sentry stub
 
-**Deploy:** push `main` → Railway → https://opencode-ui-production.up.railway.app
+- `c6aad43` – SQLite, router, cookie-only, highlight, persist, pino  
+- `85637ea` – Biome hard gate, sandbox vite, instant dist rollback  
+- `dca80d4` – Admin health + instant rollback UI  
+- *(this)* – e2e-local CI, SQLite backup API/UI/scheduler, Sentry-ready, SECURITY.md  
+
+**Deploy:** https://opencode-ui-production.up.railway.app
