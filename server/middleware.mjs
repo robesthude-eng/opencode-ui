@@ -19,14 +19,26 @@ export function setSecurityHeaders(res) {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  // CSP: relaxed for React SPA but without unsafe-eval
-  // script-src has no 'unsafe-inline': the app loads a single bundled module
-  // script (see index.html) and never injects inline <script> tags, so this
-  // can be locked down without breaking anything. style-src keeps
-  // 'unsafe-inline' since React components set inline style="" attributes.
+  // CSP for SPA:
+  // - no unsafe-eval
+  // - style-src keeps unsafe-inline for React inline styles / Tailwind runtime edges
+  // - connect-src allows Sentry ingest when VITE_SENTRY_DSN / SENTRY_DSN configured
+  // - worker-src for PWA service worker
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      "connect-src 'self' ws: wss: https:",
+      "worker-src 'self' blob:",
+      "manifest-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "),
   );
 }
 

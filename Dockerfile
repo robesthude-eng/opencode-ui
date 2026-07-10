@@ -28,6 +28,7 @@ COPY server.mjs ./
 COPY server/ ./server/
 
 COPY src ./workspace-src/src
+COPY public ./workspace-src/public
 COPY index.html ./workspace-src/index.html
 COPY package.json ./workspace-src/package.json
 COPY package-lock.json ./workspace-src/package-lock.json
@@ -36,6 +37,7 @@ COPY tsconfig.node.json ./workspace-src/tsconfig.node.json
 COPY vite.config.ts ./workspace-src/vite.config.ts
 COPY biome.json ./workspace-src/biome.json
 COPY vitest.config.ts ./workspace-src/vitest.config.ts
+COPY SELF_IMPROVE.md SELF_IMPROVE_GUIDE.md ./workspace-src/
 
 RUN node --input-type=module -e "\
   import './server/db.mjs'; \

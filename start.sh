@@ -39,19 +39,22 @@ mkdir -p "$CONFIG_DIR"
 # Copy source code into workspace on first run (for self-improvement)
 if [ ! -f "$WORKDIR/opencode-ui/package.json" ]; then
   echo "Copying UI source code into workspace…"
-  mkdir -p "$WORKDIR/opencode-ui/src"
+  mkdir -p "$WORKDIR/opencode-ui/src" "$WORKDIR/opencode-ui/public"
   cp -r /app/workspace-src/src/* "$WORKDIR/opencode-ui/src/" 2>/dev/null || true
-  cp /app/workspace-src/index.html "$WORKDIR/opencode-ui/" 2>/dev/null || true
-  cp /app/workspace-src/package.json "$WORKDIR/opencode-ui/" 2>/dev/null || true
-  cp /app/workspace-src/tsconfig.json "$WORKDIR/opencode-ui/" 2>/dev/null || true
-  cp /app/workspace-src/tsconfig.node.json "$WORKDIR/opencode-ui/" 2>/dev/null || true
-  cp /app/workspace-src/vite.config.ts "$WORKDIR/opencode-ui/" 2>/dev/null || true
-  cat > "$WORKDIR/opencode-ui/SELF_IMPROVE.md" <<'GUIDE'
+  if [ -d /app/workspace-src/public ]; then
+    cp -r /app/workspace-src/public/* "$WORKDIR/opencode-ui/public/" 2>/dev/null || true
+  fi
+  for f in index.html package.json package-lock.json tsconfig.json tsconfig.node.json vite.config.ts vitest.config.ts biome.json SELF_IMPROVE.md SELF_IMPROVE_GUIDE.md; do
+    cp "/app/workspace-src/$f" "$WORKDIR/opencode-ui/" 2>/dev/null || true
+  done
+  if [ ! -f "$WORKDIR/opencode-ui/SELF_IMPROVE.md" ]; then
+    cat > "$WORKDIR/opencode-ui/SELF_IMPROVE.md" <<'GUIDE'
 # Self-Improvement Guide
-This folder contains your web UI source.
-Edit src/ and rebuild: cd /app/workspace/opencode-ui && npm install && npx vite build --outDir /app/dist
+Use POST /api/sandbox/apply (admin). Pipeline: Biome → tsc → vitest → vite build.
+Then POST /api/rebuild.
 GUIDE
-  echo "Self-improvement guide created."
+  fi
+  echo "Self-improvement factory sources copied."
 fi
 
 # Configure Zen API key

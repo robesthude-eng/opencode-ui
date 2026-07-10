@@ -54,6 +54,7 @@ import {
   listCheckpoints,
   listDistSnapshots,
   logAudit,
+  promoteDistSnapshot,
   rebuildUi,
   resetUi,
   rollbackToCommit,
@@ -1337,6 +1338,13 @@ void initSentryServer().finally(() => {
       logger.info("sqlite backup scheduler started (daily)");
     } catch (e) {
       logger.warn({ err: e.message }, "backup scheduler failed to start");
+    }
+    // Seed a dist snapshot on boot so instant rollback has a baseline after deploy
+    try {
+      const snap = promoteDistSnapshot();
+      if (snap) logger.info({ snap }, "initial dist snapshot ready");
+    } catch (e) {
+      logger.warn({ err: e.message }, "initial dist snapshot failed");
     }
   });
 });

@@ -24,6 +24,10 @@ describe("setSecurityHeaders", () => {
       "Content-Security-Policy",
       expect.stringContaining("default-src 'self'"),
     );
+    const cspCall = res.setHeader.mock.calls.find((c) => c[0] === "Content-Security-Policy");
+    expect(cspCall[1]).toContain("connect-src");
+    expect(cspCall[1]).toContain("https:");
+    expect(cspCall[1]).toContain("worker-src");
   });
 });
 
