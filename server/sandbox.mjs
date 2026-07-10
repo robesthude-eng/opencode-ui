@@ -47,7 +47,7 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
   res.end(JSON.stringify({ error: "Sandbox endpoint not found." }));
 }
 
-function runSandboxCheck(workdir, files, dryRun, userEmail, callback) {
+function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLeft = 1) {
   const activeUiDir = path.join(workdir, "opencode-ui");
   const sandboxDir = "/tmp/opencode-ui-sandbox";
 
@@ -109,15 +109,50 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback) {
     // Step 5: Run TypeScript compilation check
     console.log("[Sandbox] Starting pre-flight compilation check...");
     execFile("./node_modules/.bin/tsc", ["-b"], { cwd: sandboxDir, timeout: 30000 }, (err, stdout, stderr) => {
-    if (err) {
-      const compileErrors = (stdout || stderr || "").trim();
-      console.log("[Sandbox] Compilation check failed.");
-      return callback(null, {
-        status: "compilation_failed",
-        message: "TypeScript compilation failed. Fix the errors below and try again.",
-        errors: compileErrors.split("\n").filter(Boolean),
-      });
-    }
+      if (err) {
+        const compileErrors = (stdout || stderr || "").trim().split("\n").filter(Boolean);
+        console.log("[Sandbox] Compilation check failed.");
+        
+        if (attemptsLeft > 0) {
+          console.log("[Sandbox] Attempting autonomous self-correction using local OpenCode...");
+          import("./auto-correct.mjs").then((ac) => {
+            ac.runAutoCorrection(files, compileErrors, (acErr, correctedFiles) => {
+              if (acErr || !correctedFiles) {
+                console.warn("[Sandbox] Auto-correction failed or timed out:", acErr?.message || "no output");
+                return callback(null, {
+                  status: "compilation_failed",
+                  message: "TypeScript compilation failed. Autonomous auto-correction failed to generate a fix.",
+                  errors: compileErrors,
+                });
+              }
+              
+              console.log("[Sandbox] Re-running sandbox compilation check with auto-corrected files...");
+              runSandboxCheck(workdir, correctedFiles, dryRun, userEmail, (retryErr, retryResult) => {
+                if (retryErr) return callback(retryErr);
+                if (retryResult.status === "success") {
+                  retryResult.autoCorrected = true;
+                  retryResult.message = "Initial compilation failed, but we automatically corrected the errors in the sandbox and successfully deployed the clean code!";
+                }
+                callback(null, retryResult);
+              }, attemptsLeft - 1);
+            });
+          }).catch((acModuleErr) => {
+            console.warn("[Sandbox] Failed to load auto-correct module:", acModuleErr.message);
+            return callback(null, {
+              status: "compilation_failed",
+              message: "TypeScript compilation failed. Auto-correction module not available.",
+              errors: compileErrors,
+            });
+          });
+          return;
+        }
+
+        return callback(null, {
+          status: "compilation_failed",
+          message: "TypeScript compilation failed. Fix the errors below and try again.",
+          errors: compileErrors,
+        });
+      }
 
     console.log("[Sandbox] Compilation check succeeded!");
 
