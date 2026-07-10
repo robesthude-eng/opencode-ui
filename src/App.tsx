@@ -11,6 +11,8 @@ import SettingsPanel from "./components/SettingsPanel";
 import Workspace from "./components/Workspace";
 import LoginPage from "./components/LoginPage";
 import { MenuIcon } from "./components/icons";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function App() {
   const loadSessions = useStore((s) => s.loadSessions);
@@ -36,14 +38,12 @@ export default function App() {
   }, [checkCurrentUser]);
 
   // Single global event stream — system instance emits all session events
-  // Previously we had per-session stream which was dead (returned empty HTML)
-  // Now all per-session requests go to system with ?directory= isolation, so global stream gets everything
   useEffect(() => {
     if (!currentUser) return;
     checkConnection();
     loadSessions();
     loadModels();
-    const stream = new EventStream(); // global, no sessionId
+    const stream = new EventStream();
     const off = stream.on((e) => applyEvent(e));
     const poll = setInterval(() => setConnection(stream.status), 400);
     const healthPoll = setInterval(() => checkConnection(), 15000);
@@ -59,8 +59,8 @@ export default function App() {
 
   if (authChecking) {
     return (
-      <div className="chat empty" style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div className="muted">Загрузка OpenCode UI…</div>
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <div className="text-sm text-muted-foreground">Загрузка OpenCode UI…</div>
       </div>
     );
   }
@@ -69,29 +69,36 @@ export default function App() {
     return <LoginPage />;
   }
 
-  const cls = [
-    "app",
-    workspaceOpen ? "ws-on" : "ws-off",
-    sidebarCollapsed ? "sb-off" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   return (
-    <div className={cls}>
-      <Sidebar />
-      <main className="main">
+    <div className="flex h-screen w-screen overflow-hidden bg-background">
+      {/* Desktop sidebar is hidden via store flag; mobile drawer lives inside Sidebar */}
+      {!sidebarCollapsed && <Sidebar />}
+      {sidebarCollapsed && (
+        // Keep Sidebar mounted so mobile drawer still works when collapsed on desktop
+        <div className="md:hidden">
+          <Sidebar />
+        </div>
+      )}
+
+      <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {sidebarCollapsed && (
-          <button className="reveal-btn" onClick={toggleSidebar} title="Show chats">
+          <Button
+            variant="secondary"
+            size="icon"
+            className="absolute left-3 top-3 z-30 hidden shadow md:flex"
+            onClick={toggleSidebar}
+            title="Show chats"
+          >
             <MenuIcon size={18} />
-          </button>
+          </Button>
         )}
         {serverConnected === false && <ConnectionBanner onRetry={checkConnection} />}
         <TopBar />
         <ChatView />
         <Composer />
       </main>
-      <Workspace />
+
+      {workspaceOpen && <Workspace />}
       <PermissionDialog />
       <SettingsPanel />
     </div>
@@ -100,15 +107,27 @@ export default function App() {
 
 function ConnectionBanner({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="conn-banner">
-      <span className="conn-banner-text">
-        <span className="conn-banner-dot" />
-        Can't connect to the OpenCode server. Start it with{" "}
-        <code>opencode serve</code>
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 border-b border-amber-500/30",
+        "bg-amber-500/10 px-3 py-2 text-sm text-amber-200",
+      )}
+    >
+      <span className="inline-flex items-center gap-2">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
+        Can&apos;t connect to the OpenCode server. Start it with{" "}
+        <code className="rounded bg-background/40 px-1.5 py-0.5 font-mono text-xs">
+          opencode serve
+        </code>
       </span>
-      <button className="conn-banner-btn" onClick={onRetry}>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 border-amber-500/40 text-amber-100 hover:bg-amber-500/15"
+        onClick={onRetry}
+      >
         Retry
-      </button>
+      </Button>
     </div>
   );
 }

@@ -1,11 +1,11 @@
-import React, { useState, memo, useCallback } from "react";
+import { useState, memo, useCallback } from "react";
+import { ChevronDown, ChevronRight, ArrowRight, Check } from "lucide-react";
 import { ToolPart, ToolState } from "../api/types";
 import { toolIcon } from "../utils/toolUtils";
 import { useStore } from "../store/useStore";
-import {
-  ChevronRightIcon,
-  ChevronDownIcon,
-} from "./icons";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 function fmt(value: unknown): string {
   if (value == null) return "";
@@ -68,6 +68,13 @@ function getSummary(part: ToolPart): string {
   return "";
 }
 
+const stateStyles: Record<string, string> = {
+  running: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+  pending: "text-amber-400 bg-amber-500/10 border-amber-500/20",
+  completed: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+  error: "text-red-400 bg-red-500/10 border-red-500/20",
+};
+
 /* ---------- Question tool card ---------- */
 
 interface QuestionItem {
@@ -81,7 +88,6 @@ function parseQuestions(input: unknown): QuestionItem[] {
   if (!input || typeof input !== "object") return [];
   const obj = input as Record<string, unknown>;
 
-  // OpenCode question tool format: { questions: [...] }
   if (Array.isArray(obj.questions)) {
     return obj.questions.map((q: any) => ({
       question: q.question || q.text || "",
@@ -90,27 +96,36 @@ function parseQuestions(input: unknown): QuestionItem[] {
         ? q.options.map((o: any) =>
             typeof o === "string"
               ? { label: o, description: "" }
-              : { label: o.label || o.text || "", description: o.description || o.desc || "", id: o.id }
+              : {
+                  label: o.label || o.text || "",
+                  description: o.description || o.desc || "",
+                  id: o.id,
+                },
           )
         : [],
       allowCustomResponse: q.allowCustomResponse ?? q.allowCustom ?? true,
     }));
   }
 
-  // Single question format: { question: "...", options: [...] }
   if (obj.question || obj.options) {
-    return [{
-      question: (obj.question || obj.text || "") as string,
-      header: (obj.header || obj.title || "") as string,
-      options: Array.isArray(obj.options)
-        ? (obj.options as any[]).map((o: any) =>
-            typeof o === "string"
-              ? { label: o, description: "" }
-              : { label: o.label || o.text || "", description: o.description || o.desc || "", id: o.id }
-          )
-        : [],
-      allowCustomResponse: (obj.allowCustomResponse ?? obj.allowCustom ?? true) as boolean,
-    }];
+    return [
+      {
+        question: (obj.question || obj.text || "") as string,
+        header: (obj.header || obj.title || "") as string,
+        options: Array.isArray(obj.options)
+          ? (obj.options as any[]).map((o: any) =>
+              typeof o === "string"
+                ? { label: o, description: "" }
+                : {
+                    label: o.label || o.text || "",
+                    description: o.description || o.desc || "",
+                    id: o.id,
+                  },
+            )
+          : [],
+        allowCustomResponse: (obj.allowCustomResponse ?? obj.allowCustom ?? true) as boolean,
+      },
+    ];
   }
 
   return [];
@@ -127,77 +142,124 @@ function QuestionCard({ part }: { part: ToolPart }) {
 
   const isWaiting = state === "running";
 
-  const handleOptionClick = useCallback((qIdx: number, optIdx: number, label: string) => {
-    if (answered || !isWaiting) return;
-    setSelectedIdx((prev) => ({ ...prev, [qIdx]: optIdx }));
-    setAnswered(true);
-    send(label);
-  }, [answered, isWaiting, send]);
+  const handleOptionClick = useCallback(
+    (qIdx: number, optIdx: number, label: string) => {
+      if (answered || !isWaiting) return;
+      setSelectedIdx((prev) => ({ ...prev, [qIdx]: optIdx }));
+      setAnswered(true);
+      send(label);
+    },
+    [answered, isWaiting, send],
+  );
 
-  const handleCustomSubmit = useCallback((qIdx: number) => {
-    if (answered || !isWaiting) return;
-    const text = customText[qIdx]?.trim();
-    if (!text) return;
-    setAnswered(true);
-    send(text);
-  }, [answered, isWaiting, customText, send]);
+  const handleCustomSubmit = useCallback(
+    (qIdx: number) => {
+      if (answered || !isWaiting) return;
+      const text = customText[qIdx]?.trim();
+      if (!text) return;
+      setAnswered(true);
+      send(text);
+    },
+    [answered, isWaiting, customText, send],
+  );
 
   if (questions.length === 0) {
-    // Fallback to default tool card if we can't parse questions
     return <DefaultToolCard part={part} />;
   }
 
   return (
-    <div className={`question-card ${answered ? "answered" : ""} ${!isWaiting ? "completed" : ""}`}>
+    <div
+      className={cn(
+        "not-prose my-2 overflow-hidden rounded-xl border",
+        answered || !isWaiting
+          ? "border-emerald-500/30 bg-emerald-500/5"
+          : "border-info/30 bg-info/5",
+      )}
+    >
       {questions.map((q, qIdx) => (
-        <div key={qIdx} className="question-item">
-          {q.header && <div className="question-header">{q.header}</div>}
-          {q.question && <div className="question-text">{q.question}</div>}
+        <div
+          key={qIdx}
+          className={cn(
+            "flex flex-col gap-2.5 p-4",
+            qIdx > 0 && "border-t border-border",
+          )}
+        >
+          {q.header && (
+            <div
+              className={cn(
+                "text-[11px] font-bold uppercase tracking-wider",
+                answered || !isWaiting ? "text-emerald-400" : "text-info",
+              )}
+            >
+              {q.header}
+            </div>
+          )}
+          {q.question && (
+            <div className="text-sm font-medium leading-relaxed">{q.question}</div>
+          )}
 
           {q.options && q.options.length > 0 && (
-            <div className="question-options">
-              {q.options.map((opt, optIdx) => (
-                <button
-                  key={optIdx}
-                  className={`question-option ${
-                    selectedIdx[qIdx] === optIdx ? "selected" : ""
-                  } ${answered ? "disabled" : ""}`}
-                  onClick={() => handleOptionClick(qIdx, optIdx, opt.label || "")}
-                  disabled={answered || !isWaiting}
-                >
-                  <span className="question-option-label">{opt.label}</span>
-                  {opt.description && (
-                    <span className="question-option-desc">{opt.description}</span>
-                  )}
-                </button>
-              ))}
+            <div className="flex flex-col gap-1.5">
+              {q.options.map((opt, optIdx) => {
+                const selected = selectedIdx[qIdx] === optIdx;
+                const disabled = answered || !isWaiting;
+                return (
+                  <button
+                    key={optIdx}
+                    type="button"
+                    className={cn(
+                      "flex w-full flex-col gap-0.5 rounded-xl border px-3.5 py-2.5 text-left transition",
+                      selected
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-card hover:border-primary/50 hover:bg-muted/50",
+                      disabled && !selected && "opacity-60 cursor-default",
+                      disabled && "cursor-default",
+                    )}
+                    onClick={() => handleOptionClick(qIdx, optIdx, opt.label || "")}
+                    disabled={disabled}
+                  >
+                    <span className="text-sm font-semibold">{opt.label}</span>
+                    {opt.description && (
+                      <span className="text-xs text-muted-foreground leading-snug">
+                        {opt.description}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
 
           {q.allowCustomResponse !== false && isWaiting && !answered && (
-            <div className="question-custom">
-              <input
+            <div className="mt-1 flex items-center gap-2">
+              <Input
                 type="text"
-                className="question-custom-input"
+                className="h-9"
                 placeholder="Или введите свой ответ…"
                 value={customText[qIdx] || ""}
-                onChange={(e) => setCustomText((prev) => ({ ...prev, [qIdx]: e.target.value }))}
+                onChange={(e) =>
+                  setCustomText((prev) => ({ ...prev, [qIdx]: e.target.value }))
+                }
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCustomSubmit(qIdx);
                 }}
               />
-              <button
-                className="question-custom-send"
+              <Button
+                size="icon"
+                className="h-9 w-9 shrink-0 rounded-full"
                 onClick={() => handleCustomSubmit(qIdx)}
                 disabled={!customText[qIdx]?.trim()}
               >
-                →
-              </button>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
             </div>
           )}
 
           {answered && (
-            <div className="question-answered-hint">✓ Ответ отправлен</div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+              <Check className="h-3.5 w-3.5" />
+              Ответ отправлен
+            </div>
           )}
         </div>
       ))}
@@ -218,31 +280,68 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
   const toolName = part.tool;
 
   return (
-    <div className={`tool state-${state} ${expanded ? "expanded" : "collapsed"}`}>
+    <div className="not-prose my-1.5 overflow-hidden rounded-xl border border-border bg-card/60">
       <div
-        className={`tool-head ${hasBody ? "clickable" : ""}`}
-        onClick={hasBody ? () => setManuallyToggled((e) => (e === null ? false : !e)) : undefined}
+        className={cn(
+          "flex items-center gap-2 px-3 py-2",
+          hasBody && "cursor-pointer hover:bg-muted/40 transition",
+        )}
+        onClick={
+          hasBody
+            ? () => setManuallyToggled((e) => (e === null ? false : !e))
+            : undefined
+        }
       >
-        <span className={`tool-icon-box state-${state}`}>{toolIcon(toolName)}</span>
-        <span className="tool-name">{toolName}</span>
-        {summary && <span className="tool-summary">{summary}</span>}
-        <span className="tool-spacer" />
-        {hasBody && (
-          <span className="tool-chevron">
-            {expanded ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
+        <span
+          className={cn(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-[11px]",
+            stateStyles[state] ?? stateStyles.running,
+          )}
+        >
+          {toolIcon(toolName)}
+        </span>
+        <span className="text-xs font-semibold">{toolName}</span>
+        {summary && (
+          <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+            {summary}
           </span>
         )}
-        <span className={`tool-state state-${state}`}>{state}</span>
+        {!summary && <span className="flex-1" />}
+        {hasBody && (
+          <span className="text-muted-foreground">
+            {expanded ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
+          </span>
+        )}
+        <span
+          className={cn(
+            "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide border",
+            stateStyles[state] ?? stateStyles.running,
+          )}
+        >
+          {state}
+        </span>
       </div>
       {hasBody && expanded && (
-        <div className="tool-body">
+        <div className="space-y-2 border-t border-border px-3 py-2">
           {input && (
-            <details className="tool-input" open={state === "running" || state === "pending"}>
-              <summary>input</summary>
-              <pre>{input}</pre>
+            <details open={state === "running" || state === "pending"} className="group">
+              <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+                input
+              </summary>
+              <pre className="mt-1.5 max-h-40 overflow-auto rounded-lg bg-background/80 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
+                {input}
+              </pre>
             </details>
           )}
-          {output && <pre className="tool-output">{output}</pre>}
+          {output && (
+            <pre className="max-h-52 overflow-auto rounded-lg bg-background/80 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
+              {output}
+            </pre>
+          )}
         </div>
       )}
     </div>
@@ -254,7 +353,6 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
 const ToolCard = ({ part }: { part: ToolPart }) => {
   const toolName = part.tool?.toLowerCase() ?? "";
 
-  // Special rendering for the "question" tool
   if (toolName === "question") {
     return <QuestionCard part={part} />;
   }

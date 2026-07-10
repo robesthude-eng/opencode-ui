@@ -1,7 +1,10 @@
 # OpenCode UI – Full Modernization Plan
-_Last updated: 2026-07-10 – commit 69e4148_
+_Last updated: 2026-07-10 – commit 4d5c960 (+ in-progress 2b finish)_
 
 This document tracks the ongoing migration to latest technologies. Use it as a checklist for the self-improvement agent and human contributors.
+
+**Stack target (world-class 2026 baseline):**
+React 19.2 · Vite 7 · Tailwind CSS 4 · shadcn/ui (Radix) · Biome · React Compiler · PWA · Vitest · Node 22
 
 ---
 
@@ -34,8 +37,8 @@ This document tracks the ongoing migration to latest technologies. Use it as a c
 ### CI / DevOps
 - [x] GitHub Actions CI: `.github/workflows/ci.yml`
   - Node 22, `npm ci`, `test:all`, `build`, upload dist artifact
-- [x] Railway deployment: 5 successful deploys in a row
-  - Latest: `f389fc2c` – SUCCESS – `opencode-ui-production.up.railway.app`
+- [x] Railway deployment: production SUCCESS
+  - URL: `opencode-ui-production.up.railway.app`
 
 ### Tests
 - [x] 96 tests passing (Vitest 4.1.10)
@@ -47,23 +50,19 @@ This document tracks the ongoing migration to latest technologies. Use it as a c
 
 ## ✅ Completed – Phase 2a: Tailwind / shadcn foundation (2026-07-10)
 
-- [x] Tailwind CSS **4.1.14** + `@tailwindcss/vite`
+- [x] Tailwind CSS **4.x** + `@tailwindcss/vite`
 - [x] shadcn/ui deps:
-  - `tailwind-merge 3.6.0`, `clsx 2.1.1`, `class-variance-authority 0.7.1`
-  - `lucide-react 1.24.0`, `tw-animate-css 1.4.0`
-  - `@radix-ui/react-slot 1.3.0`
+  - `tailwind-merge`, `clsx`, `class-variance-authority`
+  - `lucide-react`, `tw-animate-css`
+  - `@radix-ui/react-slot` + dialog / tabs / switch / label / scroll-area / select / separator / tooltip / dropdown-menu
 - [x] Path alias `@/*` → `./src/*` (tsconfig + vite + vitest)
-- [x] `src/index.css` – Tailwind entry + design tokens matching existing dark UI
+- [x] `src/index.css` – Tailwind entry + design tokens matching dark UI
   - colors: background #0b0b0f, card #14141c, primary #7c5cff, etc.
   - radius: 0.75rem
 - [x] UI primitives in `src/components/ui/`:
-  - `button.tsx` – variants: default / destructive / outline / secondary / ghost / link
-  - `input.tsx`
-  - `textarea.tsx`
-  - `card.tsx` – Card / CardHeader / CardTitle / CardContent
-- [x] `src/main.tsx` imports `./index.css` before `./styles.css` – **safe gradual migration, no visual break**
-- [x] Build: CSS 44.7 → 59.2 KB / gzip 8.5 → 11.6 KB, JS 438 KB unchanged
-- [x] Tests: 96 passed
+  - `button`, `input`, `textarea`, `card`, `badge`, `dialog`, `tabs`, `switch`, `label`, `scroll-area`, `separator`
+- [x] `src/main.tsx` imports `./index.css` before `./styles.css` – gradual migration
+- [x] `@tailwindcss/typography` for markdown (`prose prose-invert`)
 
 ---
 
@@ -89,86 +88,70 @@ This document tracks the ongoing migration to latest technologies. Use it as a c
 
 ## 🔄 In Progress – Phase 2b: Tailwind component migration
 
-Goal: migrate all `src/components/*.tsx` from legacy `styles.css` to Tailwind + shadcn, then delete `src/styles.css` (~56 KB).
+Goal: migrate all `src/components/*.tsx` + shell layout from legacy `styles.css` to Tailwind + shadcn, then delete `src/styles.css` (~56 KB / ~2300 LOC).
 
-Migration order – dependencies first, low risk → high risk:
+### 2b.1 – Composer ✅ DONE – commit `69e4148`
+- [x] `src/components/Composer.tsx` – shadcn Button, Tailwind chips / progress
 
-### 2b.1 – Composer ✅ DONE – commit 69e4148
-- [x] `src/components/Composer.tsx`
-  - shadcn `Button`, custom `<textarea>` with Tailwind
-  - Attachments: pill chips, emerald check badge
-  - Upload progress: SVG circular
-  - Input: `rounded-2xl border bg-card shadow-sm focus-within:ring-2`
-  - Hint: "Shift+Enter for new line • Drag & drop"
-  - Build: JS 438 → 471 KB, CSS 59.2 → 65.0 KB
-  - Tests: 96 passed, deploy SUCCESS
+### 2b.2 – Primitives ✅ DONE (this batch)
+- [x] `src/components/CopyButton.tsx` → shadcn Button ghost/icon + lucide
+- [x] `src/components/Skeleton.tsx` → Tailwind `animate-pulse`
+- [x] `src/components/icons.tsx` – kept as lightweight custom SVG set (tool icons + brand); lucide used where a generic icon fits (Copy/Check/etc.)
 
-### 2b.2 – Primitives – TODO
-- [ ] `src/components/CopyButton.tsx` → shadcn Button ghost/sm
-- [ ] `src/components/Skeleton.tsx` → Tailwind animate-pulse
-- [ ] `src/components/icons.tsx` → migrate to `lucide-react` where possible, keep custom OpenCode icons
+### 2b.3 – Sidebar ✅ DONE – commit `1b8523d`
+- [x] `src/components/Sidebar.tsx` – Button, ScrollArea, Badge, Separator, mobile drawer pattern
 
-### 2b.3 – Sidebar – TODO
-- [ ] `src/components/Sidebar.tsx`
-  - Chat list, new chat button, search
-  - Use shadcn: Button, ScrollArea, Input
-  - Mobile: Sheet / Drawer (add `@radix-ui/react-dialog`)
-  - Estimated: ~200 LOC
+### 2b.4 – Chat view ✅ DONE – commits `256d114` + this batch
+- [x] `src/components/ChatView.tsx`
+- [x] `src/components/MessageItem.tsx`
+- [x] `src/components/PartView.tsx` – markdown + attachment + reasoning (Tailwind + prose)
+- [x] `src/components/ToolCard.tsx` – default + question tool cards
+- [x] `src/components/ToolGroup.tsx`
+  - Markdown: `react-markdown` + `remark-gfm` + `@tailwindcss/typography`
+  - Streaming cursor, tool call expand/collapse preserved
 
-### 2b.4 – Chat view – TODO
-- [ ] `src/components/ChatView.tsx`
-- [ ] `src/components/MessageItem.tsx`
-- [ ] `src/components/PartView.tsx`
-- [ ] `src/components/ToolCard.tsx`
-- [ ] `src/components/ToolGroup.tsx`
-  - Markdown rendering: keep `react-markdown`, style with Tailwind Typography (`@tailwindcss/typography`)
-  - Code blocks: syntax highlight – add `rehype-highlight` or `shiki`
-  - Streaming cursor, tool calls – preserve UX
-  - Estimated: ~600 LOC
+### 2b.5 – Top bar ✅ DONE – commit `d61497c`
+- [x] `src/components/TopBar.tsx`
+- [x] `src/components/ModelSelector.tsx`
 
-### 2b.5 – Top bar – TODO
-- [ ] `src/components/TopBar.tsx`
-- [ ] `src/components/ModelSelector.tsx`
-  - shadcn: Select / DropdownMenu (`@radix-ui/react-select`)
-  - Estimated: ~150 LOC
+### 2b.6 – Settings / Auth ✅ DONE (Settings earlier; Auth this batch)
+- [x] `src/components/SettingsPanel.tsx` – commit `4d5c960` (tests updated)
+  - Keep test-compatible strings + `.overlay` class for tests
+  - shadcn: Button, Input, Switch, Tabs, Dialog primitives
+- [x] `src/components/LoginPage.tsx` – Card, Input, Button, Label, Tabs-like switcher
+- [x] `src/components/PermissionDialog.tsx` – Dialog + Button
+- [x] `src/components/ErrorBoundary.tsx` – Card + Button
 
-### 2b.6 – Settings / Auth – TODO
-- [ ] `src/components/SettingsPanel.tsx` – **has tests!** update snapshots after migration
-  - shadcn: Dialog, Tabs, Switch, Label, Input
-  - Add `@radix-ui/react-dialog`, `@radix-ui/react-tabs`, `@radix-ui/react-switch`, `@radix-ui/react-label`
-- [ ] `src/components/LoginPage.tsx`
-  - shadcn: Card, Input, Button, Label
-  - Add form validation: `react-hook-form` + `zod`
-- [ ] `src/components/PermissionDialog.tsx`
+### 2b.7 – Workspace + shell ✅ DONE (this batch)
+- [x] `src/components/Workspace.tsx` – file tree, git status, upload, viewer overlay
+- [x] `src/App.tsx` – Tailwind layout shell (no `.app` / `.main` CSS grid dependency)
+  - Desktop: flex row — Sidebar | main | Workspace
+  - Mobile: fixed Sidebar drawer (already in Sidebar)
+  - Connection banner + reveal sidebar button
 
-### 2b.7 – Workspace – TODO
-- [ ] `src/components/Workspace.tsx`
-  - File tree, editor – keep sql.js integration
+### 2b.8 – Cleanup ✅ DONE (this batch)
+- [x] Delete `src/styles.css` (~56 KB, ~2300 LOC)
+- [x] Remove legacy CSS import from `src/main.tsx`
+- [x] Minimal global base moved into `src/index.css` (html/body/#root layout, scrollbar)
+- [x] Verify build + tests still pass
+- [ ] Visual regression – Playwright screenshots (Phase 5)
+- [ ] Update `SELF_IMPROVE.md` – remove old CSS references (if any remain)
 
-### 2b.8 – Cleanup
-- [ ] Delete `src/styles.css` (56 KB, ~1800 LOC)
-- [ ] Remove legacy CSS classes from all components
-- [ ] Verify bundle size drops: expect JS ~440 KB, CSS ~25 KB (vs current 471 / 65 KB with both stacks)
-- [ ] Visual regression test – run Playwright (see Phase 5)
-- [ ] Update `SELF_IMPROVE.md` – remove old CSS references
+**shadcn components installed / present:**
+- button, input, textarea, card, badge, dialog, tabs, switch, label, scroll-area, separator
 
-**UI component checklist to install:**
-```
-npm install @radix-ui/react-dialog @radix-ui/react-dropdown-menu @radix-ui/react-select @radix-ui/react-tabs @radix-ui/react-switch @radix-ui/react-label @radix-ui/react-scroll-area @radix-ui/react-tooltip
-npm install react-hook-form zod @hookform/resolvers
-npm install -D @tailwindcss/typography
-```
-
-**shadcn components to generate:**
-- dialog, dropdown-menu, select, tabs, switch, label, scroll-area, tooltip, badge, separator, sheet, skeleton, alert
+**Still optional (Phase 7):**
+- dropdown-menu, select, sheet, skeleton (as ui/*), tooltip, alert
+- react-hook-form + zod for LoginPage
+- shiki / rehype-highlight for code blocks
 
 ---
 
 ## ⏳ Planned – Phase 4: Package manager & build
 
 - [ ] **pnpm migration**
-  - `npm install -g pnpm`, `pnpm import` (converts package-lock.json)
-  - Update `package.json`: `"packageManager": "pnpm@10.0.0"`
+  - `pnpm import` (converts package-lock.json)
+  - Update `package.json`: `"packageManager": "pnpm@10.x"`
   - Update Dockerfile: `npm ci` → `pnpm install --frozen-lockfile`
   - Update GitHub Actions: `setup-node {cache: 'pnpm'}`, `pnpm install`
   - Expected: install 3× faster, image ~15% smaller
@@ -215,7 +198,7 @@ Priority: HIGH – do before public multi-tenant launch.
 - [ ] **Auth storage – JSON → SQLite**
   - Current: `.users.json`, `.sessions.json`, `.session_owners.json` in Railway Volume
   - Risk: no ACID, race conditions on concurrent writes, no password pepper
-  - Migrate to: `better-auth` + `better-sqlite3` 
+  - Migrate to: `better-auth` + `better-sqlite3`
   - Files: `server/auth.mjs` → rewrite
   - Migration script: JSON → SQLite on first boot
   - Keep scrypt password hashes – compatible
@@ -241,10 +224,10 @@ Priority: HIGH – do before public multi-tenant launch.
     - [ ] npm audit in sandbox – block deploy if new vulnerabilities introduced
 - [ ] **Content Security Policy – remove `'unsafe-inline'` for styles**
   - Current: `style-src 'self' 'unsafe-inline'` – needed for React inline styles
-  - After Tailwind migration: remove `'unsafe-inline'`, use only utility classes
+  - After Tailwind migration: remove `'unsafe-inline'` where possible; keep only for remaining dynamic widths
   - Verify in `server/middleware.mjs` → `setSecurityHeaders()`
 - [ ] **Secrets rotation – URGENT**
-  - GitHub PAT `ghp_wYnnO…` and Railway token `64b956ff-…` were shared in plaintext in chat / repo history
+  - GitHub PAT and Railway token were shared in plaintext in chat / local files
   - Action: revoke both immediately after development session
   - Store new tokens in: 1Password / Railway Variables / GitHub Secrets only
   - Add `.env` to `.gitignore` – already done? check
@@ -279,11 +262,9 @@ Priority: HIGH – do before public multi-tenant launch.
   - Persist: theme, sidebar collapsed state, last model
   - Storage: IndexedDB via `idb-keyval` (not localStorage – avoid quota)
 - [ ] **Markdown rendering – upgrade**
-  - Current: `react-markdown 10.1 + remark-gfm`
+  - Current: `react-markdown 10.1 + remark-gfm` + typography plugin
   - Add: `rehype-highlight` / `shiki` for code syntax highlighting
   - Add: `remark-math` + `rehype-katex` for math rendering
-  - Add: Tailwind Typography `prose prose-invert` for beautiful defaults
-  - `npm install @tailwindcss/typography rehype-highlight rehype-katex remark-math`
 - [ ] **Virtualization – already using `@tanstack/react-virtual` 3.14.5 ✓**
   - Verify it works with new ChatView after Tailwind migration
   - Add overscan: 5, smooth scroll
@@ -352,7 +333,7 @@ Priority: HIGH – do before public multi-tenant launch.
 
 ## ⏳ Planned – Phase 9: Self-improve AI – next level
 
-- [ ] **Sandbox – ESLint + build check**
+- [ ] **Sandbox – Biome + build check**
   - Current: Prettier → tsc → vitest
   - Add: `biome check` (replaces Prettier)
   - Add: `vite build` in sandbox – catch Vite-specific errors before deploy
@@ -389,27 +370,30 @@ Priority: HIGH – do before public multi-tenant launch.
 
 ## 📊 Metrics – track progress
 
-| Metric | Before (2026-07-10 08:00) | Now (2026-07-10 12:15) | Target |
+| Metric | Before (2026-07-10 08:00) | After 2b finish | Target |
 |---|---|---|---|
-| React | 19.1 | **19.2.7** | 19.x latest |
-| Vite | 7.0.0 | 7.0.0 | 7.x |
+| React | 19.1 | **19.2.x** | 19.x latest |
+| Vite | 7.0.0 | 7.x | 7.x |
+| Tailwind | none | **4.x** | 4.x |
 | Node | 22 | 22 | 22 LTS |
 | npm audit vulns | 0 | **0** | 0 |
-| Test count | 96 | **96** | >120 |
+| Test count | 96 | **96+** | >120 |
 | Test coverage | ? | ? | >70% |
-| Bundle JS (gzip) | 135.5 KB | **146.9 KB** | <130 KB (after styles.css removal) |
-| Bundle CSS (gzip) | 8.5 KB | **12.5 KB** | <10 KB |
-| Dependencies (prod) | 115 | ~125 | <100 |
+| Legacy `styles.css` | 56 KB / 2300 LOC | **deleted** | deleted |
+| Bundle CSS | dual stack | Tailwind only | <25 KB gzip |
+| Dependencies (prod) | 115 | ~shadcn/radix set | <100 |
 | `http-proxy` CVE risk | YES | **NO** | NO |
 | Sandbox RCE risk | HIGH | **MEDIUM** (src/** only) | LOW |
 | Auth storage | JSON files | JSON files | SQLite |
 | Session tokens | localStorage | localStorage | HttpOnly cookie |
-| CSP `unsafe-inline` (style) | YES | YES | NO (after Tailwind full migration) |
+| CSP `unsafe-inline` (style) | YES | reduced | NO |
 | PWA | NO | **YES** (manifest + workbox) | YES + icons |
 | React Compiler | NO | **YES** (opt-in) | YES, fully enabled |
 | CI | NO | **YES** (GitHub Actions) | YES + deploy gate |
 | E2E tests | NO | NO | Playwright |
 | Linter | Prettier | **Biome 2.5** | Biome |
+| Typography plugin | NO | **YES** | YES |
+| Syntax highlighting | NO | NO | shiki |
 
 ---
 
@@ -424,7 +408,7 @@ Priority: HIGH – do before public multi-tenant launch.
 5. **Check types**: `npx tsc -b`
 6. **Lint**: `npm run lint` (Biome)
 7. **Before committing**: update this `MIGRATION_PLAN.md` – check off completed items, update metrics table
-8. **Commit message format**: `feat(ui): ...`, `fix: ...`, `chore: ...`, `security: ...`
+8. **Commit message format**: `feat(ui): ...`, `fix: ...`, `chore: ...`, `security: ...`, `ui: ...`
 9. **Push to main** → Railway auto-deploys → verify at `https://opencode-ui-production.up.railway.app`
 10. **Check Railway logs**: via GraphQL API, deployment ID in CI output
 
@@ -440,7 +424,7 @@ Priority: HIGH – do before public multi-tenant launch.
 - `src/store/**`
 - `src/api/**`
 - `src/config/**`
-- `src/styles.css` – until it's deleted in Phase 2b.8
+- ~~`src/styles.css`~~ – **deleted in Phase 2b.8**; use Tailwind utilities + `src/index.css` tokens
 
 ---
 
@@ -454,13 +438,22 @@ Priority: HIGH – do before public multi-tenant launch.
 - **2026-07-10 11:49 UTC** – `feat(ui): Tailwind CSS 4 + shadcn/ui foundation` – commit `0fdf46d` – deploy SUCCESS
   - Tailwind 4.1, shadcn Button/Input/Card, @/* alias
   - styles.css kept for gradual migration
-- **2026-07-10 12:00 UTC** – `chore: Biome + React Compiler + PWA` – commit `89b120a` – deploy **FAILED** (package-lock out of sync)
+- **2026-07-10 12:00 UTC** – `chore: Biome + React Compiler + PWA` – commit `89b120a` – deploy FAILED (package-lock out of sync)
 - **2026-07-10 12:04 UTC** – `chore: update package-lock` – commit `de7328c` – deploy SUCCESS
 - **2026-07-10 12:14 UTC** – `ui: migrate Composer to Tailwind + shadcn` – commit `69e4148` – deploy SUCCESS
-  - Composer rewritten with Tailwind utilities, shadcn Button
-  - Tests: 96 passed
+- **2026-07-10 12:xx UTC** – `docs: add full modernization plan MIGRATION_PLAN.md` – commit `f28301f`
+- **2026-07-10** – `ui: migrate Sidebar to Tailwind + shadcn` – commit `1b8523d`
+- **2026-07-10** – `ui: migrate ChatView + MessageItem to Tailwind` – commit `256d114`
+- **2026-07-10** – `ui: migrate TopBar + ModelSelector to Tailwind` – commit `d61497c`
+- **2026-07-10 13:00 UTC** – `ui: migrate SettingsPanel to Tailwind + shadcn` – commit `4d5c960` – deploy SUCCESS
+- **2026-07-10 14:xx UTC** – Plan sync + finish Phase 2b
+  - Update plan to match git reality (Sidebar/Chat/TopBar/Settings done)
+  - Migrate: CopyButton, Skeleton, PartView, ToolCard, ToolGroup, LoginPage, PermissionDialog, ErrorBoundary, Workspace, App shell
+  - Add `@tailwindcss/typography`
+  - Delete `src/styles.css`, base layout in `src/index.css`
+  - Tests + build gate
 
-**Next up:** `Sidebar` → `ChatView` → `MessageItem` → … → delete `styles.css`
+**Next up:** Phase 5 (Playwright + coverage) or Phase 6 security (HttpOnly cookies / SQLite auth). Rotate secrets first.
 
 ---
 

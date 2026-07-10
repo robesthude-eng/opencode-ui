@@ -12,6 +12,10 @@ import {
   RefreshIcon,
   FolderUploadIcon,
 } from "./icons";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 interface TreeNode {
   name: string;
@@ -33,21 +37,28 @@ function toTree(nodes: { path: string; type?: string; isDirectory?: boolean }[])
       const isDir = isLast ? !!(n.isDirectory ?? n.type === "directory") : true;
       let child = cur.children!.find((c) => c.name === parts[i]);
       if (!child) {
-        child = { name: parts[i], path: acc, isDir, children: isDir ? [] : undefined, loaded: false };
+        child = {
+          name: parts[i],
+          path: acc,
+          isDir,
+          children: isDir ? [] : undefined,
+          loaded: false,
+        };
         cur.children!.push(child);
       }
       if (isDir) cur = child;
     }
   }
   const sort = (nodes: TreeNode[]): TreeNode[] => {
-    nodes.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
+    nodes.sort((a, b) =>
+      a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1,
+    );
     nodes.forEach((n) => n.children && sort(n.children));
     return nodes;
   };
   return sort(root.children ?? []);
 }
-// Strip the per-session workspace root so the UI shows a clean relative path
-// (e.g. "src/App.tsx" instead of "/app/workspace/sessions/ses_xxx/workspace/src/App.tsx").
+
 function toRelPath(p: string): string {
   if (!p) return p;
   const m = p.match(/^\/app\/workspace\/sessions\/[^/]+\/workspace(\/.*)?$/);
@@ -56,13 +67,12 @@ function toRelPath(p: string): string {
   return p;
 }
 
-
 const STATUS_COLORS: Record<string, string> = {
-  modified: "var(--yellow)",
-  added: "var(--green)",
-  untracked: "var(--blue)",
-  deleted: "var(--red)",
-  renamed: "var(--blue)",
+  modified: "#fbbf24",
+  added: "#4ade80",
+  untracked: "#60a5fa",
+  deleted: "#f87171",
+  renamed: "#60a5fa",
 };
 
 export default function Workspace() {
@@ -78,14 +88,13 @@ export default function Workspace() {
   const [gitFiles, setGitFiles] = useState<{ path: string; status?: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Folder upload state
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadTotal, setUploadTotal] = useState(0);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const treeRef = useRef<TreeNode[]>([]);
-  // Create folder input imperatively so webkitdirectory works in all browsers
+
   useEffect(() => {
     const input = document.createElement("input");
     input.type = "file";
@@ -105,7 +114,6 @@ export default function Workspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Track directories currently being loaded to prevent duplicate fetches.
   const loadingDirs = useRef<Set<string>>(new Set());
 
   const filterNodes = (nodes: any[]) => {
@@ -114,7 +122,21 @@ export default function Workspace() {
     return nodes.filter((n) => {
       const parts = (n.path || "").split("/");
       const p = parts[0];
-      if (p === ".config_opencode" || p === ".opencode_data" || p === ".local" || p === ".config" || p === ".cache" || p === "node_modules" || p === ".git" || p === ".users.json" || p === ".sessions.json" || p === ".session_owners.json" || p === ".admin_password" || p === ".self_improve_mode" || (n.path || "").endsWith(".tsbuildinfo")) {
+      if (
+        p === ".config_opencode" ||
+        p === ".opencode_data" ||
+        p === ".local" ||
+        p === ".config" ||
+        p === ".cache" ||
+        p === "node_modules" ||
+        p === ".git" ||
+        p === ".users.json" ||
+        p === ".sessions.json" ||
+        p === ".session_owners.json" ||
+        p === ".admin_password" ||
+        p === ".self_improve_mode" ||
+        (n.path || "").endsWith(".tsbuildinfo")
+      ) {
         return false;
       }
       if (!selfImproveEnabled && p === "opencode-ui") {
@@ -123,7 +145,7 @@ export default function Workspace() {
       if ((p === "sessions" || p === "uploads" || p === "temp") && parts.length > 1) {
         const sid = parts[1];
         if (sid && sid.startsWith("ses_") && !mySessionIds.has(sid)) {
-          return false; // Hide other users' session folders!
+          return false;
         }
       }
       return true;
@@ -142,16 +164,13 @@ export default function Workspace() {
     }
   };
 
-  // Keep refs in sync on every render so autoRefresh never uses stale data
   treeRef.current = tree;
   expandedRef.current = expanded;
 
   useEffect(() => {
     if (!workspaceOpen) return;
-    // Initial load on open.
     if (tree.length === 0) refresh();
     loadGit();
-    // Auto-refresh every 3s — silent. Only re-reads root + expanded dirs.
     const poll = setInterval(() => {
       autoRefresh();
       loadGit();
@@ -165,11 +184,9 @@ export default function Workspace() {
       refresh();
       loadGit();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selfImproveEnabled]);
 
-  // Reset the file tree when switching chats so the previous chat's
-  // workspace doesn't briefly appear in the panel (avoids the nested
-  // "matryoshka" of session folders from the instance's default dir).
   useEffect(() => {
     setTree([]);
     setExpanded(new Set([""]));
@@ -179,13 +196,12 @@ export default function Workspace() {
 
   const refresh = async () => {
     setLoading(true);
+    setError(null);
     const t = await loadDir(".");
     setTree(t);
     setLoading(false);
   };
 
-  // Silent refresh: only refresh children of expanded directories.
-  // Uses ref to avoid stale closure over 'tree' and 'expanded'.
   const autoRefresh = async () => {
     const t = await loadDir(".");
     const curExpanded = expandedRef.current;
@@ -194,14 +210,19 @@ export default function Workspace() {
     const merge = (fresh: TreeNode[], old: TreeNode[]): TreeNode[] =>
       fresh.map((fn) => {
         const oldNode = old.find((o) => o.path === fn.path);
-        // Only keep loaded children for expanded dirs; otherwise preserve old children
         if (fn.isDir && oldNode) {
           if (curExpanded.has(fn.path)) {
-            // Keep old children (they were loaded on demand), mark as loaded
-            return { ...fn, children: oldNode.children ?? [], loaded: oldNode.loaded ?? true };
+            return {
+              ...fn,
+              children: oldNode.children ?? [],
+              loaded: oldNode.loaded ?? true,
+            };
           }
-          // Not expanded: keep children if they were loaded, otherwise empty
-          return { ...fn, children: oldNode.children ?? [], loaded: oldNode.loaded ?? false };
+          return {
+            ...fn,
+            children: oldNode.children ?? [],
+            loaded: oldNode.loaded ?? false,
+          };
         }
         return fn;
       });
@@ -211,7 +232,10 @@ export default function Workspace() {
   };
 
   const loadGit = async () => {
-    if (!currentID) { setGitFiles([]); return; }
+    if (!currentID) {
+      setGitFiles([]);
+      return;
+    }
     try {
       const files = await api.gitStatus(currentID);
       const list = Array.isArray(files) ? (files as { path: string; status?: string }[]) : [];
@@ -228,7 +252,6 @@ export default function Workspace() {
       next.delete(node.path);
     } else {
       next.add(node.path);
-      // Guard against double-load on rapid clicks.
       if (!node.loaded && !loadingDirs.current.has(node.path)) {
         loadingDirs.current.add(node.path);
         try {
@@ -253,7 +276,7 @@ export default function Workspace() {
       const res = await api.readFile(path, currentID);
       setActiveFile({ path, content: res.content ?? res.text ?? "" });
     } catch {
-      // ignore — viewer just doesn't open
+      // ignore
     }
   };
 
@@ -261,21 +284,20 @@ export default function Workspace() {
     const input = e.target as HTMLInputElement;
     const fileList = input.files;
     if (!fileList || fileList.length === 0) return;
-    
+
     const files: { path: string; file: File }[] = [];
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
       const relPath = (file as any).webkitRelativePath || file.name;
       files.push({ path: relPath, file });
     }
-    
+
     setUploading(true);
     setUploadTotal(files.length);
     setUploadProgress(0);
     setUploadMsg(`Uploading ${files.length} files…`);
-    
+
     try {
-      // Split into batches of 20 for progress reporting
       const BATCH = 20;
       for (let i = 0; i < files.length; i += BATCH) {
         const batch = files.slice(i, i + BATCH);
@@ -283,21 +305,22 @@ export default function Workspace() {
         setUploadProgress(Math.min(i + BATCH, files.length));
       }
       setUploadMsg(`Done! ${files.length} file(s) uploaded.`);
-      refresh(); // Refresh the tree
+      refresh();
       setTimeout(() => setUploadMsg(null), 3000);
     } catch (err: any) {
       setUploadMsg(`Error: ${err.message}`);
       setTimeout(() => setUploadMsg(null), 5000);
     } finally {
       setUploading(false);
-      // Reset the input so the same folder can be re-uploaded
       input.value = "";
     }
   };
 
   const renderNode = (node: TreeNode, depth: number): ReactNode => {
     if (filter && !node.path.toLowerCase().includes(filter.toLowerCase())) {
-      const hasMatch = node.children?.some((c) => c.path.toLowerCase().includes(filter.toLowerCase()));
+      const hasMatch = node.children?.some((c) =>
+        c.path.toLowerCase().includes(filter.toLowerCase()),
+      );
       if (!hasMatch) return null;
     }
     const isOpen = expanded.has(node.path);
@@ -305,7 +328,12 @@ export default function Workspace() {
     return (
       <div key={node.path}>
         <div
-          className={`tree-row ${!node.isDir && activeFile?.path === node.path ? "active" : ""}`}
+          className={cn(
+            "flex cursor-pointer select-none items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground",
+            !node.isDir &&
+              activeFile?.path === node.path &&
+              "bg-muted text-foreground",
+          )}
           style={{ paddingLeft: 8 + depth * 14 }}
           onClick={() => (node.isDir ? toggleDir(node) : openFile(node.path))}
         >
@@ -316,12 +344,18 @@ export default function Workspace() {
             </>
           ) : (
             <>
-              <span className="tree-spacer" />
+              <span className="w-3.5 shrink-0" />
               <FileIcon size={15} />
             </>
           )}
-          <span className="tree-name">{node.name}</span>
-          {status && <span className="git-status-dot" style={{ background: STATUS_COLORS[status] }} title={status} />}
+          <span className="min-w-0 flex-1 truncate">{node.name}</span>
+          {status && (
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ background: STATUS_COLORS[status] }}
+              title={status}
+            />
+          )}
         </div>
         {node.isDir && isOpen && node.children?.map((c) => renderNode(c, depth + 1))}
       </div>
@@ -334,54 +368,82 @@ export default function Workspace() {
     <>
       {activeFile && (
         <>
-          <div className="ws-viewer-backdrop" onClick={() => setActiveFile(null)} />
-          <div className="ws-viewer">
-            <div className="ws-viewer-head">
-              <span className="ws-viewer-path">{toRelPath(activeFile.path)}</span>
-              <button className="icon-btn" onClick={() => setActiveFile(null)}>
+          <div
+            className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
+            onClick={() => setActiveFile(null)}
+          />
+          <div className="fixed left-1/2 top-1/2 z-[65] flex h-[min(560px,80vh)] w-[min(720px,90vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <span className="truncate font-mono text-sm">{toRelPath(activeFile.path)}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setActiveFile(null)}
+              >
                 <CloseIcon size={16} />
-              </button>
+              </Button>
             </div>
-            <pre className="ws-viewer-content">{activeFile.content}</pre>
+            <pre className="flex-1 overflow-auto p-4 font-mono text-[13px] leading-relaxed text-muted-foreground whitespace-pre">
+              {activeFile.content}
+            </pre>
           </div>
         </>
       )}
-      <aside className="workspace open">
-        <header className="ws-head">
-          <span className="ws-title">
-            <GitBranchIcon size={15} /> Workspace
+
+      <aside className="flex h-screen w-[300px] shrink-0 flex-col border-l border-border bg-card">
+        <header className="flex items-center justify-between border-b border-border px-3 py-3">
+          <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <GitBranchIcon size={15} />
+            Workspace
             <span className="live-dot" title="Auto-refreshing every 3s" />
           </span>
-          <div className="ws-head-actions">
-            <button className="icon-btn sm" onClick={refresh} title="Refresh now">
+          <div className="flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={refresh}
+              title="Refresh now"
+            >
               <RefreshIcon size={15} />
-            </button>
-            <button
-              className="icon-btn sm"
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
               onClick={() => setWorkspaceOpen(false)}
               title="Close"
             >
               <CloseIcon size={16} />
-            </button>
+            </Button>
           </div>
         </header>
 
-        <div className="ws-upload-section">
-          <button
-            className="ws-upload-btn"
+        <div className="border-b border-border px-2 py-2">
+          <Button
+            variant="outline"
+            className="h-8 w-full justify-start gap-2 border-dashed text-xs"
             disabled={uploading}
             onClick={() => folderInputRef.current?.click()}
             title="Upload entire folder with subfolders"
           >
             <FolderUploadIcon size={15} />
-            {uploading ? `Uploading… ${uploadProgress}/${uploadTotal}` : "Upload folder"}
-          </button>
+            {uploading
+              ? `Uploading… ${uploadProgress}/${uploadTotal}`
+              : "Upload folder"}
+          </Button>
           {uploadMsg && (
-            <div className="ws-upload-progress">
-              <div className="ws-upload-bar">
+            <div className="mt-2 space-y-1.5 text-[11px] text-muted-foreground">
+              <div className="h-1 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="ws-upload-bar-fill"
-                  style={{ width: uploadTotal > 0 ? `${(uploadProgress / uploadTotal) * 100}%` : "0%" }}
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{
+                    width:
+                      uploadTotal > 0
+                        ? `${(uploadProgress / uploadTotal) * 100}%`
+                        : "0%",
+                  }}
                 />
               </div>
               <span>{uploadMsg}</span>
@@ -389,56 +451,74 @@ export default function Workspace() {
           )}
         </div>
 
-        <div className="ws-search">
-          <SearchIcon size={14} />
-          <input
-            placeholder="Filter files…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
+        <div className="px-2 py-2">
+          <div className="relative">
+            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+              <SearchIcon size={14} />
+            </span>
+            <Input
+              className="h-8 pl-8 text-xs"
+              placeholder="Filter files…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </div>
         </div>
 
         {gitFiles.length > 0 && (
-          <div className="ws-git">
-            <div className="ws-git-head">
-              <span className="dot git-dot" />
+          <div className="border-b border-border px-3 pb-2">
+            <div className="mb-1 flex items-center gap-2 py-1 text-xs text-muted-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
               {gitFiles.length} changed {gitFiles.length === 1 ? "file" : "files"}
             </div>
-            <div className="ws-git-list">
+            <div className="flex max-h-40 flex-col gap-0.5 overflow-y-auto">
               {gitFiles.slice(0, 8).map((f) => (
-                <div
-                  className="ws-git-item"
+                <button
+                  type="button"
+                  className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-xs hover:bg-muted"
                   key={f.path}
                   onClick={() => openFile(f.path)}
                   title={toRelPath(f.path)}
                 >
                   <span
-                    className="git-tag"
-                    style={{ background: STATUS_COLORS[f.status ?? ""] }}
+                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white"
+                    style={{ background: STATUS_COLORS[f.status ?? ""] || "#6b7280" }}
                   >
                     {(f.status ?? "?").charAt(0).toUpperCase()}
                   </span>
-                  <span className="ws-git-path">{toRelPath(f.path)}</span>
-                </div>
+                  <span className="min-w-0 truncate text-muted-foreground">
+                    {toRelPath(f.path)}
+                  </span>
+                </button>
               ))}
             </div>
           </div>
         )}
 
-        <div className="ws-tree">
-          {!currentID ? (
-            <p className="muted small ws-loading">Select or create a chat to see its workspace.</p>
-          ) : (
-            <>
-              {loading && tree.length === 0 && <p className="muted small ws-loading">Loading…</p>}
-              {error && <div className="error-banner small">{error}</div>}
-              {!loading && tree.length === 0 && !error && (
-                <p className="muted small ws-loading">No files found.</p>
-              )}
-              {tree.map((n) => renderNode(n, 0))}
-            </>
-          )}
-        </div>
+        <ScrollArea className="flex-1">
+          <div className="px-2 py-2">
+            {!currentID ? (
+              <p className="px-2 py-3 text-xs text-muted-foreground">
+                Select or create a chat to see its workspace.
+              </p>
+            ) : (
+              <>
+                {loading && tree.length === 0 && (
+                  <p className="px-2 py-3 text-xs text-muted-foreground">Loading…</p>
+                )}
+                {error && (
+                  <div className="mx-1 mb-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-xs text-red-400">
+                    {error}
+                  </div>
+                )}
+                {!loading && tree.length === 0 && !error && (
+                  <p className="px-2 py-3 text-xs text-muted-foreground">No files found.</p>
+                )}
+                {tree.map((n) => renderNode(n, 0))}
+              </>
+            )}
+          </div>
+        </ScrollArea>
       </aside>
     </>
   );

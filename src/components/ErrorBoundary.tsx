@@ -1,4 +1,7 @@
 import { Component, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { AlertTriangle } from "lucide-react";
 
 interface Props {
   children: ReactNode;
@@ -32,7 +35,12 @@ export default class ErrorBoundary extends Component<Props, State> {
     try {
       await fetch("/api/reset-ui", {
         method: "POST",
-        headers: { "X-Auth-Token": typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") || "" : "" },
+        headers: {
+          "X-Auth-Token":
+            typeof window !== "undefined"
+              ? localStorage.getItem("opencode_auth_token") || ""
+              : "",
+        },
       });
       setTimeout(() => window.location.reload(), 1500);
     } catch {
@@ -43,23 +51,33 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="error-boundary">
-          <div className="error-boundary-card">
-            <div className="error-boundary-icon">⚠</div>
-            <h2>Something went wrong</h2>
-            <p className="muted">{this.state.message}</p>
-            <p className="muted small">
-              If this happened after a Self-Improvement edit, you can reset the UI source code back to factory Git state.
-            </p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 16, flexWrap: "wrap" }}>
-              <button className="btn-primary" onClick={this.handleReload} type="button">
-                Try again
-              </button>
-              <button className="btn-ghost" style={{ color: "var(--red)", borderColor: "var(--red)" }} onClick={this.handleResetUI} type="button">
-                🔄 Reset UI to Git
-              </button>
-            </div>
-          </div>
+        <div className="flex min-h-screen items-center justify-center bg-background p-6">
+          <Card className="w-full max-w-md text-center shadow-xl">
+            <CardContent className="space-y-4 pt-8 pb-8">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h2 className="text-xl font-semibold">Something went wrong</h2>
+              <p className="text-sm text-muted-foreground">{this.state.message}</p>
+              <p className="text-xs text-muted-foreground">
+                If this happened after a Self-Improvement edit, you can reset the UI
+                source code back to factory Git state.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                <Button type="button" onClick={this.handleReload}>
+                  Try again
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  onClick={this.handleResetUI}
+                >
+                  🔄 Reset UI to Git
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       );
     }

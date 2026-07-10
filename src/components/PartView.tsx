@@ -1,11 +1,12 @@
-import React, { memo } from "react";
+import React, { memo, type ReactNode, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { ChevronDown, FileText, Image as ImageIcon, Paperclip, FileArchive } from "lucide-react";
 import { Part } from "../api/types";
-import { ReactNode, ComponentPropsWithoutRef } from "react";
 import ToolCard from "./ToolCard";
 import CopyButton from "./CopyButton";
 import { formatSize } from "../api/files";
+import { cn } from "@/lib/utils";
 
 const SAFE_MD_COMPONENTS = {
   a: ({ href, children }: { href?: string; children?: ReactNode }) => {
@@ -21,50 +22,75 @@ const SAFE_MD_COMPONENTS = {
   pre: ({ children, ...props }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => {
     let codeText = "";
     try {
-      const child = React.Children.only(children) as React.ReactElement<{ children?: string | string[] }>;
-      if (child && child.props && typeof child.props.children === "string") {
+      const child = React.Children.only(children) as React.ReactElement<{
+        children?: string | string[];
+      }>;
+      if (child?.props && typeof child.props.children === "string") {
         codeText = child.props.children;
-      } else if (child && child.props && Array.isArray(child.props.children)) {
+      } else if (child?.props && Array.isArray(child.props.children)) {
         codeText = child.props.children.join("");
       }
     } catch {
       // fallback
     }
     return (
-      <div className="code-block-wrapper">
-        <CopyButton text={codeText || String(children)} title="Copy code" />
-        <pre {...props}>{children}</pre>
+      <div className="group/code relative my-3 overflow-hidden rounded-xl border border-border bg-background/80">
+        <div className="absolute right-2 top-2 z-10 opacity-0 transition group-hover/code:opacity-100">
+          <CopyButton text={codeText || String(children)} title="Copy code" />
+        </div>
+        <pre
+          className="overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-foreground/90"
+          {...props}
+        >
+          {children}
+        </pre>
       </div>
+    );
+  },
+  code: ({ className, children, ...props }: ComponentPropsWithoutRef<"code">) => {
+    const isBlock = typeof className === "string" && className.includes("language-");
+    if (isBlock) {
+      return (
+        <code className={cn("font-mono text-[13px]", className)} {...props}>
+          {children}
+        </code>
+      );
+    }
+    return (
+      <code
+        className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground"
+        {...props}
+      >
+        {children}
+      </code>
     );
   },
 } as Components;
 
-const HIDDEN_TYPES = new Set([
-  "file",
-]);
+const HIDDEN_TYPES = new Set(["file"]);
 
-// File type → icon emoji
-const KIND_ICONS: Record<string, string> = {
-  image: "🖼️",
-  pdf: "📄",
-  text: "📄",
-  zip: "🗜️",
-  binary: "📎",
+const KIND_ICONS: Record<string, ReactNode> = {
+  image: <ImageIcon className="h-4 w-4" />,
+  pdf: <FileText className="h-4 w-4" />,
+  text: <FileText className="h-4 w-4" />,
+  zip: <FileArchive className="h-4 w-4" />,
+  binary: <Paperclip className="h-4 w-4" />,
 };
 
-const STEP_TYPES = new Set([
-  "step-start",
-  "step-finish",
-  "step-reasoning",
-]);
+const STEP_TYPES = new Set(["step-start", "step-finish", "step-reasoning"]);
 
-// Move Markdown plugins to a constant to avoid re-initialization on every render
 const markdownPlugins = [remarkGfm];
 
-const OptimizedPartView = ({ part, isLastStreaming }: { part: Part; isLastStreaming?: boolean }) => {
+const OptimizedPartView = ({
+  part,
+  isLastStreaming,
+}: {
+  part: Part;
+  isLastStreaming?: boolean;
+}) => {
   const p = part as { type?: string; text?: string };
   if (HIDDEN_TYPES.has(p.type ?? "")) return null;
-  
+
   const renderMarkdown = (text: string) => (
     <ReactMarkdown remarkPlugins={markdownPlugins} components={SAFE_MD_COMPONENTS}>
       {text}
@@ -74,7 +100,7 @@ const OptimizedPartView = ({ part, isLastStreaming }: { part: Part; isLastStream
   if (STEP_TYPES.has(p.type ?? "")) {
     if (!p.text) return null;
     return (
-      <div className="part-step">
+      <div className="text-sm text-muted-foreground">
         {renderMarkdown(p.text)}
         {isLastStreaming && <span className="streaming-cursor" />}
       </div>
@@ -83,18 +109,31 @@ const OptimizedPartView = ({ part, isLastStreaming }: { part: Part; isLastStream
 
   switch (p.type) {
     case "attachment": {
-      const att = part as { type: string; name?: string; size?: number; kind?: string; path?: string; dataUrl?: string };
-      const icon = KIND_ICONS[att.kind || ""] || "📎";
+      const att = part as {
+        type: string;
+        name?: string;
+        size?: number;
+        kind?: string;
+        path?: string;
+        dataUrl?: string;
+      };
+      const icon = KIND_ICONS[att.kind || ""] || <Paperclip className="h-4 w-4" />;
       return (
-        <div className="attachment-card" key={att.name}>
+        <div className="flex items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm not-prose">
           {att.kind === "image" && att.dataUrl ? (
-            <img src={att.dataUrl} alt={att.name} className="attachment-preview" />
+            <img
+              src={att.dataUrl}
+              alt={att.name}
+              className="h-10 w-10 rounded-lg object-cover border border-border"
+            />
           ) : (
-            <span className="attachment-icon">{icon}</span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-background text-muted-foreground">
+              {icon}
+            </span>
           )}
-          <div className="attachment-info">
-            <span className="attachment-name">{att.name || "file"}</span>
-            <span className="attachment-meta">{formatSize(att.size || 0)}</span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-medium">{att.name || "file"}</div>
+            <div className="text-xs text-muted-foreground">{formatSize(att.size || 0)}</div>
           </div>
         </div>
       );
@@ -102,7 +141,7 @@ const OptimizedPartView = ({ part, isLastStreaming }: { part: Part; isLastStream
     case "text":
       if (!p.text) return null;
       return (
-        <div className="part-text">
+        <div className="part-text break-words">
           {renderMarkdown(p.text)}
           {isLastStreaming && <span className="streaming-cursor" />}
         </div>
@@ -110,13 +149,13 @@ const OptimizedPartView = ({ part, isLastStreaming }: { part: Part; isLastStream
     case "reasoning":
       if (!p.text) return null;
       return (
-        <details className="part-reasoning" open={true}>
-          <summary>
-            <span className="reasoning-icon">💭</span>
-            <span>Рассуждение</span>
-            <span className="reasoning-chevron" />
+        <details className="not-prose group my-2 overflow-hidden rounded-xl border border-info/20 bg-info/5" open>
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium text-info marker:content-none [&::-webkit-details-marker]:hidden">
+            <span>💭</span>
+            <span className="flex-1">Рассуждение</span>
+            <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
           </summary>
-          <div className="reasoning-body">
+          <div className="border-t border-info/15 px-3 py-2 text-sm text-muted-foreground prose prose-invert prose-sm max-w-none">
             {renderMarkdown(p.text)}
             {isLastStreaming && <span className="streaming-cursor" />}
           </div>
@@ -127,7 +166,7 @@ const OptimizedPartView = ({ part, isLastStreaming }: { part: Part; isLastStream
     default:
       if (!p.text) return null;
       return (
-        <div className="part-text">
+        <div className="part-text break-words">
           {renderMarkdown(p.text)}
           {isLastStreaming && <span className="streaming-cursor" />}
         </div>

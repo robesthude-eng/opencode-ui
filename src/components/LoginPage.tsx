@@ -1,5 +1,10 @@
 import React, { useState } from "react";
 import { useStore } from "../store/useStore";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   const login = useStore((s) => s.login);
@@ -30,7 +35,9 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    const res = isRegistering ? await register(cleanEmail, password) : await login(cleanEmail, password);
+    const res = isRegistering
+      ? await register(cleanEmail, password)
+      : await login(cleanEmail, password);
     setLoading(false);
 
     if (!res.ok) {
@@ -39,74 +46,110 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="auth-overlay">
-      <div className="auth-card">
-        <div className="auth-header">
-          <div className="auth-logo">✦</div>
-          <h2>{isRegistering ? "Регистрация" : "Вход"}</h2>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4">
+      <Card className="w-full max-w-md border-border shadow-2xl">
+        <CardHeader className="items-center text-center space-y-3 pb-2">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white text-xl shadow">
+            ✦
+          </div>
+          <h2 className="text-xl font-semibold tracking-tight">
+            {isRegistering ? "Регистрация" : "Вход"}
+          </h2>
+        </CardHeader>
 
-        <div className="auth-tabs">
-          <button
-            type="button"
-            className={`auth-tab ${!isRegistering ? "active" : ""}`}
-            onClick={() => { setIsRegistering(false); setError(null); }}
-          >
-            Вход
-          </button>
-          <button
-            type="button"
-            className={`auth-tab ${isRegistering ? "active" : ""}`}
-            onClick={() => { setIsRegistering(true); setError(null); }}
-          >
-            Регистрация
-          </button>
-        </div>
-
-        {error && <div className="error-banner small" style={{ marginBottom: 16 }}>{error}</div>}
-
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label>Email</label>
-            <input
-              type="email"
-              placeholder="name@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-            />
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+            <button
+              type="button"
+              className={cn(
+                "rounded-lg px-3 py-2 text-sm font-medium transition",
+                !isRegistering
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => {
+                setIsRegistering(false);
+                setError(null);
+              }}
+            >
+              Вход
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded-lg px-3 py-2 text-sm font-medium transition",
+                isRegistering
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => {
+                setIsRegistering(true);
+                setError(null);
+              }}
+            >
+              Регистрация
+            </button>
           </div>
 
-          <div className="form-group">
-            <label>Пароль</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-
-          {isRegistering && (
-            <div className="form-group">
-              <label>Подтвердите пароль</label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={confirmPass}
-                onChange={(e) => setConfirmPass(e.target.value)}
-                required
-              />
+          {error && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+              {error}
             </div>
           )}
 
-          <button type="submit" className="btn-primary auth-submit" disabled={loading}>
-            {loading ? "Подождите…" : isRegistering ? "Зарегистрироваться" : "Войти"}
-          </button>
-        </form>
-      </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+                autoComplete="email"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Пароль</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete={isRegistering ? "new-password" : "current-password"}
+              />
+            </div>
+
+            {isRegistering && (
+              <div className="space-y-2">
+                <Label htmlFor="confirm">Подтвердите пароль</Label>
+                <Input
+                  id="confirm"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPass}
+                  onChange={(e) => setConfirmPass(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                />
+              </div>
+            )}
+
+            <Button type="submit" className="w-full h-10" disabled={loading}>
+              {loading
+                ? "Подождите…"
+                : isRegistering
+                  ? "Зарегистрироваться"
+                  : "Войти"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
