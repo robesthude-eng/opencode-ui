@@ -151,7 +151,7 @@ export default function Workspace() {
       const p = parts[0] || "";
 
       // Hide heavy / secret segments anywhere in the path (not only root)
-      if (parts.some((seg) => HIDDEN_SEGMENTS.has(seg))) return false;
+      if (parts.some((seg: string) => HIDDEN_SEGMENTS.has(seg))) return false;
       if (raw.endsWith(".tsbuildinfo") || raw.endsWith(".map")) return false;
 
       // UI sources only when self-improve is on; never dump whole monorepo tree by default
