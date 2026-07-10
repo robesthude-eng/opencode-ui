@@ -1,0 +1,33 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-background: #0b0b0f;
+  --color-foreground: #e6e6e6;
+  --color-card: #14141c;
+  --color-card-foreground: #e6e6e6;
+  --color-border: #26263a;
+  --color-input: #26263a;
+  --color-primary: #7c5cff;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #1a1a24;
+  --color-secondary-foreground: #e6e6e6;
+  --color-muted: #1a1a24;
+  --color-muted-foreground: #8a8a9e;
+  --color-accent: #1a1a24;
+  --color-accent-foreground: #e6e6e6;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-ring: #7c5cff;
+  --radius: 0.75rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; }
+}
+
