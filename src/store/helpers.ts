@@ -60,10 +60,15 @@ export function patchPart(messages: Message[], messageID: string, part: Part): M
   const targetID = messageID;
   const exists = messages.some((m) => m.id === targetID);
   if (!exists) {
-    const localIdx = messages.findIndex((m) => m.id.startsWith("local_") && m.role === "user" && part.type === "text");
+    const localIdx = messages.findIndex(
+      (m) => m.id.startsWith("local_") && m.role === "user" && part.type === "text",
+    );
     if (localIdx !== -1) {
       const copy = messages.slice();
-      const cleanedPart = part.type === "text" && typeof (part as any).text === "string" ? { ...part, text: cleanSysText((part as any).text) } : part;
+      const cleanedPart =
+        part.type === "text" && typeof (part as any).text === "string"
+          ? { ...part, text: cleanSysText((part as any).text) }
+          : part;
       copy[localIdx] = { ...copy[localIdx], id: targetID, parts: [cleanedPart] };
       return copy;
     }
@@ -71,12 +76,26 @@ export function patchPart(messages: Message[], messageID: string, part: Part): M
   }
   return messages.map((m) => {
     if (m.id !== targetID) return m;
-    const cleanedPart = m.role === "user" && part.type === "text" && typeof (part as any).text === "string" ? { ...part, text: cleanSysText((part as any).text) } : part;
+    const cleanedPart =
+      m.role === "user" && part.type === "text" && typeof (part as any).text === "string"
+        ? { ...part, text: cleanSysText((part as any).text) }
+        : part;
     const pid = (cleanedPart as { id?: string }).id;
     let idx = pid ? m.parts.findIndex((p) => (p as { id?: string }).id === pid) : -1;
     if (idx === -1) {
-      idx = m.parts.findIndex((p) => !(p as { id?: string }).id && p.type === cleanedPart.type && (m.role === "user" || (p as { text?: string }).text === (cleanedPart as { text?: string }).text));
-      if (idx === -1 && m.parts.length === 1 && m.parts[0].type === cleanedPart.type && !(m.parts[0] as { id?: string }).id) {
+      idx = m.parts.findIndex(
+        (p) =>
+          !(p as { id?: string }).id &&
+          p.type === cleanedPart.type &&
+          (m.role === "user" ||
+            (p as { text?: string }).text === (cleanedPart as { text?: string }).text),
+      );
+      if (
+        idx === -1 &&
+        m.parts.length === 1 &&
+        m.parts[0].type === cleanedPart.type &&
+        !(m.parts[0] as { id?: string }).id
+      ) {
         idx = 0;
       }
     }
@@ -92,7 +111,7 @@ export function patchPartDelta(
   messageID: string,
   partID: string,
   field: string,
-  delta: unknown
+  delta: unknown,
 ): Message[] {
   if (!messageID || !partID || !field || delta === undefined) return messages;
   const exists = messages.some((m) => m.id === messageID);

@@ -1,10 +1,11 @@
-import React, { useState } from "react";
-import { useStore } from "../store/useStore";
+import type React from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useStore } from "../store/useStore";
 
 export default function LoginPage() {
   const login = useStore((s) => s.login);
@@ -21,7 +22,7 @@ export default function LoginPage() {
     setError(null);
 
     const cleanEmail = email.trim();
-    if (!cleanEmail || !cleanEmail.includes("@")) {
+    if (!cleanEmail?.includes("@")) {
       setError("Введите корректный email адрес.");
       return;
     }
@@ -141,11 +142,7 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" className="w-full h-10" disabled={loading}>
-              {loading
-                ? "Подождите…"
-                : isRegistering
-                  ? "Зарегистрироваться"
-                  : "Войти"}
+              {loading ? "Подождите…" : isRegistering ? "Зарегистрироваться" : "Войти"}
             </Button>
           </form>
         </CardContent>

@@ -1,13 +1,13 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import type { State, ModelEntry } from "./types";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { createAuthSlice } from "./slices/authSlice";
-import { createModelsSlice } from "./slices/modelsSlice";
-import { createUiSlice } from "./slices/uiSlice";
-import { createSessionsSlice } from "./slices/sessionsSlice";
 import { createMessagesSlice } from "./slices/messagesSlice";
+import { createModelsSlice } from "./slices/modelsSlice";
+import { createSessionsSlice } from "./slices/sessionsSlice";
+import { createUiSlice } from "./slices/uiSlice";
+import type { ModelEntry, State } from "./types";
 
-export type { State, ModelEntry };
+export type { ModelEntry, State };
 
 /**
  * Prefer IndexedDB via idb-keyval when available; fall back to localStorage.

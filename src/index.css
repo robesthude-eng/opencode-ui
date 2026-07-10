@@ -1,9 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@plugin "@tailwindcss/typography";
-
-/* Syntax highlighting for markdown code blocks (rehype-highlight) */
 @import "highlight.js/styles/github-dark.css";
+@plugin "@tailwindcss/typography";
 
 @theme {
   --color-background: #0b0b0f;
@@ -108,8 +106,14 @@
 
 /* Streaming caret used in PartView */
 @keyframes blink-caret {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 .streaming-cursor {
   display: inline-block;
@@ -123,8 +127,15 @@
 
 /* Live pulse for workspace auto-refresh */
 @keyframes live-pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-success) 50%, transparent); }
-  50% { opacity: 0.55; box-shadow: 0 0 0 4px transparent; }
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-success) 50%, transparent);
+  }
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 0 4px transparent;
+  }
 }
 .live-dot {
   width: 7px;

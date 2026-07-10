@@ -1,10 +1,10 @@
-import { useState, memo } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { ToolPart } from "../api/types";
-import ToolCard from "./ToolCard";
-import { toolIcon } from "../utils/toolUtils";
-import { cn } from "@/lib/utils";
+import { memo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import type { ToolPart } from "../api/types";
+import { toolIcon } from "../utils/toolUtils";
+import ToolCard from "./ToolCard";
 
 function getState(part: ToolPart): string {
   const s = part.state;
@@ -54,7 +54,11 @@ const ToolGroup = ({ tool, parts }: { tool: string; parts: ToolPart[] }) => {
         </Badge>
         <span className="flex-1" />
         <span className="text-muted-foreground">
-          {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
         </span>
         <span
           className={cn(

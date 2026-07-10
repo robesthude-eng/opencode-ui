@@ -1,14 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { useStore } from "../store/useStore";
-import MessageItem from "./MessageItem";
-import { ChevronDownIcon, SendIcon } from "./icons";
-import type { Message } from "../api/types";
 import { Button } from "@/components/ui/button";
+import type { Message } from "../api/types";
+import { useStore } from "../store/useStore";
+import { ChevronDownIcon, SendIcon } from "./icons";
+import MessageItem from "./MessageItem";
 
 const SUGGESTIONS = [
-  { title: "Написать код", prompt: "Напиши функцию на Python, которая сортирует список словарей по ключу", icon: "💻" },
-  { title: "Объяснить код", prompt: "Объясни, как работает этот код: def quicksort(arr): ...", icon: "📖" },
-  { title: "Создать файл", prompt: "Создай файл hello.txt с текстом 'Привет мир' используя инструмент write", icon: "📄" },
+  {
+    title: "Написать код",
+    prompt: "Напиши функцию на Python, которая сортирует список словарей по ключу",
+    icon: "💻",
+  },
+  {
+    title: "Объяснить код",
+    prompt: "Объясни, как работает этот код: def quicksort(arr): ...",
+    icon: "📖",
+  },
+  {
+    title: "Создать файл",
+    prompt: "Создай файл hello.txt с текстом 'Привет мир' используя инструмент write",
+    icon: "📄",
+  },
   { title: "Отладить", prompt: "Помоги найти баг в этом коде и предложи исправление", icon: "🐛" },
 ];
 
@@ -43,15 +55,19 @@ export default function ChatView() {
 
   useEffect(() => {
     if (atBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, status]);
+  }, []);
 
   if (!currentID) {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="max-w-2xl w-full text-center">
-          <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-2xl shadow">✦</div>
+          <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-2xl shadow">
+            ✦
+          </div>
           <h1 className="text-2xl md:text-3xl font-semibold mb-2">Чем могу помочь?</h1>
-          <p className="text-muted-foreground mb-8">Твой персональный AI-ассистент для кода. Выбери пример или напиши свой запрос.</p>
+          <p className="text-muted-foreground mb-8">
+            Твой персональный AI-ассистент для кода. Выбери пример или напиши свой запрос.
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
             {SUGGESTIONS.map((s, i) => (
               <button
@@ -63,7 +79,9 @@ export default function ChatView() {
                   <span className="text-xl">{s.icon}</span>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm">{s.title}</div>
-                    <div className="text-xs text-muted-foreground truncate">{s.prompt.slice(0, 60)}...</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {s.prompt.slice(0, 60)}...
+                    </div>
                   </div>
                   <SendIcon size={14} />
                 </div>
@@ -81,7 +99,7 @@ export default function ChatView() {
       (p) =>
         (p.type === "text" && (p as { text?: string }).text) ||
         p.type === "tool" ||
-        p.type === "reasoning"
+        p.type === "reasoning",
     );
 
   const lastMsg = messages?.[messages.length - 1];
@@ -89,28 +107,26 @@ export default function ChatView() {
   const showTyping = status === "busy" && !lastHasContent;
 
   const visibleMessages = (messages || []).filter(
-    (m) => !showTyping || m.role !== "assistant" || hasVisibleContent(m)
+    (m) => !showTyping || m.role !== "assistant" || hasVisibleContent(m),
   );
   const isWindowed = visibleMessages.length > windowSize;
-  const renderedMessages = isWindowed
-    ? visibleMessages.slice(-windowSize)
-    : visibleMessages;
+  const renderedMessages = isWindowed ? visibleMessages.slice(-windowSize) : visibleMessages;
 
   return (
     <div className="flex-1 relative overflow-hidden bg-background">
-      <div
-        className="h-full overflow-y-auto"
-        ref={scrollRef}
-        onScroll={onScroll}
-      >
+      <div className="h-full overflow-y-auto" ref={scrollRef} onScroll={onScroll}>
         {error && (
           <div className="mx-auto max-w-3xl px-3 md:px-6 pt-3">
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+              {error}
+            </div>
           </div>
         )}
         <div className="mx-auto max-w-3xl">
           {(!messages || messages.length === 0) && status !== "busy" && (
-            <p className="text-center text-muted-foreground py-12">Начни диалог — напиши сообщение ниже</p>
+            <p className="text-center text-muted-foreground py-12">
+              Начни диалог — напиши сообщение ниже
+            </p>
           )}
           {isWindowed && (
             <div className="text-center py-3">
@@ -131,7 +147,9 @@ export default function ChatView() {
             })}
             {showTyping && (
               <div className="flex gap-3 py-5 px-3 md:px-6">
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-sm animate-pulse">✦</div>
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-sm animate-pulse">
+                  ✦
+                </div>
                 <div className="rounded-2xl border border-border bg-card px-4 py-3">
                   <span className="flex gap-1">
                     <span className="h-1.5 w-1.5 bg-muted-foreground rounded-full animate-bounce" />

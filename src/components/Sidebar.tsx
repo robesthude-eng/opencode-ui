@@ -1,11 +1,20 @@
-import { useState, useRef, useEffect } from "react";
-import { useStore } from "../store/useStore";
-import { NewChatIcon, SettingsIcon, SunIcon, MoonIcon, TrashIcon, CloseIcon, MenuIcon, LogoutIcon } from "./icons";
+import { useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { useStore } from "../store/useStore";
+import {
+  CloseIcon,
+  LogoutIcon,
+  MenuIcon,
+  MoonIcon,
+  NewChatIcon,
+  SettingsIcon,
+  SunIcon,
+  TrashIcon,
+} from "./icons";
 
 function SidebarUserEmail({ email }: { email: string }) {
   const [showFull, setShowFull] = useState(false);
@@ -18,7 +27,9 @@ function SidebarUserEmail({ email }: { email: string }) {
   };
 
   useEffect(() => {
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
   return (
@@ -64,24 +75,38 @@ export default function Sidebar() {
     <>
       {/* Mobile backdrop */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden" onClick={close} />
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+          onClick={close}
+        />
       )}
-      <aside className={cn(
-        "fixed md:static inset-y-0 left-0 z-50 w-[300px] shrink-0",
-        "bg-card border-r border-border",
-        "flex flex-col h-screen transition-transform duration-200",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      )}>
+      <aside
+        className={cn(
+          "fixed md:static inset-y-0 left-0 z-50 w-[300px] shrink-0",
+          "bg-card border-r border-border",
+          "flex flex-col h-screen transition-transform duration-200",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+        )}
+      >
         {/* Top */}
         <div className="flex items-center gap-2 p-3 border-b border-border">
           <Button
             className="flex-1 justify-start gap-2"
-            onClick={() => { newSession(); close(); }}
+            onClick={() => {
+              newSession();
+              close();
+            }}
           >
             <NewChatIcon />
             <span>New chat</span>
           </Button>
-          <Button variant="ghost" size="icon" onClick={toggleSidebar} title="Hide sidebar" className="hidden md:flex">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            title="Hide sidebar"
+            className="hidden md:flex"
+          >
             <MenuIcon size={18} />
           </Button>
           <Button variant="ghost" size="icon" onClick={close} title="Close" className="md:hidden">
@@ -93,28 +118,41 @@ export default function Sidebar() {
         <ScrollArea className="flex-1">
           <nav className="p-2 space-y-1">
             {sessions.length === 0 && (
-              <p className="px-3 py-8 text-sm text-muted-foreground text-center">No conversations yet</p>
+              <p className="px-3 py-8 text-sm text-muted-foreground text-center">
+                No conversations yet
+              </p>
             )}
             {sessions.map((s) => {
               const isActive = s.id === currentID;
-              const sStatus = typeof status[s.id] === "string" ? status[s.id] : (status[s.id] as any)?.type;
+              const sStatus =
+                typeof status[s.id] === "string" ? status[s.id] : (status[s.id] as any)?.type;
               const busy = sStatus === "busy";
               return (
                 <div
                   key={s.id}
                   className={cn(
                     "group flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm cursor-pointer transition",
-                    isActive ? "bg-muted text-foreground" : "hover:bg-muted/60 text-muted-foreground hover:text-foreground"
+                    isActive
+                      ? "bg-muted text-foreground"
+                      : "hover:bg-muted/60 text-muted-foreground hover:text-foreground",
                   )}
-                  onClick={() => { select(s.id); close(); }}
+                  onClick={() => {
+                    select(s.id);
+                    close();
+                  }}
                 >
                   <span className="flex-1 truncate flex items-center gap-2">
-                    {busy && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
+                    {busy && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    )}
                     {s.title || "New chat"}
                   </span>
                   <button
                     className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-background transition text-muted-foreground hover:text-red-400"
-                    onClick={(e) => { e.stopPropagation(); removeSession(s.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeSession(s.id);
+                    }}
                     title="Delete"
                   >
                     <TrashIcon />
@@ -136,7 +174,9 @@ export default function Sidebar() {
               <SettingsIcon />
               <span>Settings</span>
               {authedCount > 0 && (
-                <Badge variant="secondary" className="ml-auto h-5 px-1.5 text-[10px]">{authedCount}</Badge>
+                <Badge variant="secondary" className="ml-auto h-5 px-1.5 text-[10px]">
+                  {authedCount}
+                </Badge>
               )}
             </Button>
             <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle theme">
@@ -153,7 +193,9 @@ export default function Sidebar() {
                   variant="ghost"
                   size="icon"
                   className="text-red-400 hover:text-red-300 hover:bg-red-500/10 shrink-0"
-                  onClick={() => { if (confirm("Выйти из аккаунта?")) logout(); }}
+                  onClick={() => {
+                    if (confirm("Выйти из аккаунта?")) logout();
+                  }}
                   title={`Выйти (${currentUser.email})`}
                 >
                   <LogoutIcon />

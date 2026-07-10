@@ -1,18 +1,19 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { Message, Part } from "../api/types";
 import {
   cleanSysText,
   normalizeMessage,
   normalizeMessages,
-  upsertMessage,
   patchPart,
   patchPartDelta,
+  upsertMessage,
 } from "./helpers";
-import type { Message, Part } from "../api/types";
 
 describe("helpers.ts — Token & Message Processing Architecture", () => {
   describe("cleanSysText()", () => {
     it("1. strips system self-improvement instructions from text", () => {
-      const input = "Hello world!\n\n[SYSTEM: Режим саморазвития ВКЛЮЧЁН. Для изолированных файлов или проектов данного чата используйте директорию sessions/s123/. При удалении чата эта папка будет автоматически удалена.]";
+      const input =
+        "Hello world!\n\n[SYSTEM: Режим саморазвития ВКЛЮЧЁН. Для изолированных файлов или проектов данного чата используйте директорию sessions/s123/. При удалении чата эта папка будет автоматически удалена.]";
       expect(cleanSysText(input)).toBe("Hello world!");
     });
 
@@ -43,7 +44,9 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
       const raw: Message = {
         id: "msg_user_1",
         role: "user",
-        parts: [{ type: "text", text: "Help me check bugs\n\n[SYSTEM: Режим саморазвития отключён...]" }],
+        parts: [
+          { type: "text", text: "Help me check bugs\n\n[SYSTEM: Режим саморазвития отключён...]" },
+        ],
       };
       const res = normalizeMessage(raw);
       expect((res.parts[0] as any).text).toBe("Help me check bugs");
@@ -63,7 +66,10 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
   describe("normalizeMessages()", () => {
     it("7. maps an array of raw messages through normalizeMessage", () => {
       const input: any[] = [
-        { info: { id: "m1", role: "user" }, parts: [{ type: "text", text: "Hi\n\n[SYSTEM: Режим саморазвития тест]" }] },
+        {
+          info: { id: "m1", role: "user" },
+          parts: [{ type: "text", text: "Hi\n\n[SYSTEM: Режим саморазвития тест]" }],
+        },
         { info: { id: "m2", role: "assistant" }, parts: [{ type: "text", text: "Hello there" }] },
       ];
       const res = normalizeMessages(input);
@@ -77,7 +83,11 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
   describe("upsertMessage()", () => {
     it("8. appends a brand new message if its ID is not in the array", () => {
       const existing: Message[] = [{ id: "m1", role: "user", parts: [] }];
-      const newMsg: Message = { id: "m2", role: "assistant", parts: [{ type: "text", text: "Ok" }] };
+      const newMsg: Message = {
+        id: "m2",
+        role: "assistant",
+        parts: [{ type: "text", text: "Ok" }],
+      };
       const res = upsertMessage(existing, newMsg);
       expect(res).toHaveLength(2);
       expect(res[1].id).toBe("m2");
@@ -87,7 +97,11 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
       const existing: Message[] = [
         { id: "local_1700000", role: "user", parts: [{ type: "text", text: "Fix this bug" }] },
       ];
-      const serverMsg: Message = { id: "msg_server_888", role: "user", parts: [{ type: "text", text: "Fix this bug" }] };
+      const serverMsg: Message = {
+        id: "msg_server_888",
+        role: "user",
+        parts: [{ type: "text", text: "Fix this bug" }],
+      };
       const res = upsertMessage(existing, serverMsg);
       expect(res).toHaveLength(1);
       expect(res[0].id).toBe("msg_server_888");
@@ -95,7 +109,11 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
 
     it("10. updates existing message while preserving accumulated text/tool parts when server sends info-only update", () => {
       const existing: Message[] = [
-        { id: "msg_ai_5", role: "assistant", parts: [{ type: "text", text: "Accumulated streaming text..." }] },
+        {
+          id: "msg_ai_5",
+          role: "assistant",
+          parts: [{ type: "text", text: "Accumulated streaming text..." }],
+        },
       ];
       const infoUpdate: Message = { id: "msg_ai_5", role: "assistant", parts: [] };
       const res = upsertMessage(existing, infoUpdate);
@@ -128,7 +146,11 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
 
     it("13. updates existing IDd part by matching part ID", () => {
       const existing: Message[] = [
-        { id: "msg_1", role: "assistant", parts: [{ id: "part_a", type: "tool", tool: "bash" } as any] },
+        {
+          id: "msg_1",
+          role: "assistant",
+          parts: [{ id: "part_a", type: "tool", tool: "bash" } as any],
+        },
       ];
       const updatedPart: any = { id: "part_a", type: "tool", tool: "bash", status: "completed" };
       const res = patchPart(existing, "msg_1", updatedPart);
@@ -140,7 +162,11 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
   describe("patchPartDelta() — Real-time Character Streaming", () => {
     it("14. appends delta string character by character during live SSE streaming", () => {
       const existing: Message[] = [
-        { id: "msg_1", role: "assistant", parts: [{ id: "p_1", type: "text", text: "Hello" } as any] },
+        {
+          id: "msg_1",
+          role: "assistant",
+          parts: [{ id: "p_1", type: "text", text: "Hello" } as any],
+        },
       ];
       const res = patchPartDelta(existing, "msg_1", "p_1", "text", ", world!");
       expect((res[0].parts[0] as any).text).toBe("Hello, world!");

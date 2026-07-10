@@ -2,7 +2,7 @@
 /**
  * Tests for server/upload.mjs
  */
-import { describe, test, expect } from "vitest";
+import { describe, expect, test } from "vitest";
 import { parseMultipart } from "../upload.mjs";
 
 describe("parseMultipart", () => {
@@ -50,14 +50,14 @@ describe("parseMultipart", () => {
 
   test("handles binary data", () => {
     const boundary = "WebKitFormBoundary";
-    const binaryData = Buffer.from([0x00, 0x01, 0x02, 0xFF, 0xFE, 0xFD]);
+    const binaryData = Buffer.from([0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd]);
 
     // Build multipart buffer manually (binary-safe)
     const prefix = Buffer.from(
       `--WebKitFormBoundary\r\n` +
-      `Content-Disposition: form-data; name="file"; filename="binary.bin"\r\n` +
-      `Content-Type: application/octet-stream\r\n` +
-      `\r\n`
+        `Content-Disposition: form-data; name="file"; filename="binary.bin"\r\n` +
+        `Content-Type: application/octet-stream\r\n` +
+        `\r\n`,
     );
     const suffix = Buffer.from(`\r\n--WebKitFormBoundary--\r\n`);
     const buffer = Buffer.concat([prefix, binaryData, suffix]);

@@ -1,8 +1,8 @@
 /**
  * Tests for src/api/client.ts
  */
-import { describe, test, expect, beforeEach, vi } from "vitest";
-import { configure, getConfig, api } from "../api/client";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { api, configure, getConfig } from "../api/client";
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -46,7 +46,7 @@ describe("client", () => {
           headers: expect.objectContaining({
             "Content-Type": "application/json",
           }),
-        })
+        }),
       );
     });
   });
@@ -86,7 +86,7 @@ describe("client", () => {
             parts: [{ type: "text", text: "Hello" }],
             model: { providerID: "openai", modelID: "gpt-4" },
           }),
-        })
+        }),
       );
     });
   });
@@ -132,7 +132,7 @@ describe("client", () => {
         expect.any(String),
         expect.objectContaining({
           credentials: "include",
-        })
+        }),
       );
     });
   });

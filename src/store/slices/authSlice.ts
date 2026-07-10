@@ -1,5 +1,5 @@
 import { api } from "../../api/client";
-import type { Slice, AuthSlice } from "../types";
+import type { AuthSlice, Slice } from "../types";
 
 const CUSTOM_PROVIDERS = new Set<string>();
 
@@ -134,8 +134,7 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
       set((s) => {
         const authed = { ...s.authed };
         delete authed[providerId];
-        const selectedModel =
-          s.selectedModel?.providerID === providerId ? null : s.selectedModel;
+        const selectedModel = s.selectedModel?.providerID === providerId ? null : s.selectedModel;
         return { authed, selectedModel, modelsLoaded: false };
       });
       void get().loadModels();

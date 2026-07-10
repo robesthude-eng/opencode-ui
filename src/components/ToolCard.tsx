@@ -1,11 +1,11 @@
-import { useState, memo, useCallback } from "react";
-import { ChevronDown, ChevronRight, ArrowRight, Check } from "lucide-react";
-import { ToolPart, ToolState } from "../api/types";
-import { toolIcon } from "../utils/toolUtils";
-import { useStore } from "../store/useStore";
+import { ArrowRight, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { memo, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import type { ToolPart, ToolState } from "../api/types";
+import { useStore } from "../store/useStore";
+import { toolIcon } from "../utils/toolUtils";
 
 function fmt(value: unknown): string {
   if (value == null) return "";
@@ -47,7 +47,7 @@ function getOutput(part: ToolPart): string {
   if (typeof out === "string") return out;
   if (typeof out === "object") {
     const o = out as { type?: string; text?: string; error?: { message?: string } };
-    if (o.type === "error") return "Error: " + (o.error?.message ?? "unknown");
+    if (o.type === "error") return `Error: ${o.error?.message ?? "unknown"}`;
     return fmt(out);
   }
   return String(out);
@@ -57,13 +57,13 @@ function getSummary(part: ToolPart): string {
   const s = part.state;
   if (s && typeof s === "object") {
     const title = (s as ToolState).title;
-    if (title) return title.length > 60 ? title.slice(0, 57) + "…" : title;
+    if (title) return title.length > 60 ? `${title.slice(0, 57)}…` : title;
   }
   const input = getInput(part) as Record<string, unknown> | undefined;
   if (!input) return "";
   for (const k of ["filePath", "path", "command", "pattern", "query", "description"]) {
     const v = input[k];
-    if (typeof v === "string" && v) return v.length > 60 ? v.slice(0, 57) + "…" : v;
+    if (typeof v === "string" && v) return v.length > 60 ? `${v.slice(0, 57)}…` : v;
   }
   return "";
 }
@@ -179,10 +179,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
       {questions.map((q, qIdx) => (
         <div
           key={qIdx}
-          className={cn(
-            "flex flex-col gap-2.5 p-4",
-            qIdx > 0 && "border-t border-border",
-          )}
+          className={cn("flex flex-col gap-2.5 p-4", qIdx > 0 && "border-t border-border")}
         >
           {q.header && (
             <div
@@ -194,9 +191,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
               {q.header}
             </div>
           )}
-          {q.question && (
-            <div className="text-sm font-medium leading-relaxed">{q.question}</div>
-          )}
+          {q.question && <div className="text-sm font-medium leading-relaxed">{q.question}</div>}
 
           {q.options && q.options.length > 0 && (
             <div className="flex flex-col gap-1.5">
@@ -237,9 +232,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
                 className="h-9"
                 placeholder="Или введите свой ответ…"
                 value={customText[qIdx] || ""}
-                onChange={(e) =>
-                  setCustomText((prev) => ({ ...prev, [qIdx]: e.target.value }))
-                }
+                onChange={(e) => setCustomText((prev) => ({ ...prev, [qIdx]: e.target.value }))}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCustomSubmit(qIdx);
                 }}
@@ -286,11 +279,7 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
           "flex items-center gap-2 px-3 py-2",
           hasBody && "cursor-pointer hover:bg-muted/40 transition",
         )}
-        onClick={
-          hasBody
-            ? () => setManuallyToggled((e) => (e === null ? false : !e))
-            : undefined
-        }
+        onClick={hasBody ? () => setManuallyToggled((e) => (e === null ? false : !e)) : undefined}
       >
         <span
           className={cn(

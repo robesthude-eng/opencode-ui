@@ -1,12 +1,7 @@
-import { useStore } from "../store/useStore";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useStore } from "../store/useStore";
 
 function fmt(value: unknown): string {
   if (value == null) return "";
@@ -52,9 +47,7 @@ export default function PermissionDialog() {
             </p>
 
             <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
-              <span className="font-mono text-sm font-semibold">
-                {req.tool ?? "tool"}
-              </span>
+              <span className="font-mono text-sm font-semibold">{req.tool ?? "tool"}</span>
             </div>
 
             {req.input != null && (

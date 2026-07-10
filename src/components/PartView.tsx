@@ -1,13 +1,13 @@
-import React, { memo, type ReactNode, type ComponentPropsWithoutRef } from "react";
+import { ChevronDown, FileArchive, FileText, Image as ImageIcon, Paperclip } from "lucide-react";
+import React, { type ComponentPropsWithoutRef, memo, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { ChevronDown, FileText, Image as ImageIcon, Paperclip, FileArchive } from "lucide-react";
-import { Part } from "../api/types";
-import ToolCard from "./ToolCard";
-import CopyButton from "./CopyButton";
-import { formatSize } from "../api/files";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { formatSize } from "../api/files";
+import type { Part } from "../api/types";
+import CopyButton from "./CopyButton";
+import ToolCard from "./ToolCard";
 
 const SAFE_MD_COMPONENTS = {
   a: ({ href, children }: { href?: string; children?: ReactNode }) => {
@@ -155,7 +155,10 @@ const OptimizedPartView = ({
     case "reasoning":
       if (!p.text) return null;
       return (
-        <details className="not-prose group my-2 overflow-hidden rounded-xl border border-info/20 bg-info/5" open>
+        <details
+          className="not-prose group my-2 overflow-hidden rounded-xl border border-info/20 bg-info/5"
+          open
+        >
           <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium text-info marker:content-none [&::-webkit-details-marker]:hidden">
             <span>💭</span>
             <span className="flex-1">Рассуждение</span>

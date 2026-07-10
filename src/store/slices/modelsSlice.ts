@@ -1,6 +1,6 @@
 import { api } from "../../api/client";
 import { ZEN_FREE_MODELS, ZEN_PROVIDER_ID } from "../../config/providers";
-import type { Slice, ModelsSlice, ModelEntry } from "../types";
+import type { ModelEntry, ModelsSlice, Slice } from "../types";
 
 export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
   models: [],
@@ -37,7 +37,11 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
             for (const [modelID, m] of Object.entries(p.models)) {
               if (!entries.some((e) => e.modelID === modelID)) {
                 const costObj = (m as any).cost;
-                const isFree = !costObj || (costObj.input === 0 && costObj.output === 0) || modelID.endsWith("-free") || modelID === "big-pickle";
+                const isFree =
+                  !costObj ||
+                  (costObj.input === 0 && costObj.output === 0) ||
+                  modelID.endsWith("-free") ||
+                  modelID === "big-pickle";
                 if (isFree) {
                   entries.push({
                     providerID: ZEN_PROVIDER_ID,
@@ -70,7 +74,9 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
 
     let selected = get().selectedModel;
     if (!selected && entries.length > 0) {
-      const deepseekV4 = entries.find((e) => e.modelID.includes("deepseek-v4") || e.modelName.toLowerCase().includes("deepseek"));
+      const deepseekV4 = entries.find(
+        (e) => e.modelID.includes("deepseek-v4") || e.modelName.toLowerCase().includes("deepseek"),
+      );
       const defaultEntry = entries.find((e) => def[e.providerID] === e.modelID);
       const first = deepseekV4 ?? defaultEntry ?? entries[0];
       selected = { providerID: first.providerID, modelID: first.modelID };

@@ -1,21 +1,21 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useStore } from "../store/useStore";
-import { api } from "../api/client";
-import {
-  ChevronRightIcon,
-  ChevronDownIcon,
-  FileIcon,
-  FolderIcon,
-  CloseIcon,
-  SearchIcon,
-  GitBranchIcon,
-  RefreshIcon,
-  FolderUploadIcon,
-} from "./icons";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { api } from "../api/client";
+import { useStore } from "../store/useStore";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  FileIcon,
+  FolderIcon,
+  FolderUploadIcon,
+  GitBranchIcon,
+  RefreshIcon,
+  SearchIcon,
+} from "./icons";
 
 interface TreeNode {
   name: string;
@@ -35,7 +35,7 @@ function toTree(nodes: { path: string; type?: string; isDirectory?: boolean }[])
       acc = acc ? `${acc}/${parts[i]}` : parts[i];
       const isLast = i === parts.length - 1;
       const isDir = isLast ? !!(n.isDirectory ?? n.type === "directory") : true;
-      let child = cur.children!.find((c) => c.name === parts[i]);
+      let child = cur.children?.find((c) => c.name === parts[i]);
       if (!child) {
         child = {
           name: parts[i],
@@ -44,15 +44,13 @@ function toTree(nodes: { path: string; type?: string; isDirectory?: boolean }[])
           children: isDir ? [] : undefined,
           loaded: false,
         };
-        cur.children!.push(child);
+        cur.children?.push(child);
       }
       if (isDir) cur = child;
     }
   }
   const sort = (nodes: TreeNode[]): TreeNode[] => {
-    nodes.sort((a, b) =>
-      a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1,
-    );
+    nodes.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
     nodes.forEach((n) => n.children && sort(n.children));
     return nodes;
   };
@@ -112,7 +110,7 @@ export default function Workspace() {
       folderInputRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleFolderUpload]);
 
   const loadingDirs = useRef<Set<string>>(new Set());
 
@@ -144,7 +142,7 @@ export default function Workspace() {
       }
       if ((p === "sessions" || p === "uploads" || p === "temp") && parts.length > 1) {
         const sid = parts[1];
-        if (sid && sid.startsWith("ses_") && !mySessionIds.has(sid)) {
+        if (sid?.startsWith("ses_") && !mySessionIds.has(sid)) {
           return false;
         }
       }
@@ -177,7 +175,7 @@ export default function Workspace() {
     }, 3000);
     return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceOpen]);
+  }, [workspaceOpen, loadGit, tree.length, refresh, autoRefresh]);
 
   useEffect(() => {
     if (workspaceOpen) {
@@ -185,24 +183,24 @@ export default function Workspace() {
       loadGit();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selfImproveEnabled]);
+  }, [refresh, workspaceOpen, loadGit]);
 
   useEffect(() => {
     setTree([]);
     setExpanded(new Set([""]));
     if (workspaceOpen) refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentID]);
+  }, [workspaceOpen, refresh]);
 
-  const refresh = async () => {
+  async function refresh() {
     setLoading(true);
     setError(null);
     const t = await loadDir(".");
     setTree(t);
     setLoading(false);
-  };
+  }
 
-  const autoRefresh = async () => {
+  async function autoRefresh() {
     const t = await loadDir(".");
     const curExpanded = expandedRef.current;
     const curTree = treeRef.current;
@@ -229,9 +227,9 @@ export default function Workspace() {
 
     const merged = curTree.length === 0 ? t : merge(t, curTree);
     setTree(merged);
-  };
+  }
 
-  const loadGit = async () => {
+  async function loadGit() {
     if (!currentID) {
       setGitFiles([]);
       return;
@@ -243,9 +241,9 @@ export default function Workspace() {
     } catch {
       setGitFiles([]);
     }
-  };
+  }
 
-  const toggleDir = async (node: TreeNode) => {
+  async function toggleDir(node: TreeNode) {
     const next = new Set(expanded);
     expandedRef.current = next;
     if (next.has(node.path)) {
@@ -269,18 +267,18 @@ export default function Workspace() {
       }
     }
     setExpanded(next);
-  };
+  }
 
-  const openFile = async (path: string) => {
+  async function openFile(path: string) {
     try {
       const res = await api.readFile(path, currentID);
       setActiveFile({ path, content: res.content ?? res.text ?? "" });
     } catch {
       // ignore
     }
-  };
+  }
 
-  const handleFolderUpload = async (e: Event) => {
+  async function handleFolderUpload(e: Event) {
     const input = e.target as HTMLInputElement;
     const fileList = input.files;
     if (!fileList || fileList.length === 0) return;
@@ -314,7 +312,7 @@ export default function Workspace() {
       setUploading(false);
       input.value = "";
     }
-  };
+  }
 
   const renderNode = (node: TreeNode, depth: number): ReactNode => {
     if (filter && !node.path.toLowerCase().includes(filter.toLowerCase())) {
@@ -330,9 +328,7 @@ export default function Workspace() {
         <div
           className={cn(
             "flex cursor-pointer select-none items-center gap-1.5 rounded-md px-1.5 py-1 text-[13px] text-muted-foreground hover:bg-muted hover:text-foreground",
-            !node.isDir &&
-              activeFile?.path === node.path &&
-              "bg-muted text-foreground",
+            !node.isDir && activeFile?.path === node.path && "bg-muted text-foreground",
           )}
           style={{ paddingLeft: 8 + depth * 14 }}
           onClick={() => (node.isDir ? toggleDir(node) : openFile(node.path))}
@@ -429,9 +425,7 @@ export default function Workspace() {
             title="Upload entire folder with subfolders"
           >
             <FolderUploadIcon size={15} />
-            {uploading
-              ? `Uploading… ${uploadProgress}/${uploadTotal}`
-              : "Upload folder"}
+            {uploading ? `Uploading… ${uploadProgress}/${uploadTotal}` : "Upload folder"}
           </Button>
           {uploadMsg && (
             <div className="mt-2 space-y-1.5 text-[11px] text-muted-foreground">
@@ -439,10 +433,7 @@ export default function Workspace() {
                 <div
                   className="h-full rounded-full bg-emerald-500 transition-all"
                   style={{
-                    width:
-                      uploadTotal > 0
-                        ? `${(uploadProgress / uploadTotal) * 100}%`
-                        : "0%",
+                    width: uploadTotal > 0 ? `${(uploadProgress / uploadTotal) * 100}%` : "0%",
                   }}
                 />
               </div>

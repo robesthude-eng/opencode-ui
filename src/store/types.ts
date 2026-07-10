@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { PromptModel } from "../api/client";
+import type { ProcessedFile } from "../api/files";
 import type {
   AppEvent,
   Message,
@@ -8,7 +9,6 @@ import type {
   SessionStatus,
 } from "../api/types";
 import type { Theme } from "../config/theme";
-import type { ProcessedFile } from "../api/files";
 
 export interface ModelEntry {
   providerID: string;
@@ -85,12 +85,7 @@ export interface MessagesSlice {
   applyEvent: (e: AppEvent) => void;
 }
 
-export interface State
-  extends AuthSlice,
-    ModelsSlice,
-    UiSlice,
-    SessionsSlice,
-    MessagesSlice {}
+export interface State extends AuthSlice, ModelsSlice, UiSlice, SessionsSlice, MessagesSlice {}
 
 export type Slice<T> = StateCreator<State, [], [], T>;
 

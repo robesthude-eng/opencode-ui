@@ -1,7 +1,7 @@
-import { useStore } from "../store/useStore";
-import { SunIcon, MoonIcon, MenuIcon, PanelIcon } from "./icons";
-import ModelSelector from "./ModelSelector";
 import { Button } from "@/components/ui/button";
+import { useStore } from "../store/useStore";
+import { MenuIcon, MoonIcon, PanelIcon, SunIcon } from "./icons";
+import ModelSelector from "./ModelSelector";
 
 export default function TopBar() {
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);

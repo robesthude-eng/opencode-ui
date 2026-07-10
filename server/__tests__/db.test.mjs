@@ -2,18 +2,19 @@
 /**
  * Tests for server/db.mjs — SQLite auth store + JSON fallback
  */
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import fs from "fs";
-import path from "path";
-import os from "os";
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import {
-  loadJson,
-  saveJson,
-  saveAuthJson,
   clearCache,
-  initDb,
   closeDb,
   getSqlite,
+  initDb,
+  loadJson,
+  saveAuthJson,
+  saveJson,
 } from "../db.mjs";
 
 let tmpDir;

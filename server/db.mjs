@@ -8,8 +8,9 @@
  * Public API stays compatible with the old JSON helpers so call sites can
  * keep using loadJson/saveJson with the same file paths.
  */
-import fs from "fs";
-import path from "path";
+
+import fs from "node:fs";
+import path from "node:path";
 import Database from "better-sqlite3";
 
 // In-memory cache for loadJson compatibility (mirrors row data as objects)
@@ -25,11 +26,7 @@ const OWNERS_BASENAME = ".session_owners.json";
 
 function isAuthFile(file) {
   const base = path.basename(file);
-  return (
-    base === USERS_BASENAME ||
-    base === SESSIONS_BASENAME ||
-    base === OWNERS_BASENAME
-  );
+  return base === USERS_BASENAME || base === SESSIONS_BASENAME || base === OWNERS_BASENAME;
 }
 
 function openSqlite(workdir) {
@@ -127,7 +124,7 @@ function migrateFromJson(workdir) {
           "INSERT OR IGNORE INTO sessions (token, email, created_at) VALUES (?, ?, ?)",
         );
         for (const [token, s] of Object.entries(sessions || {})) {
-          if (!s || !s.email) continue;
+          if (!s?.email) continue;
           ins.run(token, s.email, s.createdAt || Date.now());
         }
         console.log(
@@ -216,11 +213,9 @@ function loadSessionsObject() {
 function saveSessionsObject(data) {
   const tx = sqlite.transaction(() => {
     sqlite.prepare("DELETE FROM sessions").run();
-    const ins = sqlite.prepare(
-      "INSERT INTO sessions (token, email, created_at) VALUES (?, ?, ?)",
-    );
+    const ins = sqlite.prepare("INSERT INTO sessions (token, email, created_at) VALUES (?, ?, ?)");
     for (const [token, s] of Object.entries(data || {})) {
-      if (!s || !s.email) continue;
+      if (!s?.email) continue;
       ins.run(token, s.email, s.createdAt || Date.now());
     }
   });
@@ -239,9 +234,7 @@ function loadOwnersObject() {
 function saveOwnersObject(data) {
   const tx = sqlite.transaction(() => {
     sqlite.prepare("DELETE FROM session_owners").run();
-    const ins = sqlite.prepare(
-      "INSERT INTO session_owners (session_id, email) VALUES (?, ?)",
-    );
+    const ins = sqlite.prepare("INSERT INTO session_owners (session_id, email) VALUES (?, ?)");
     for (const [sid, email] of Object.entries(data || {})) {
       if (!email) continue;
       ins.run(sid, email);

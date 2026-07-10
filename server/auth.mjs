@@ -2,35 +2,72 @@
  * Authentication module: password hashing, session management, rate limiting,
  * HttpOnly cookie sessions + CSRF origin checks.
  */
-import crypto from "crypto";
+import crypto from "node:crypto";
 import { loadJson, saveAuthJson } from "./db.mjs";
 
 /** Cookie name for the session token (HttpOnly). */
 export const SESSION_COOKIE = "opencode_session";
 
 /**
+ * Optional password pepper from env (OPENCODE_PASSWORD_PEPPER).
+ * Applied as HMAC-SHA256 before scrypt so DB dumps alone are not enough.
+ */
+function pepperPassword(password) {
+  const pepper = process.env.OPENCODE_PASSWORD_PEPPER || "";
+  if (!pepper) return password;
+  return crypto.createHmac("sha256", pepper).update(password).digest("hex");
+}
+
+/**
  * Hash a password with scrypt. Returns "salt:hash" string.
+ * Format v2 with pepper uses prefix "v2:" — verify tries peppered then legacy.
  */
 export function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
-  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  const material = pepperPassword(password);
+  const hash = crypto.scryptSync(material, salt, 64).toString("hex");
+  // v2 marker only when pepper is configured (new hashes)
+  if (process.env.OPENCODE_PASSWORD_PEPPER) {
+    return `v2:${salt}:${hash}`;
+  }
   return `${salt}:${hash}`;
 }
 
 /**
- * Verify a password against a stored "salt:hash" string.
+ * Verify a password against a stored "salt:hash" or "v2:salt:hash" string.
  * Uses timing-safe comparison to prevent timing attacks.
+ * Supports legacy unpeppered hashes for migration.
  */
 export function verifyPassword(password, storedHash) {
   if (!storedHash || typeof storedHash !== "string" || !storedHash.includes(":")) return false;
   if (!password || typeof password !== "string" || password.length === 0) return false;
-  const [salt, originalHash] = storedHash.split(":");
-  if (!salt || !originalHash) return false;
+
+  const tryVerify = (material, salt, originalHash) => {
+    try {
+      const testHash = crypto.scryptSync(material, salt, 64).toString("hex");
+      const originalBuf = Buffer.from(originalHash, "hex");
+      const testBuf = Buffer.from(testHash, "hex");
+      if (originalBuf.length !== testBuf.length) return false;
+      return crypto.timingSafeEqual(originalBuf, testBuf);
+    } catch {
+      return false;
+    }
+  };
+
   try {
-    const testHash = crypto.scryptSync(password, salt, 64).toString("hex");
-    const originalBuf = Buffer.from(originalHash, "hex");
-    const testBuf = Buffer.from(testHash, "hex");
-    if (originalBuf.length !== testBuf.length) return false;
-    return crypto.timingSafeEqual(originalBuf, testBuf);
+    if (storedHash.startsWith("v2:")) {
+      const rest = storedHash.slice(3);
+      const [salt, originalHash] = rest.split(":");
+      if (!salt || !originalHash) return false;
+      return tryVerify(pepperPassword(password), salt, originalHash);
+    }
+    const [salt, originalHash] = storedHash.split(":");
+    if (!salt || !originalHash) return false;
+    // Legacy: raw password. Also try peppered if pepper set (rehash path optional).
+    if (tryVerify(password, salt, originalHash)) return true;
+    if (process.env.OPENCODE_PASSWORD_PEPPER) {
+      return tryVerify(pepperPassword(password), salt, originalHash);
+    }
+    return false;
   } catch {
     return false;
   }
@@ -47,7 +84,7 @@ function getConfiguredAdminEmails() {
     raw
       .split(",")
       .map((e) => e.trim().toLowerCase())
-      .filter(Boolean)
+      .filter(Boolean),
   );
 }
 
@@ -92,12 +129,12 @@ export function extractToken(req) {
   const cookies = parseCookies(req);
   if (cookies[SESSION_COOKIE]) return cookies[SESSION_COOKIE];
 
-  let token = (req.headers?.["x-auth-token"] || req.headers?.["authorization"] || "")
+  let token = (req.headers?.["x-auth-token"] || req.headers?.authorization || "")
     .replace(/^Bearer\s+/i, "")
     .trim();
   if (token) return token;
 
-  if (req.url && req.url.includes("token=")) {
+  if (req.url?.includes("token=")) {
     try {
       token = new URL(req.url, "http://localhost").searchParams.get("token") || "";
     } catch {
@@ -135,13 +172,7 @@ export function buildClearSessionCookie() {
     process.env.COOKIE_SECURE === "1" ||
     process.env.NODE_ENV === "production" ||
     process.env.RAILWAY_ENVIRONMENT != null;
-  const parts = [
-    `${SESSION_COOKIE}=`,
-    "Path=/",
-    "HttpOnly",
-    "SameSite=Lax",
-    "Max-Age=0",
-  ];
+  const parts = [`${SESSION_COOKIE}=`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
   if (secure) parts.push("Secure");
   return parts.join("; ");
 }
@@ -163,11 +194,7 @@ export function checkCsrf(req, res) {
   const proto = (req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
   if (!host) return true;
 
-  const allowedOrigins = new Set([
-    `${proto}://${host}`,
-    `https://${host}`,
-    `http://${host}`,
-  ]);
+  const allowedOrigins = new Set([`${proto}://${host}`, `https://${host}`, `http://${host}`]);
   // Railway / reverse-proxy may present bare host without port; also allow localhost for dev
   if (process.env.NODE_ENV !== "production") {
     allowedOrigins.add("http://localhost:3000");
@@ -219,7 +246,7 @@ export function getUserEmail(req, sessionsFile, sessionTtlMs) {
   if (!token) return null;
   const sessions = loadJson(sessionsFile, {});
   const s = sessions[token];
-  if (!s || !s.email) return null;
+  if (!s?.email) return null;
   if (sessionTtlMs > 0 && Date.now() - (s.createdAt || 0) > sessionTtlMs) return null;
   return s.email;
 }
@@ -232,7 +259,7 @@ export function checkAuth(req, res, usersFile, sessionsFile, sessionTtlMs) {
   const token = extractToken(req);
   const sessions = loadJson(sessionsFile, {});
   const sess = token ? sessions[token] : null;
-  if (sess && sess.email) {
+  if (sess?.email) {
     if (sessionTtlMs > 0 && Date.now() - (sess.createdAt || 0) > sessionTtlMs) {
       delete sessions[token];
       saveAuthJson(sessionsFile, sessions);
@@ -249,7 +276,7 @@ export function checkAuth(req, res, usersFile, sessionsFile, sessionTtlMs) {
   }
 
   // No users registered yet: allow only static pages and auth endpoints
-  if (req.url && req.url.startsWith("/api/")) {
+  if (req.url?.startsWith("/api/")) {
     res.writeHead(401, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Unauthorized", needLogin: true }));
     return false;
@@ -276,7 +303,11 @@ export function checkAuthRateLimit(req, res) {
   if (record.count >= AUTH_MAX_ATTEMPTS) {
     const waitMin = Math.ceil((AUTH_WINDOW_MS - (now - record.startTime)) / 60000);
     res.writeHead(429, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: `Слишком много попыток входа. Пожалуйста, подождите ${waitMin} мин.` }));
+    res.end(
+      JSON.stringify({
+        error: `Слишком много попыток входа. Пожалуйста, подождите ${waitMin} мин.`,
+      }),
+    );
     return false;
   }
   record.count++;

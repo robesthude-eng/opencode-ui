@@ -1,6 +1,4 @@
-import http from "http";
-import path from "path";
-import fs from "fs";
+import http from "node:http";
 
 const SYSTEM_PORT = process.env.OC_SYSTEM_PORT || 4096;
 
@@ -16,7 +14,9 @@ export function runAutoCorrection(files, compileErrors, callback) {
     .then((session) => {
       const sessionId = session.id;
       if (!sessionId) {
-        return callback(new Error("OpenCode session creation response did not include session ID."));
+        return callback(
+          new Error("OpenCode session creation response did not include session ID."),
+        );
       }
       console.log(`[Auto-Correct] Created temp session: ${sessionId}`);
 
@@ -30,7 +30,7 @@ ${compileErrors.join("\n")}
 
 Below are the contents of the files with errors.
 
-${files.map(f => `File: ${f.path}\n\`\`\`typescript\n${f.content}\n\`\`\``).join("\n\n")}
+${files.map((f) => `File: ${f.path}\n\`\`\`typescript\n${f.content}\n\`\`\``).join("\n\n")}
 
 Your response MUST be a JSON object containing the corrected code for ALL the affected files in the following format:
 {
@@ -47,7 +47,7 @@ DO NOT include any explanations, markdown text, or comments outside of the JSON 
       // Step 3: Send message to the temporary session
       console.log("[Auto-Correct] Sending prompt to OpenCode...");
       const messageBody = {
-        parts: [{ type: "text", text: prompt }]
+        parts: [{ type: "text", text: prompt }],
       };
 
       requestJson("POST", `/session/${sessionId}/message`, messageBody)
@@ -55,7 +55,7 @@ DO NOT include any explanations, markdown text, or comments outside of the JSON 
           // Clean up the session in the background
           requestJson("DELETE", `/session/${sessionId}`, {}).catch(() => {});
 
-          const textPart = message.parts?.find(p => p.type === "text");
+          const textPart = message.parts?.find((p) => p.type === "text");
           const text = textPart ? textPart.text : "";
           if (!text) {
             return callback(new Error("OpenCode returned an empty response."));
@@ -65,12 +65,20 @@ DO NOT include any explanations, markdown text, or comments outside of the JSON 
           try {
             const result = extractJson(text);
             if (!Array.isArray(result.files) || result.files.length === 0) {
-              return callback(new Error("Valid JSON parsed, but 'files' array is missing or empty."));
+              return callback(
+                new Error("Valid JSON parsed, but 'files' array is missing or empty."),
+              );
             }
-            console.log(`[Auto-Correct] Successfully parsed ${result.files.length} corrected files from OpenCode!`);
+            console.log(
+              `[Auto-Correct] Successfully parsed ${result.files.length} corrected files from OpenCode!`,
+            );
             callback(null, result.files);
           } catch (parseErr) {
-            callback(new Error(`Failed to parse auto-correction response: ${parseErr.message}\nRaw output: ${text.slice(0, 300)}`));
+            callback(
+              new Error(
+                `Failed to parse auto-correction response: ${parseErr.message}\nRaw output: ${text.slice(0, 300)}`,
+              ),
+            );
           }
         })
         .catch((msgErr) => {
@@ -96,14 +104,16 @@ function requestJson(method, endpoint, body = null) {
       method: method,
       headers: {
         "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(dataStr)
+        "Content-Length": Buffer.byteLength(dataStr),
       },
-      timeout: 60000 // 60 seconds timeout for LLM generation
+      timeout: 60000, // 60 seconds timeout for LLM generation
     };
 
     const req = http.request(options, (res) => {
       let responseBody = "";
-      res.on("data", (chunk) => { responseBody += chunk; });
+      res.on("data", (chunk) => {
+        responseBody += chunk;
+      });
       res.on("end", () => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           try {
@@ -138,7 +148,7 @@ function extractJson(text) {
     return JSON.parse(text.trim());
   } catch {
     const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-    if (match && match[1]) {
+    if (match?.[1]) {
       try {
         return JSON.parse(match[1].trim());
       } catch (e) {

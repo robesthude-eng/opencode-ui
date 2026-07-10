@@ -1,4 +1,4 @@
-import { getInitialTheme, applyTheme, type Theme } from "../../config/theme";
+import { applyTheme, getInitialTheme, type Theme } from "../../config/theme";
 import type { Slice, UiSlice } from "../types";
 
 export const createUiSlice: Slice<UiSlice> = (set, get) => ({
@@ -7,7 +7,8 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
   sidebarOpen: false,
   sidebarCollapsed: false,
   workspaceOpen: typeof window !== "undefined" && window.innerWidth >= 1024,
-  selfImproveEnabled: typeof window !== "undefined" && localStorage.getItem("opencode_self_improve") === "true",
+  selfImproveEnabled:
+    typeof window !== "undefined" && localStorage.getItem("opencode_self_improve") === "true",
 
   toggleTheme: () => {
     const next: Theme = get().theme === "dark" ? "light" : "dark";

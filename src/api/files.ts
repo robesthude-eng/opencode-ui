@@ -15,12 +15,53 @@ export interface ProcessedFile {
 }
 
 const TEXT_EXTS = new Set([
-  "txt", "md", "markdown", "json", "js", "jsx", "ts", "tsx", "css", "scss",
-  "html", "htm", "xml", "yaml", "yml", "toml", "ini", "cfg", "conf",
-  "py", "rb", "go", "rs", "java", "kt", "c", "cpp", "h", "hpp", "cs",
-  "php", "swift", "sh", "bash", "zsh", "sql", "graphql", "gql",
-  "vue", "svelte", "astro", "env", "gitignore", "dockerfile",
-  "csv", "tsv", "log",
+  "txt",
+  "md",
+  "markdown",
+  "json",
+  "js",
+  "jsx",
+  "ts",
+  "tsx",
+  "css",
+  "scss",
+  "html",
+  "htm",
+  "xml",
+  "yaml",
+  "yml",
+  "toml",
+  "ini",
+  "cfg",
+  "conf",
+  "py",
+  "rb",
+  "go",
+  "rs",
+  "java",
+  "kt",
+  "c",
+  "cpp",
+  "h",
+  "hpp",
+  "cs",
+  "php",
+  "swift",
+  "sh",
+  "bash",
+  "zsh",
+  "sql",
+  "graphql",
+  "gql",
+  "vue",
+  "svelte",
+  "astro",
+  "env",
+  "gitignore",
+  "dockerfile",
+  "csv",
+  "tsv",
+  "log",
 ]);
 
 const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"]);
@@ -68,7 +109,7 @@ export async function processFile(file: File): Promise<ProcessedFile> {
       type: "text",
       text: `📄 ${file.name}\n\`\`\`\n${text}\n\`\`\``,
     };
-    result.dataUrl = `data:${mime};base64,` + btoa(unescape(encodeURIComponent(text)));
+    result.dataUrl = `data:${mime};base64,${btoa(unescape(encodeURIComponent(text)))}`;
   } else {
     // Binary / image / pdf / zip / large-text → base64 data URL as file part
     const dataUrl = await fileToBase64(file);

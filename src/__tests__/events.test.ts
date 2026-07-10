@@ -1,7 +1,7 @@
 /**
  * Tests for src/api/events.ts
  */
-import { describe, test, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { EventStream } from "../api/events";
 
 // Mock EventSource
@@ -23,7 +23,7 @@ class MockEventSource {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, []);
     }
-    this.listeners.get(type)!.push(listener);
+    this.listeners.get(type)?.push(listener);
   }
 
   close() {
@@ -35,7 +35,7 @@ class MockEventSource {
     if (type === "message") {
       this.onmessage?.({ data });
     } else {
-      this.listeners.get(type)?.forEach(listener => listener({ data }));
+      this.listeners.get(type)?.forEach((listener) => listener({ data }));
     }
   }
 
@@ -76,54 +76,57 @@ describe("EventStream", () => {
     expect(MockEventSource.instances[0].url).toBe("/api/event");
   });
 
-  test("dispatches named events to handlers", () => new Promise<void>((done) => {
-    const stream = new EventStream("http://localhost:3000/api/event");
+  test("dispatches named events to handlers", () =>
+    new Promise<void>((done) => {
+      const stream = new EventStream("http://localhost:3000/api/event");
 
-    stream.on((event) => {
-      expect(event.type).toBe("session.created");
-      expect(event.properties).toEqual({ id: "123" });
-      done();
-    });
+      stream.on((event) => {
+        expect(event.type).toBe("session.created");
+        expect(event.properties).toEqual({ id: "123" });
+        done();
+      });
 
-    stream.connect();
+      stream.connect();
 
-    // Simulate event after connection
-    setTimeout(() => {
-      MockEventSource.instances[0].simulateEvent(
-        "session.created",
-        JSON.stringify({ id: "123" })
-      );
-    }, 10);
-  }));
+      // Simulate event after connection
+      setTimeout(() => {
+        MockEventSource.instances[0].simulateEvent(
+          "session.created",
+          JSON.stringify({ id: "123" }),
+        );
+      }, 10);
+    }));
 
-  test("dispatches unnamed events as 'message'", () => new Promise<void>((done) => {
-    const stream = new EventStream("http://localhost:3000/api/event");
+  test("dispatches unnamed events as 'message'", () =>
+    new Promise<void>((done) => {
+      const stream = new EventStream("http://localhost:3000/api/event");
 
-    stream.on((event) => {
-      expect(event.type).toBe("message");
-      done();
-    });
+      stream.on((event) => {
+        expect(event.type).toBe("message");
+        done();
+      });
 
-    stream.connect();
+      stream.connect();
 
-    setTimeout(() => {
-      MockEventSource.instances[0].simulateEvent("message", "test data");
-    }, 10);
-  }));
+      setTimeout(() => {
+        MockEventSource.instances[0].simulateEvent("message", "test data");
+      }, 10);
+    }));
 
-  test("reconnects on error", () => new Promise<void>((done) => {
-    const stream = new EventStream("http://localhost:3000/api/event");
-    stream.connect();
+  test("reconnects on error", () =>
+    new Promise<void>((done) => {
+      const stream = new EventStream("http://localhost:3000/api/event");
+      stream.connect();
 
-    // Simulate error
-    MockEventSource.instances[0].simulateError();
+      // Simulate error
+      MockEventSource.instances[0].simulateError();
 
-    // Should attempt to reconnect after delay
-    setTimeout(() => {
-      expect(MockEventSource.instances).toHaveLength(2);
-      done();
-    }, 1100);
-  }));
+      // Should attempt to reconnect after delay
+      setTimeout(() => {
+        expect(MockEventSource.instances).toHaveLength(2);
+        done();
+      }, 1100);
+    }));
 
   test("stops reconnecting after max attempts", () => {
     vi.useFakeTimers();
@@ -161,7 +164,7 @@ describe("EventStream", () => {
   test("removes handler when unsubscribing", () => {
     const stream = new EventStream("http://localhost:3000/api/event");
     const handler = vi.fn();
-    
+
     const unsubscribe = stream.on(handler);
     stream.connect();
 

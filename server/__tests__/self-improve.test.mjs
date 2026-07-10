@@ -2,10 +2,11 @@
 /**
  * Tests for server/self-improve.mjs
  */
-import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import fs from "fs";
-import path from "path";
-import os from "os";
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { getUiDir, isSelfImproveEnabled, toggleSelfImprove } from "../self-improve.mjs";
 
 let tmpDir;

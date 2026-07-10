@@ -4,12 +4,12 @@
 
 // Body size limits
 export const MAX_BODY_BYTES = 50 * 1024 * 1024; // 50 MB for uploads
-export const MAX_JSON_BODY_BYTES = 256 * 1024;  // 256 KB for JSON endpoints
+export const MAX_JSON_BODY_BYTES = 256 * 1024; // 256 KB for JSON endpoints
 
 // Upload rate limiting (per-IP)
 const uploadAttempts = new Map();
 const UPLOAD_WINDOW_MS = 60 * 1000; // 1 minute
-const UPLOAD_MAX_PER_WINDOW = 20;   // max 20 uploads per minute per IP
+const UPLOAD_MAX_PER_WINDOW = 20; // max 20 uploads per minute per IP
 
 /**
  * Set security headers on response.
@@ -26,7 +26,7 @@ export function setSecurityHeaders(res) {
   // 'unsafe-inline' since React components set inline style="" attributes.
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
   );
 }
 
@@ -89,7 +89,11 @@ export function checkRateLimit(res) {
   if (now - lastRebuildTime < REBUILD_COOLDOWN_MS) {
     const waitSec = Math.ceil((REBUILD_COOLDOWN_MS - (now - lastRebuildTime)) / 1000);
     res.writeHead(429, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: `Too many requests. Please wait ${waitSec}s before rebuilding again.` }));
+    res.end(
+      JSON.stringify({
+        error: `Too many requests. Please wait ${waitSec}s before rebuilding again.`,
+      }),
+    );
     return false;
   }
   lastRebuildTime = now;

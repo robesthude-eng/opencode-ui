@@ -4,8 +4,7 @@
  */
 import pino from "pino";
 
-const isProd =
-  process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT != null;
+const isProd = process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT != null;
 
 const options = {
   level: process.env.LOG_LEVEL || (isProd ? "info" : "debug"),

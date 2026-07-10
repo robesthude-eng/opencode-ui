@@ -41,7 +41,7 @@ export function parseMultipart(buffer, boundary) {
 
     // Parse headers (safe to use string here - headers are ASCII)
     const headersStr = buffer.slice(headerStart, headerEndIdx).toString("utf8");
-    let bodyStart = headerEndIdx + delimiterBuf.length; // After \r\n\r\n
+    const bodyStart = headerEndIdx + delimiterBuf.length; // After \r\n\r\n
 
     // Find the next boundary to determine body end
     const nextBoundaryIdx = bufferIndexOf(buffer, boundaryBuf, bodyStart);

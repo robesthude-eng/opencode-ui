@@ -1,7 +1,7 @@
+import { AlertTriangle } from "lucide-react";
 import { Component, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle } from "lucide-react";
 
 interface Props {
   children: ReactNode;
@@ -55,8 +55,8 @@ export default class ErrorBoundary extends Component<Props, State> {
               <h2 className="text-xl font-semibold">Something went wrong</h2>
               <p className="text-sm text-muted-foreground">{this.state.message}</p>
               <p className="text-xs text-muted-foreground">
-                If this happened after a Self-Improvement edit, you can reset the UI
-                source code back to factory Git state.
+                If this happened after a Self-Improvement edit, you can reset the UI source code
+                back to factory Git state.
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                 <Button type="button" onClick={this.handleReload}>

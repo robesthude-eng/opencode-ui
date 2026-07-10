@@ -1,7 +1,7 @@
 import { api } from "../../api/client";
-import type { Slice, SessionsSlice } from "../types";
-import { byUpdated } from "../types";
 import { normalizeMessages } from "../helpers";
+import type { SessionsSlice, Slice } from "../types";
+import { byUpdated } from "../types";
 
 export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
   sessions: [],
@@ -37,7 +37,7 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
   // Claude-like new chat: optimistic, reuse empty, empty workspace, no memory overlap
   newSession: async () => {
     const { sessions, messages } = get();
-    
+
     // Check if there's already an empty session (no messages) — like Claude, don't create duplicate empty chats
     const emptySession = sessions.find((s) => {
       const msgs = messages[s.id];
@@ -102,7 +102,7 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
     const prevSessions = get().sessions;
     const prevMessages = get().messages;
     const prevCurrent = get().currentID;
-    
+
     set((s) => {
       const messages = { ...s.messages };
       delete messages[id];

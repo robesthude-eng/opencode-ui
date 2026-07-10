@@ -1,8 +1,9 @@
 /**
  * Tests for src/components/SettingsPanel.tsx
  */
-import { describe, test, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import SettingsPanel from "../components/SettingsPanel";
 import { useStore } from "../store/useStore";
 
@@ -38,17 +39,23 @@ function setState(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   setState();
-  
+
   // URL-aware resilient fetch mock
   global.fetch = vi.fn().mockImplementation((url: string) => {
     if (url.includes("/api/git/checkpoints")) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     }
     if (url.includes("/api/git/audit-logs")) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve(["[Test Log] Action occurred"]) });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(["[Test Log] Action occurred"]),
+      });
     }
     if (url.includes("/api/git/checkpoint")) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: "success", commit: "abc123" }) });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ status: "success", commit: "abc123" }),
+      });
     }
     if (url.includes("/api/settings/self-improve")) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: "success" }) });

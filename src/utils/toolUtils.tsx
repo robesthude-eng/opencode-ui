@@ -1,17 +1,17 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
-  FileIcon,
   BashIcon,
+  DefaultToolIcon,
   EditIcon,
-  WriteIcon,
+  FileIcon,
   GlobIcon,
   GrepIcon,
   ListFilesIcon,
+  QuestionIcon,
   TaskIcon,
   WebFetchIcon,
   WebSearchIcon,
-  QuestionIcon,
-  DefaultToolIcon,
+  WriteIcon,
 } from "../components/icons";
 
 export function toolIcon(name: string): ReactNode {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useStore, type ModelEntry } from "../store/useStore";
-import { ChevronDownIcon, CheckIcon } from "./icons";
 import { cn } from "@/lib/utils";
+import { type ModelEntry, useStore } from "../store/useStore";
+import { CheckIcon, ChevronDownIcon } from "./icons";
 
 export default function ModelSelector() {
   const models = useStore((s) => s.models);
@@ -21,9 +21,7 @@ export default function ModelSelector() {
   if (models.length === 0) return null;
 
   const current = models.find(
-    (m) =>
-      m.providerID === selectedModel?.providerID &&
-      m.modelID === selectedModel?.modelID
+    (m) => m.providerID === selectedModel?.providerID && m.modelID === selectedModel?.modelID,
   );
 
   const free = models.filter((m) => m.free);
@@ -36,14 +34,15 @@ export default function ModelSelector() {
 
   const renderOption = (m: ModelEntry) => {
     const active =
-      m.providerID === selectedModel?.providerID &&
-      m.modelID === selectedModel?.modelID;
+      m.providerID === selectedModel?.providerID && m.modelID === selectedModel?.modelID;
     return (
       <button
         key={`${m.providerID}/${m.modelID}`}
         className={cn(
           "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg text-left transition",
-          active ? "bg-muted text-foreground" : "hover:bg-muted/70 text-muted-foreground hover:text-foreground"
+          active
+            ? "bg-muted text-foreground"
+            : "hover:bg-muted/70 text-muted-foreground hover:text-foreground",
         )}
         onClick={() => {
           setSelectedModel({ providerID: m.providerID, modelID: m.modelID });
@@ -52,7 +51,11 @@ export default function ModelSelector() {
       >
         <span className="flex items-center gap-2">
           {m.modelName}
-          {m.free && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">FREE</span>}
+          {m.free && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">
+              FREE
+            </span>
+          )}
         </span>
         {active && <CheckIcon size={14} />}
       </button>
@@ -67,7 +70,11 @@ export default function ModelSelector() {
       >
         <span className="flex items-center gap-2">
           {current?.modelName ?? "Select model"}
-          {current?.free && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">FREE</span>}
+          {current?.free && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">
+              FREE
+            </span>
+          )}
         </span>
         <ChevronDownIcon size={14} />
       </button>
@@ -75,13 +82,17 @@ export default function ModelSelector() {
         <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-[320px] max-h-[420px] overflow-y-auto rounded-2xl border border-border bg-popover shadow-xl p-2 z-50">
           {free.length > 0 && (
             <div className="mb-2">
-              <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">🎁 Free · OpenCode Zen</div>
+              <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                🎁 Free · OpenCode Zen
+              </div>
               <div className="space-y-0.5">{free.map(renderOption)}</div>
             </div>
           )}
           {Object.entries(paidGrouped).map(([providerName, list]) => (
             <div key={providerName} className="mb-2">
-              <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{providerName}</div>
+              <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                {providerName}
+              </div>
               <div className="space-y-0.5">{list.map(renderOption)}</div>
             </div>
           ))}

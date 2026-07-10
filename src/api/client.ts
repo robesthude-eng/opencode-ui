@@ -1,10 +1,4 @@
-import type {
-  Message,
-  SessionInfo,
-  FileNode,
-  TrackedFile,
-  ProvidersResponse,
-} from "./types";
+import type { FileNode, Message, ProvidersResponse, SessionInfo, TrackedFile } from "./types";
 
 export interface ClientConfig {
   baseUrl: string;
@@ -43,7 +37,12 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     if (res.status === 204) return undefined as T;
     const ct = res.headers.get("content-type") ?? "";
     if (!ct.includes("application/json")) {
-      const preview = (await res.clone().text().catch(() => "")).slice(0, 80);
+      const preview = (
+        await res
+          .clone()
+          .text()
+          .catch(() => "")
+      ).slice(0, 80);
       throw new Error(`Request to ${path} → non-JSON (${ct || "no ct"}): ${preview}`);
     }
     return res.json() as Promise<T>;
@@ -175,17 +174,14 @@ export const api = {
 
   listProviders: () => req<ProvidersResponse>(`/config/providers`),
   listConnected: () =>
-    req<{ connected?: string[]; all?: unknown[]; default?: Record<string, string> }>(
-      `/provider`,
-    ),
+    req<{ connected?: string[]; all?: unknown[]; default?: Record<string, string> }>(`/provider`),
 
   setAuth: (providerId: string, key: string) =>
     req<boolean>(`/auth/${providerId}`, {
       method: "PUT",
       body: JSON.stringify({ type: "api", key }),
     }),
-  removeAuth: (providerId: string) =>
-    req<void>(`/auth/${providerId}`, { method: "DELETE" }),
+  removeAuth: (providerId: string) => req<void>(`/auth/${providerId}`, { method: "DELETE" }),
 
   saveCustomKey: (providerId: string, key: string) =>
     req<{ status: string }>(`/auth/custom`, {

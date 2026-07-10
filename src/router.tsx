@@ -8,20 +8,20 @@ import {
   useParams,
 } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { useStore } from "./store/useStore";
-import { EventStream } from "./api/events";
-import { applyTheme } from "./config/theme";
-import Sidebar from "./components/Sidebar";
-import TopBar from "./components/TopBar";
-import ChatView from "./components/ChatView";
-import Composer from "./components/Composer";
-import PermissionDialog from "./components/PermissionDialog";
-import SettingsPanel from "./components/SettingsPanel";
-import Workspace from "./components/Workspace";
-import LoginPage from "./components/LoginPage";
-import { MenuIcon } from "./components/icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { EventStream } from "./api/events";
+import ChatView from "./components/ChatView";
+import Composer from "./components/Composer";
+import { MenuIcon } from "./components/icons";
+import LoginPage from "./components/LoginPage";
+import PermissionDialog from "./components/PermissionDialog";
+import SettingsPanel from "./components/SettingsPanel";
+import Sidebar from "./components/Sidebar";
+import TopBar from "./components/TopBar";
+import Workspace from "./components/Workspace";
+import { applyTheme } from "./config/theme";
+import { useStore } from "./store/useStore";
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const currentUser = useStore((s) => s.currentUser);

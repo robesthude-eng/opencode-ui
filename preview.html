@@ -155,9 +155,9 @@
 <script>
 const R='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
 const D='<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
-function tg(id){const c=document.getElementById(id),b=document.getElementById('b'+id.slice(1)),ch=document.getElementById('ch'+id.slice(1));const open=c.classList.contains('expanded');c.classList.toggle('expanded');c.classList.toggle('collapsed');ch.innerHTML=open?R:D;}
-function tgg(id){const g=document.getElementById(id),ch=document.getElementById('grpch');const open=g.classList.contains('expanded');g.classList.toggle('expanded');g.classList.toggle('collapsed');ch.innerHTML=open?R:D;}
-function toggleTheme(){const h=document.documentElement;const n=h.dataset.theme==='dark'?'light':'dark';h.dataset.theme=n;document.getElementById('t').textContent=n==='dark'?'🌙':'☀️';document.querySelector('meta[name=theme-color]').setAttribute('content',n==='dark'?'#1a1a1a':'#fff');}
+function _tg(id){const c=document.getElementById(id),_b=document.getElementById(`b${id.slice(1)}`),ch=document.getElementById(`ch${id.slice(1)}`);const open=c.classList.contains('expanded');c.classList.toggle('expanded');c.classList.toggle('collapsed');ch.innerHTML=open?R:D;}
+function _tgg(id){const g=document.getElementById(id),ch=document.getElementById('grpch');const open=g.classList.contains('expanded');g.classList.toggle('expanded');g.classList.toggle('collapsed');ch.innerHTML=open?R:D;}
+function _toggleTheme(){const h=document.documentElement;const n=h.dataset.theme==='dark'?'light':'dark';h.dataset.theme=n;document.getElementById('t').textContent=n==='dark'?'🌙':'☀️';document.querySelector('meta[name=theme-color]').setAttribute('content',n==='dark'?'#1a1a1a':'#fff');}
 </script>
 </body>
 </html>

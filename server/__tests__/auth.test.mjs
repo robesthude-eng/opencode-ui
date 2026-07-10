@@ -2,26 +2,27 @@
 /**
  * Tests for server/auth.mjs
  */
-import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
-import fs from "fs";
-import path from "path";
-import os from "os";
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
-  hashPassword,
-  verifyPassword,
-  getUserEmail,
+  buildClearSessionCookie,
+  buildSessionCookie,
   checkAuth,
   checkAuthRateLimit,
-  resetAuthRateLimit,
-  isAdmin,
-  extractToken,
-  parseCookies,
-  buildSessionCookie,
-  buildClearSessionCookie,
   checkCsrf,
+  extractToken,
+  getUserEmail,
+  hashPassword,
+  isAdmin,
+  parseCookies,
+  resetAuthRateLimit,
   SESSION_COOKIE,
+  verifyPassword,
 } from "../auth.mjs";
-import { loadJson, saveJson, clearCache } from "../db.mjs";
+import { clearCache, saveJson } from "../db.mjs";
 
 // Create temp directory for tests
 let tmpDir;
@@ -163,7 +164,7 @@ describe("checkCsrf", () => {
 
 describe("getUserEmail", () => {
   test("returns email for valid token", () => {
-    saveJson(sessionsFile, { "token123": { email: "test@example.com", createdAt: Date.now() } });
+    saveJson(sessionsFile, { token123: { email: "test@example.com", createdAt: Date.now() } });
 
     const req = { headers: { "x-auth-token": "token123" }, url: "/api/test" };
     const result = getUserEmail(req, sessionsFile, 7 * 24 * 60 * 60 * 1000);
@@ -172,7 +173,9 @@ describe("getUserEmail", () => {
   });
 
   test("returns email from HttpOnly cookie", () => {
-    saveJson(sessionsFile, { "cookie-tok": { email: "cookie@example.com", createdAt: Date.now() } });
+    saveJson(sessionsFile, {
+      "cookie-tok": { email: "cookie@example.com", createdAt: Date.now() },
+    });
     const req = {
       headers: { cookie: `${SESSION_COOKIE}=cookie-tok` },
       url: "/api/test",
@@ -190,7 +193,9 @@ describe("getUserEmail", () => {
   });
 
   test("returns null for expired session", () => {
-    saveJson(sessionsFile, { "token123": { email: "test@example.com", createdAt: Date.now() - 8 * 24 * 60 * 60 * 1000 } });
+    saveJson(sessionsFile, {
+      token123: { email: "test@example.com", createdAt: Date.now() - 8 * 24 * 60 * 60 * 1000 },
+    });
 
     const req = { headers: { "x-auth-token": "token123" }, url: "/api/test" };
     const result = getUserEmail(req, sessionsFile, 7 * 24 * 60 * 60 * 1000);
@@ -199,7 +204,7 @@ describe("getUserEmail", () => {
   });
 
   test("extracts token from query string", () => {
-    saveJson(sessionsFile, { "token123": { email: "test@example.com", createdAt: Date.now() } });
+    saveJson(sessionsFile, { token123: { email: "test@example.com", createdAt: Date.now() } });
 
     const req = { headers: {}, url: "/api/test?token=token123" };
     const result = getUserEmail(req, sessionsFile, 7 * 24 * 60 * 60 * 1000);
@@ -210,7 +215,7 @@ describe("getUserEmail", () => {
 
 describe("checkAuth", () => {
   test("returns true for valid token", () => {
-    saveJson(sessionsFile, { "token123": { email: "test@example.com", createdAt: Date.now() } });
+    saveJson(sessionsFile, { token123: { email: "test@example.com", createdAt: Date.now() } });
     saveJson(usersFile, { "test@example.com": { email: "test@example.com" } });
 
     const req = { headers: { "x-auth-token": "token123" }, url: "/api/test" };
@@ -321,7 +326,9 @@ describe("isAdmin", () => {
 
   test("OPENCODE_ADMIN_EMAILS grants admin regardless of stored role", () => {
     process.env.OPENCODE_ADMIN_EMAILS = "override@example.com, other@example.com";
-    saveJson(usersFile, { "override@example.com": { email: "override@example.com", role: "user" } });
+    saveJson(usersFile, {
+      "override@example.com": { email: "override@example.com", role: "user" },
+    });
     expect(isAdmin("override@example.com", usersFile)).toBe(true);
     expect(isAdmin("other@example.com", usersFile)).toBe(true);
     expect(isAdmin("random@example.com", usersFile)).toBe(false);

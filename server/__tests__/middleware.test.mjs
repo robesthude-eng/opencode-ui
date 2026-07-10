@@ -2,8 +2,8 @@
 /**
  * Tests for server/middleware.mjs
  */
-import { describe, test, expect, vi } from "vitest";
-import { setSecurityHeaders, readBody, checkRateLimit } from "../middleware.mjs";
+import { describe, expect, test, vi } from "vitest";
+import { checkRateLimit, readBody, setSecurityHeaders } from "../middleware.mjs";
 
 describe("setSecurityHeaders", () => {
   test("sets all required security headers", () => {
@@ -12,9 +12,18 @@ describe("setSecurityHeaders", () => {
 
     expect(res.setHeader).toHaveBeenCalledWith("X-Content-Type-Options", "nosniff");
     expect(res.setHeader).toHaveBeenCalledWith("X-Frame-Options", "DENY");
-    expect(res.setHeader).toHaveBeenCalledWith("Referrer-Policy", "strict-origin-when-cross-origin");
-    expect(res.setHeader).toHaveBeenCalledWith("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-    expect(res.setHeader).toHaveBeenCalledWith("Content-Security-Policy", expect.stringContaining("default-src 'self'"));
+    expect(res.setHeader).toHaveBeenCalledWith(
+      "Referrer-Policy",
+      "strict-origin-when-cross-origin",
+    );
+    expect(res.setHeader).toHaveBeenCalledWith(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=()",
+    );
+    expect(res.setHeader).toHaveBeenCalledWith(
+      "Content-Security-Policy",
+      expect.stringContaining("default-src 'self'"),
+    );
   });
 });
 
@@ -23,7 +32,7 @@ describe("readBody", () => {
     const chunks = [Buffer.from("hello"), Buffer.from(" world")];
     const req = {
       on: (event, callback) => {
-        if (event === "data") chunks.forEach(chunk => callback(chunk));
+        if (event === "data") chunks.forEach((chunk) => callback(chunk));
         else if (event === "end") callback();
       },
       destroy: vi.fn(),
@@ -37,8 +46,10 @@ describe("readBody", () => {
   test("destroys request when body exceeds limit", async () => {
     const req = {
       on: (event, callback) => {
-        if (event === "data") { callback(Buffer.alloc(100)); callback(Buffer.alloc(100)); }
-        else if (event === "end") callback();
+        if (event === "data") {
+          callback(Buffer.alloc(100));
+          callback(Buffer.alloc(100));
+        } else if (event === "end") callback();
       },
       destroy: vi.fn(),
     };

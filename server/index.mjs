@@ -9,33 +9,50 @@
  * - Frontend polls listMessages every 500ms as fallback for smooth streaming, plus global SSE
  */
 
-import http from "http";
-import fs from "fs";
-import path from "path";
-import crypto from "crypto";
-import { fileURLToPath } from "url";
-
-// Import modules
-import { loadJson, saveJson, saveAuthJson, initDb, closeDb } from "./db.mjs";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import http from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import AdmZip from "adm-zip";
 import {
-  hashPassword,
-  verifyPassword,
-  getUserEmail,
+  buildClearSessionCookie,
+  buildSessionCookie,
   checkAuth,
   checkAuthRateLimit,
-  resetAuthRateLimit,
-  isAdmin,
-  extractToken,
-  buildSessionCookie,
-  buildClearSessionCookie,
   checkCsrf,
+  extractToken,
+  getUserEmail,
+  hashPassword,
+  isAdmin,
+  resetAuthRateLimit,
+  verifyPassword,
 } from "./auth.mjs";
-import { setSecurityHeaders, readBody, checkRateLimit, MAX_BODY_BYTES, MAX_JSON_BODY_BYTES, checkUploadRateLimit } from "./middleware.mjs";
+// Import modules
+import { closeDb, initDb, loadJson, saveAuthJson, saveJson } from "./db.mjs";
 import { logger } from "./logger.mjs";
+import {
+  checkRateLimit,
+  checkUploadRateLimit,
+  MAX_BODY_BYTES,
+  MAX_JSON_BODY_BYTES,
+  readBody,
+  setSecurityHeaders,
+} from "./middleware.mjs";
 import { checkUserRateLimit } from "./rate-limit.mjs";
+import {
+  createCheckpoint,
+  instantRollbackDist,
+  isSelfImproveEnabled,
+  listCheckpoints,
+  listDistSnapshots,
+  logAudit,
+  rebuildUi,
+  resetUi,
+  rollbackToCommit,
+  toggleSelfImprove,
+} from "./self-improve.mjs";
 import { parseMultipart } from "./upload.mjs";
-import { getUiDir, isSelfImproveEnabled, toggleSelfImprove, rebuildUi, resetUi, createCheckpoint, listCheckpoints, rollbackToCommit, logAudit } from "./self-improve.mjs";
-import AdmZip from "adm-zip";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,7 +69,8 @@ initDb(WORKDIR);
 // Logical paths — still used as keys; content lives in SQLite for these three
 const USERS_FILE = path.join(WORKDIR, ".users.json");
 const SESSIONS_FILE = path.join(WORKDIR, ".sessions.json");
-const SESSION_TTL_MS = parseInt(process.env.OPENCODE_SESSION_TTL_MS || "", 10) || (7 * 24 * 60 * 60 * 1000);
+const SESSION_TTL_MS =
+  parseInt(process.env.OPENCODE_SESSION_TTL_MS || "", 10) || 7 * 24 * 60 * 60 * 1000;
 const OWNERS_FILE = path.join(WORKDIR, ".session_owners.json");
 const USER_KEYS_DIR = path.join(WORKDIR, ".user_keys");
 
@@ -70,7 +88,9 @@ const passFile = path.join(WORKDIR, ".admin_password");
 
 if (!AUTH_PASSWORD) {
   if (fs.existsSync(passFile)) {
-    try { AUTH_PASSWORD = fs.readFileSync(passFile, "utf8").trim(); } catch (e) {}
+    try {
+      AUTH_PASSWORD = fs.readFileSync(passFile, "utf8").trim();
+    } catch (_e) {}
   }
   if (!AUTH_PASSWORD) {
     AUTH_PASSWORD = crypto.randomBytes(16).toString("hex");
@@ -92,7 +112,9 @@ function getUserKeysFile(userEmail) {
 function loadUserKeys(userEmail) {
   const file = getUserKeysFile(userEmail);
   if (fs.existsSync(file)) {
-    try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
+    try {
+      return JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch {}
   }
   return {};
 }
@@ -106,8 +128,8 @@ function saveUserKeys(userEmail, keys) {
 // Timing-safe comparison to avoid leaking the password length/content via timing.
 function checkBasicAuth(req) {
   if (!AUTH_PASSWORD) return false;
-  const header = req.headers["authorization"] || "";
-  const expected = "Basic " + Buffer.from(`${AUTH_USER}:${AUTH_PASSWORD}`).toString("base64");
+  const header = req.headers.authorization || "";
+  const expected = `Basic ${Buffer.from(`${AUTH_USER}:${AUTH_PASSWORD}`).toString("base64")}`;
   const headerBuf = Buffer.from(header);
   const expectedBuf = Buffer.from(expected);
   if (headerBuf.length !== expectedBuf.length) return false;
@@ -144,8 +166,8 @@ function createProxy(targetBase) {
       headers: { ...req.headers, host: `${targetUrl.hostname}:${targetUrl.port}` },
     };
     // Remove hop-by-hop headers
-    delete options.headers["connection"];
-    delete options.headers["upgrade"];
+    delete options.headers.connection;
+    delete options.headers.upgrade;
 
     const proxyReq = http.request(options, (proxyRes) => {
       const headers = { ...proxyRes.headers };
@@ -187,8 +209,8 @@ function createProxy(targetBase) {
         socket.write(`${k}: ${v}\r\n`);
       }
       socket.write("\r\n");
-      if (proxyHead && proxyHead.length) proxySocket.unshift(proxyHead);
-      if (head && head.length) socket.unshift(head);
+      if (proxyHead?.length) proxySocket.unshift(proxyHead);
+      if (head?.length) socket.unshift(head);
       proxySocket.pipe(socket);
       socket.pipe(proxySocket);
     });
@@ -198,7 +220,9 @@ function createProxy(targetBase) {
     proxyReq.end();
   }
 
-  function close(cb) { if (cb) cb(); }
+  function close(cb) {
+    if (cb) cb();
+  }
 
   return { web, ws, close };
 }
@@ -234,37 +258,36 @@ function checkSessionOwnership(sessionId, userEmail, res) {
 }
 
 // Global routes (always system)
-const GLOBAL_ROUTES = [
-  "/api/config/providers",
-  "/api/provider",
-  "/api/auth/",
-  "/api/global/",
-];
+const GLOBAL_ROUTES = ["/api/config/providers", "/api/provider", "/api/auth/", "/api/global/"];
 function isGlobalRoute(urlPath) {
   return GLOBAL_ROUTES.some((r) => urlPath.startsWith(r));
 }
 
 // Session listing
-function handleSessionList(req, res, userEmail) {
-  http.get(`http://127.0.0.1:${SYSTEM_PORT}/session`, (ocRes) => {
-    let body = "";
-    ocRes.on("data", (c) => (body += c));
-    ocRes.on("end", () => {
-      try {
-        const sessions = JSON.parse(body || "[]");
-        const owners = loadJson(OWNERS_FILE, {});
-        const filtered = userEmail ? sessions.filter((s) => owners[s.id] === userEmail) : sessions;
-        res.writeHead(ocRes.statusCode, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(filtered));
-      } catch (e) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Failed to parse sessions" }));
-      }
+function handleSessionList(_req, res, userEmail) {
+  http
+    .get(`http://127.0.0.1:${SYSTEM_PORT}/session`, (ocRes) => {
+      let body = "";
+      ocRes.on("data", (c) => (body += c));
+      ocRes.on("end", () => {
+        try {
+          const sessions = JSON.parse(body || "[]");
+          const owners = loadJson(OWNERS_FILE, {});
+          const filtered = userEmail
+            ? sessions.filter((s) => owners[s.id] === userEmail)
+            : sessions;
+          res.writeHead(ocRes.statusCode, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(filtered));
+        } catch (_e) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Failed to parse sessions" }));
+        }
+      });
+    })
+    .on("error", () => {
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "OpenCode unreachable" }));
     });
-  }).on("error", () => {
-    res.writeHead(502, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "OpenCode unreachable" }));
-  });
 }
 
 // Static
@@ -307,7 +330,7 @@ const server = http.createServer((req, res) => {
   if (req.url === "/health" || req.url === "/global/health" || req.url === "/api/global/health") {
     const ocPort = process.env.OC_SYSTEM_PORT || 4096;
     const ocUrl = `http://127.0.0.1:${ocPort}/global/health`;
-    
+
     let responseSent = false;
     const sendResponse = (statusCode, body) => {
       if (responseSent) return;
@@ -320,12 +343,20 @@ const server = http.createServer((req, res) => {
       if (opencodeRes.statusCode >= 200 && opencodeRes.statusCode < 400) {
         sendResponse(200, { status: "ok", opencode: "healthy", uptime: process.uptime() });
       } else {
-        sendResponse(503, { status: "error", opencode: `unhealthy_status_${opencodeRes.statusCode}`, uptime: process.uptime() });
+        sendResponse(503, {
+          status: "error",
+          opencode: `unhealthy_status_${opencodeRes.statusCode}`,
+          uptime: process.uptime(),
+        });
       }
     });
 
     opencodeReq.on("error", (err) => {
-      sendResponse(503, { status: "error", opencode: `unreachable_${err.message}`, uptime: process.uptime() });
+      sendResponse(503, {
+        status: "error",
+        opencode: `unreachable_${err.message}`,
+        uptime: process.uptime(),
+      });
     });
 
     opencodeReq.on("timeout", () => {
@@ -346,11 +377,23 @@ const server = http.createServer((req, res) => {
   // account exists, keeps using session tokens instead (see checkAuth below).
   const noUsersYet = Object.keys(loadJson(USERS_FILE, {})).length === 0;
   const isAuthEndpoint =
-    urlPath === "/auth/register" || urlPath === "/api/auth/register" ||
-    urlPath === "/auth/login" || urlPath === "/api/auth/login";
-  if (AUTH_PASSWORD && noUsersYet && !isAuthEndpoint && urlPath !== "/health" && urlPath !== "/global/health" && urlPath !== "/api/global/health") {
+    urlPath === "/auth/register" ||
+    urlPath === "/api/auth/register" ||
+    urlPath === "/auth/login" ||
+    urlPath === "/api/auth/login";
+  if (
+    AUTH_PASSWORD &&
+    noUsersYet &&
+    !isAuthEndpoint &&
+    urlPath !== "/health" &&
+    urlPath !== "/global/health" &&
+    urlPath !== "/api/global/health"
+  ) {
     if (!checkBasicAuth(req)) {
-      res.writeHead(401, { "Content-Type": "application/json", "WWW-Authenticate": `Basic realm="OpenCode UI"` });
+      res.writeHead(401, {
+        "Content-Type": "application/json",
+        "WWW-Authenticate": `Basic realm="OpenCode UI"`,
+      });
       res.end(JSON.stringify({ error: "Unauthorized" }));
       return;
     }
@@ -358,93 +401,114 @@ const server = http.createServer((req, res) => {
 
   // Auth endpoints (no auth required)
   if (urlPath === "/auth/register" || urlPath === "/api/auth/register") {
-    if (req.method !== "POST") { res.writeHead(405); res.end(); return; }
+    if (req.method !== "POST") {
+      res.writeHead(405);
+      res.end();
+      return;
+    }
     if (!checkAuthRateLimit(req, res)) return;
-    readBody(req, 16384).then((buf) => {
-      try {
-        const { email, password } = JSON.parse(buf.toString("utf8") || "{}");
-        if (!email || !email.includes("@") || !password || password.length < 6) {
+    readBody(req, 16384)
+      .then((buf) => {
+        try {
+          const { email, password } = JSON.parse(buf.toString("utf8") || "{}");
+          if (!email?.includes("@") || !password || password.length < 6) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(
+              JSON.stringify({ error: "Enter a valid email and password (min 6 characters)." }),
+            );
+            return;
+          }
+          const users = loadJson(USERS_FILE, {});
+          const cleanEmail = email.toLowerCase().trim();
+          if (users[cleanEmail]) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "User with this email already exists." }));
+            return;
+          }
+          // The very first account registered on a fresh instance becomes admin.
+          // Admin is required to enable Self-Improvement Mode and trigger rebuilds/
+          // rollbacks, since those operations mutate the shared UI source for
+          // every user of this deployment (see server/self-improve.mjs).
+          const role = Object.keys(users).length === 0 ? "admin" : "user";
+          users[cleanEmail] = {
+            email: cleanEmail,
+            passwordHash: hashPassword(password),
+            createdAt: Date.now(),
+            role,
+          };
+          saveAuthJson(USERS_FILE, users);
+          const token = crypto.randomBytes(32).toString("hex");
+          const sessions = loadJson(SESSIONS_FILE, {});
+          sessions[token] = { email: cleanEmail, createdAt: Date.now() };
+          saveAuthJson(SESSIONS_FILE, sessions);
+          resetAuthRateLimit(req);
+          logger.info({ email: cleanEmail, role }, "user registered");
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS),
+          });
+          // token still returned for EventSource ?token= fallback during transition; prefer cookie
+          res.end(JSON.stringify({ status: "success", token, user: { email: cleanEmail, role } }));
+        } catch (_e) {
           res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Enter a valid email and password (min 6 characters)." }));
-          return;
+          res.end(JSON.stringify({ error: "Registration failed" }));
         }
-        const users = loadJson(USERS_FILE, {});
-        const cleanEmail = email.toLowerCase().trim();
-        if (users[cleanEmail]) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "User with this email already exists." }));
-          return;
-        }
-        // The very first account registered on a fresh instance becomes admin.
-        // Admin is required to enable Self-Improvement Mode and trigger rebuilds/
-        // rollbacks, since those operations mutate the shared UI source for
-        // every user of this deployment (see server/self-improve.mjs).
-        const role = Object.keys(users).length === 0 ? "admin" : "user";
-        users[cleanEmail] = { email: cleanEmail, passwordHash: hashPassword(password), createdAt: Date.now(), role };
-        saveAuthJson(USERS_FILE, users);
-        const token = crypto.randomBytes(32).toString("hex");
-        const sessions = loadJson(SESSIONS_FILE, {});
-        sessions[token] = { email: cleanEmail, createdAt: Date.now() };
-        saveAuthJson(SESSIONS_FILE, sessions);
-        resetAuthRateLimit(req);
-        logger.info({ email: cleanEmail, role }, "user registered");
-        res.writeHead(200, {
-          "Content-Type": "application/json",
-          "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS),
-        });
-        // token still returned for EventSource ?token= fallback during transition; prefer cookie
-        res.end(JSON.stringify({ status: "success", token, user: { email: cleanEmail, role } }));
-      } catch (e) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Registration failed" }));
-      }
-    }).catch(() => {
-      res.writeHead(413, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Request body too large" }));
-    });
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+      });
     return;
   }
 
   if (urlPath === "/auth/login" || urlPath === "/api/auth/login") {
-    if (req.method !== "POST") { res.writeHead(405); res.end(); return; }
+    if (req.method !== "POST") {
+      res.writeHead(405);
+      res.end();
+      return;
+    }
     if (!checkAuthRateLimit(req, res)) return;
-    readBody(req, 16384).then((buf) => {
-      try {
-        const { email, password } = JSON.parse(buf.toString("utf8") || "{}");
-        const users = loadJson(USERS_FILE, {});
-        const cleanEmail = (email || "").toLowerCase().trim();
-        const user = users[cleanEmail];
-        if (!user || !verifyPassword(password || "", user.passwordHash)) {
-          res.writeHead(401, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Invalid email or password." }));
-          return;
+    readBody(req, 16384)
+      .then((buf) => {
+        try {
+          const { email, password } = JSON.parse(buf.toString("utf8") || "{}");
+          const users = loadJson(USERS_FILE, {});
+          const cleanEmail = (email || "").toLowerCase().trim();
+          const user = users[cleanEmail];
+          if (!user || !verifyPassword(password || "", user.passwordHash)) {
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid email or password." }));
+            return;
+          }
+          const token = crypto.randomBytes(32).toString("hex");
+          const sessions = loadJson(SESSIONS_FILE, {});
+          sessions[token] = { email: cleanEmail, createdAt: Date.now() };
+          saveAuthJson(SESSIONS_FILE, sessions);
+          resetAuthRateLimit(req);
+          logger.info({ email: cleanEmail }, "user logged in");
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS),
+          });
+          res.end(
+            JSON.stringify({
+              status: "success",
+              token,
+              user: {
+                email: cleanEmail,
+                role: isAdmin(cleanEmail, USERS_FILE) ? "admin" : user.role || "user",
+              },
+            }),
+          );
+        } catch (_e) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Login failed" }));
         }
-        const token = crypto.randomBytes(32).toString("hex");
-        const sessions = loadJson(SESSIONS_FILE, {});
-        sessions[token] = { email: cleanEmail, createdAt: Date.now() };
-        saveAuthJson(SESSIONS_FILE, sessions);
-        resetAuthRateLimit(req);
-        logger.info({ email: cleanEmail }, "user logged in");
-        res.writeHead(200, {
-          "Content-Type": "application/json",
-          "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS),
-        });
-        res.end(JSON.stringify({
-          status: "success",
-          token,
-          user: {
-            email: cleanEmail,
-            role: isAdmin(cleanEmail, USERS_FILE) ? "admin" : (user.role || "user"),
-          },
-        }));
-      } catch (e) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Login failed" }));
-      }
-    }).catch(() => {
-      res.writeHead(413, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Request body too large" }));
-    });
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+      });
     return;
   }
 
@@ -462,7 +526,12 @@ const server = http.createServer((req, res) => {
       return;
     }
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "success", user: { email, role: isAdmin(email, USERS_FILE) ? "admin" : "user" } }));
+    res.end(
+      JSON.stringify({
+        status: "success",
+        user: { email, role: isAdmin(email, USERS_FILE) ? "admin" : "user" },
+      }),
+    );
     return;
   }
 
@@ -518,73 +587,131 @@ const server = http.createServer((req, res) => {
   // but are currently NOT active or connected to any live custom providers (like the removed "aerolink").
   // Do NOT use these to store or harvest client credentials unless a legitimate integration is explicitly configured.
   if (urlPath === "/api/auth/custom" && req.method === "GET") {
-    if (!userEmail) { res.writeHead(401, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Unauthorized" })); return; }
+    if (!userEmail) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
     const keys = loadUserKeys(userEmail);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(Object.keys(keys)));
     return;
   }
   if (urlPath === "/api/auth/custom" && req.method === "POST") {
-    if (!userEmail) { res.writeHead(401, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Unauthorized" })); return; }
-    readBody(req, MAX_JSON_BODY_BYTES).then((buf) => {
-      try {
-        const { providerId, key } = JSON.parse(buf.toString("utf8") || "{}");
-        if (!providerId || !key || !/^[a-zA-Z0-9_-]+$/.test(providerId)) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid provider ID or key" })); return; }
-        const keys = loadUserKeys(userEmail);
-        keys[providerId] = { type: "api", key: key };
-        saveUserKeys(userEmail, keys);
-        console.log(`[Auth] Saved key for provider ${providerId} (user: ${userEmail})`);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "success" }));
-      } catch (e) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid JSON" })); }
-    }).catch(() => { res.writeHead(413, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Request body too large" })); });
+    if (!userEmail) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
+    readBody(req, MAX_JSON_BODY_BYTES)
+      .then((buf) => {
+        try {
+          const { providerId, key } = JSON.parse(buf.toString("utf8") || "{}");
+          if (!providerId || !key || !/^[a-zA-Z0-9_-]+$/.test(providerId)) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid provider ID or key" }));
+            return;
+          }
+          const keys = loadUserKeys(userEmail);
+          keys[providerId] = { type: "api", key: key };
+          saveUserKeys(userEmail, keys);
+          console.log(`[Auth] Saved key for provider ${providerId} (user: ${userEmail})`);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "success" }));
+        } catch (_e) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+      });
     return;
   }
   if (urlPath === "/api/auth/custom" && req.method === "DELETE") {
-    if (!userEmail) { res.writeHead(401, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Unauthorized" })); return; }
-    readBody(req, MAX_JSON_BODY_BYTES).then((buf) => {
-      try {
-        const { providerId } = JSON.parse(buf.toString("utf8") || "{}");
-        if (!providerId || !/^[a-zA-Z0-9_-]+$/.test(providerId)) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid provider ID" })); return; }
-        const keys = loadUserKeys(userEmail);
-        delete keys[providerId];
-        saveUserKeys(userEmail, keys);
-        console.log(`[Auth] Removed key for provider ${providerId} (user: ${userEmail})`);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "success" }));
-      } catch (e) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid JSON" })); }
-    }).catch(() => { res.writeHead(413, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Request body too large" })); });
+    if (!userEmail) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
+    readBody(req, MAX_JSON_BODY_BYTES)
+      .then((buf) => {
+        try {
+          const { providerId } = JSON.parse(buf.toString("utf8") || "{}");
+          if (!providerId || !/^[a-zA-Z0-9_-]+$/.test(providerId)) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid provider ID" }));
+            return;
+          }
+          const keys = loadUserKeys(userEmail);
+          delete keys[providerId];
+          saveUserKeys(userEmail, keys);
+          console.log(`[Auth] Removed key for provider ${providerId} (user: ${userEmail})`);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "success" }));
+        } catch (_e) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+      });
     return;
   }
 
   // Pluggable Sandbox pre-flight compilation endpoints (dry-run and safe-deploy)
   if (urlPath.startsWith("/api/sandbox/")) {
-    if (!userEmail) { res.writeHead(401, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Unauthorized" })); return; }
-    if (!isRequestAdmin) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Admin access required for sandbox feature." })); return; }
-    
+    if (!userEmail) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
+    if (!isRequestAdmin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Admin access required for sandbox feature." }));
+      return;
+    }
+
     if (urlPath === "/api/sandbox/ast-modify") {
-      import("./ast-modifier.mjs").then((m) => {
-        m.handleASTModifyRequest(req, res, WORKDIR, userEmail);
-      }).catch((err) => {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Failed to load AST modifier module", detail: err.message }));
-      });
+      import("./ast-modifier.mjs")
+        .then((m) => {
+          m.handleASTModifyRequest(req, res, WORKDIR, userEmail);
+        })
+        .catch((err) => {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({ error: "Failed to load AST modifier module", detail: err.message }),
+          );
+        });
     } else {
-      import("./sandbox.mjs").then((m) => {
-        m.handleSandboxRequest(req, res, WORKDIR, userEmail);
-      }).catch((err) => {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Failed to load sandbox module", detail: err.message }));
-      });
+      import("./sandbox.mjs")
+        .then((m) => {
+          m.handleSandboxRequest(req, res, WORKDIR, userEmail);
+        })
+        .catch((err) => {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Failed to load sandbox module", detail: err.message }));
+        });
     }
     return;
   }
 
   // Retrieve persistent audit logs for the Admin Panel
   if (urlPath === "/api/git/audit-logs" && req.method === "GET") {
-    if (!userEmail) { res.writeHead(401, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Unauthorized" })); return; }
-    if (!isRequestAdmin) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Admin access required" })); return; }
-    
+    if (!userEmail) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
+    if (!isRequestAdmin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Admin access required" }));
+      return;
+    }
+
     const logFile = path.join(WORKDIR, "audit.log");
     try {
       if (fs.existsSync(logFile)) {
@@ -624,19 +751,31 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url === "/api/settings/self-improve" && req.method === "POST") {
-    readBody(req, MAX_JSON_BODY_BYTES).then((buf) => {
-      try {
-        const { enabled } = JSON.parse(buf.toString("utf8") || "{}");
-        toggleSelfImprove(WORKDIR, enabled);
-        logAudit(WORKDIR, userEmail, "TOGGLE_SELF_IMPROVE", `Enabled: ${!!enabled}`);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "success", enabled: !!enabled }));
-      } catch (e) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid JSON" })); }
-    }).catch(() => { res.writeHead(413, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Request body too large" })); });
+    readBody(req, MAX_JSON_BODY_BYTES)
+      .then((buf) => {
+        try {
+          const { enabled } = JSON.parse(buf.toString("utf8") || "{}");
+          toggleSelfImprove(WORKDIR, enabled);
+          logAudit(WORKDIR, userEmail, "TOGGLE_SELF_IMPROVE", `Enabled: ${!!enabled}`);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "success", enabled: !!enabled }));
+        } catch (_e) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+      });
     return;
   }
   if (req.url === "/api/rebuild" && req.method === "POST") {
-    if (!isSelfImproveEnabled(WORKDIR)) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." })); return; }
+    if (!isSelfImproveEnabled(WORKDIR)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+      return;
+    }
     if (!checkRateLimit(res)) return;
     logAudit(WORKDIR, userEmail, "REBUILD_UI_START", "Starting UI build process");
     rebuildUi(WORKDIR, (err, stdout) => {
@@ -653,7 +792,11 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (req.url === "/api/reset-ui" && req.method === "POST") {
-    if (!isSelfImproveEnabled(WORKDIR)) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." })); return; }
+    if (!isSelfImproveEnabled(WORKDIR)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+      return;
+    }
     if (!checkRateLimit(res)) return;
     logAudit(WORKDIR, userEmail, "RESET_UI_START", "Starting UI factory reset");
     resetUi(WORKDIR, (err, stdout) => {
@@ -670,7 +813,11 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (req.url === "/api/git/checkpoint" && req.method === "POST") {
-    if (!isSelfImproveEnabled(WORKDIR)) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." })); return; }
+    if (!isSelfImproveEnabled(WORKDIR)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+      return;
+    }
     createCheckpoint(WORKDIR, (err, result) => {
       if (err) {
         logAudit(WORKDIR, userEmail, "CHECKPOINT_FAILED", err.message);
@@ -686,92 +833,222 @@ const server = http.createServer((req, res) => {
   }
   if (req.url === "/api/git/checkpoints" && req.method === "GET") {
     listCheckpoints(WORKDIR, (err, commits) => {
-      if (err) { res.writeHead(500, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Failed to list checkpoints" })); }
-      else { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify(commits)); }
+      if (err) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to list checkpoints" }));
+      } else {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(commits));
+      }
     });
     return;
   }
-  if (req.url === "/api/git/rollback" && req.method === "POST") {
-    if (!isSelfImproveEnabled(WORKDIR)) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." })); return; }
+  if (req.url === "/api/dist/snapshots" && req.method === "GET") {
+    if (!isRequestAdmin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Admin access required." }));
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(listDistSnapshots()));
+    return;
+  }
+  if (req.url === "/api/dist/instant-rollback" && req.method === "POST") {
+    if (!isRequestAdmin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Admin access required." }));
+      return;
+    }
+    if (!isSelfImproveEnabled(WORKDIR)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+      return;
+    }
     if (!checkRateLimit(res)) return;
-    readBody(req, MAX_JSON_BODY_BYTES).then((buf) => {
-      try {
-        const { hash } = JSON.parse(buf.toString("utf8") || "{}");
-        if (!hash || !/^[a-fA-F0-9]{4,40}$/.test(hash)) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid commit hash format." })); return; }
-        logAudit(WORKDIR, userEmail, "ROLLBACK_START", `Rolling back UI to commit: ${hash}`);
-        rollbackToCommit(WORKDIR, hash, (err, result) => {
-          if (err) {
-            logAudit(WORKDIR, userEmail, "ROLLBACK_FAILED", `Hash ${hash}: ${err.message}`);
-            res.writeHead(500, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Rollback failed", detail: err.message }));
-          } else {
-            logAudit(WORKDIR, userEmail, "ROLLBACK_SUCCESS", `Successfully rolled back UI to commit: ${hash}`);
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ status: "success", message: result.message }));
+    readBody(req, MAX_JSON_BODY_BYTES)
+      .then((buf) => {
+        try {
+          const body = JSON.parse(buf.toString("utf8") || "{}");
+          const index = Number.isFinite(body.index) ? body.index : 0;
+          logAudit(WORKDIR, userEmail, "DIST_INSTANT_ROLLBACK", `index=${index}`);
+          const result = instantRollbackDist(index);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "success", ...result }));
+        } catch (e) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Instant rollback failed", detail: e.message }));
+        }
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+      });
+    return;
+  }
+  if (req.url === "/api/git/rollback" && req.method === "POST") {
+    if (!isSelfImproveEnabled(WORKDIR)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+      return;
+    }
+    if (!checkRateLimit(res)) return;
+    readBody(req, MAX_JSON_BODY_BYTES)
+      .then((buf) => {
+        try {
+          const { hash } = JSON.parse(buf.toString("utf8") || "{}");
+          if (!hash || !/^[a-fA-F0-9]{4,40}$/.test(hash)) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid commit hash format." }));
+            return;
           }
-        });
-      } catch (e) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid JSON" })); }
-    }).catch(() => { res.writeHead(413, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Request body too large" })); });
+          logAudit(WORKDIR, userEmail, "ROLLBACK_START", `Rolling back UI to commit: ${hash}`);
+          rollbackToCommit(WORKDIR, hash, (err, result) => {
+            if (err) {
+              logAudit(WORKDIR, userEmail, "ROLLBACK_FAILED", `Hash ${hash}: ${err.message}`);
+              res.writeHead(500, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "Rollback failed", detail: err.message }));
+            } else {
+              logAudit(
+                WORKDIR,
+                userEmail,
+                "ROLLBACK_SUCCESS",
+                `Successfully rolled back UI to commit: ${hash}`,
+              );
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ status: "success", message: result.message }));
+            }
+          });
+        } catch (_e) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+      });
     return;
   }
 
   // Upload endpoints
   if (urlPath === "/api/workspace/upload-folder" && req.method === "POST") {
     if (!checkUploadRateLimit(req, res)) return;
-    readBody(req, MAX_BODY_BYTES).then((buffer) => {
-      const contentType = req.headers["content-type"] || "";
-      const boundaryMatch = contentType.match(/boundary=(?:\"([^\"]+)\"|([^;]+))/);
-      if (!boundaryMatch) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Missing multipart boundary" })); return; }
-      let targetDir = WORKDIR;
-      const sessionId = extractSessionId(req);
-      if (sessionId) { targetDir = path.join(WORKDIR, "sessions", sessionId, "workspace"); }
-      const boundary = boundaryMatch[1] || boundaryMatch[2];
-      const parts = parseMultipart(buffer, boundary);
-      const errors = []; const written = [];
-      for (const part of parts) {
-        const relPath = part.name.replace(/\\/g, "/").replace(/^\/+/, "");
-        if (relPath.includes("..") || relPath.startsWith("/")) { errors.push("Rejected unsafe path: " + relPath); continue; }
-        try { const fullPath = path.join(targetDir, relPath); fs.mkdirSync(path.dirname(fullPath), { recursive: true }); fs.writeFileSync(fullPath, part.data); written.push(relPath); } catch (e) { errors.push(relPath + ": " + e.message); }
-      }
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: errors.length === 0, written: written.length, errors: errors.length > 0 ? errors : undefined }));
-    }).catch(() => { res.writeHead(413, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "File too large (max 50 MB)" })); });
+    readBody(req, MAX_BODY_BYTES)
+      .then((buffer) => {
+        const contentType = req.headers["content-type"] || "";
+        const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/);
+        if (!boundaryMatch) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Missing multipart boundary" }));
+          return;
+        }
+        let targetDir = WORKDIR;
+        const sessionId = extractSessionId(req);
+        if (sessionId) {
+          targetDir = path.join(WORKDIR, "sessions", sessionId, "workspace");
+        }
+        const boundary = boundaryMatch[1] || boundaryMatch[2];
+        const parts = parseMultipart(buffer, boundary);
+        const errors = [];
+        const written = [];
+        for (const part of parts) {
+          const relPath = part.name.replace(/\\/g, "/").replace(/^\/+/, "");
+          if (relPath.includes("..") || relPath.startsWith("/")) {
+            errors.push(`Rejected unsafe path: ${relPath}`);
+            continue;
+          }
+          try {
+            const fullPath = path.join(targetDir, relPath);
+            fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+            fs.writeFileSync(fullPath, part.data);
+            written.push(relPath);
+          } catch (e) {
+            errors.push(`${relPath}: ${e.message}`);
+          }
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ok: errors.length === 0,
+            written: written.length,
+            errors: errors.length > 0 ? errors : undefined,
+          }),
+        );
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "File too large (max 50 MB)" }));
+      });
     return;
   }
   if (urlPath === "/api/workspace/upload" && req.method === "POST") {
     if (!checkUploadRateLimit(req, res)) return;
     let sessionId = "";
-    try { sessionId = new URL(req.url, "http://localhost").searchParams.get("sessionId") || ""; } catch (e) {}
+    try {
+      sessionId = new URL(req.url, "http://localhost").searchParams.get("sessionId") || "";
+    } catch (_e) {}
     if (sessionId && !/^[a-zA-Z0-9_-]+$/.test(sessionId)) sessionId = "";
-    readBody(req, MAX_BODY_BYTES).then((buffer) => {
-      const contentType = req.headers["content-type"] || "";
-      const boundaryMatch = contentType.match(/boundary=(?:\"([^\"]+)\"|([^;]+))/);
-      if (!boundaryMatch) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Missing multipart boundary" })); return; }
-      const boundary = boundaryMatch[1] || boundaryMatch[2];
-      const parts = parseMultipart(buffer, boundary);
-      if (parts.length === 0) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "No file received" })); return; }
-      const part = parts[0];
-      const rawName = part.filename || part.name;
-      const safeName = rawName.replace(/[\\/]/g, "_").replace(/^_+/, "");
-      if (!safeName || safeName.includes("..")) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid filename" })); return; }
-      let uploadDir; let relativePath;
-      if (sessionId) { uploadDir = path.join(WORKDIR, "sessions", sessionId, "workspace", "uploads"); relativePath = `sessions/${sessionId}/workspace/uploads/${safeName}`; }
-      else { uploadDir = path.join(WORKDIR, "uploads", "_orphan"); relativePath = `uploads/_orphan/${safeName}`; }
-      fs.mkdirSync(uploadDir, { recursive: true });
-      const dest = path.join(uploadDir, safeName);
-      fs.writeFileSync(dest, part.data);
-      console.log("[Upload] Saved: " + dest + " (" + part.data.length + " bytes)");
-      let entryCount = null;
-      const ext = path.extname(safeName).toLowerCase();
-      if (ext === ".zip") {
-        try {
-          const zip = new AdmZip(dest);
-          entryCount = zip.getEntries().filter((e) => !e.isDirectory).length;
-        } catch (e) { console.error("[Upload] Failed to read zip entries for " + safeName + ":", e.message); }
-      }
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, path: relativePath, size: part.data.length, entryCount: entryCount }));
-    }).catch(() => { res.writeHead(413, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "File too large (max 50 MB)" })); });
+    readBody(req, MAX_BODY_BYTES)
+      .then((buffer) => {
+        const contentType = req.headers["content-type"] || "";
+        const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/);
+        if (!boundaryMatch) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Missing multipart boundary" }));
+          return;
+        }
+        const boundary = boundaryMatch[1] || boundaryMatch[2];
+        const parts = parseMultipart(buffer, boundary);
+        if (parts.length === 0) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "No file received" }));
+          return;
+        }
+        const part = parts[0];
+        const rawName = part.filename || part.name;
+        const safeName = rawName.replace(/[\\/]/g, "_").replace(/^_+/, "");
+        if (!safeName || safeName.includes("..")) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid filename" }));
+          return;
+        }
+        let uploadDir;
+        let relativePath;
+        if (sessionId) {
+          uploadDir = path.join(WORKDIR, "sessions", sessionId, "workspace", "uploads");
+          relativePath = `sessions/${sessionId}/workspace/uploads/${safeName}`;
+        } else {
+          uploadDir = path.join(WORKDIR, "uploads", "_orphan");
+          relativePath = `uploads/_orphan/${safeName}`;
+        }
+        fs.mkdirSync(uploadDir, { recursive: true });
+        const dest = path.join(uploadDir, safeName);
+        fs.writeFileSync(dest, part.data);
+        console.log(`[Upload] Saved: ${dest} (${part.data.length} bytes)`);
+        let entryCount = null;
+        const ext = path.extname(safeName).toLowerCase();
+        if (ext === ".zip") {
+          try {
+            const zip = new AdmZip(dest);
+            entryCount = zip.getEntries().filter((e) => !e.isDirectory).length;
+          } catch (e) {
+            console.error(`[Upload] Failed to read zip entries for ${safeName}:`, e.message);
+          }
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            path: relativePath,
+            size: part.data.length,
+            entryCount: entryCount,
+          }),
+        );
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "File too large (max 50 MB)" }));
+      });
     return;
   }
 
@@ -783,7 +1060,9 @@ const server = http.createServer((req, res) => {
   }
   if (urlPathNoQuery === "/api/session" && req.method === "POST") {
     let body = "";
-    req.on("data", (chunk) => { body += chunk; });
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
     req.on("end", () => {
       const opts = {
         hostname: "127.0.0.1",
@@ -797,7 +1076,9 @@ const server = http.createServer((req, res) => {
       };
       const proxyReq = http.request(opts, (proxyRes) => {
         let respBody = "";
-        proxyRes.on("data", (c) => { respBody += c; });
+        proxyRes.on("data", (c) => {
+          respBody += c;
+        });
         proxyRes.on("end", () => {
           try {
             const session = JSON.parse(respBody);
@@ -810,7 +1091,9 @@ const server = http.createServer((req, res) => {
                 }
                 fs.mkdirSync(sessionWorkspace, { recursive: true });
                 fs.mkdirSync(path.join(sessionWorkspace, "uploads"), { recursive: true });
-                console.log(`[New Chat] Created empty workspace for ${sid}: ${sessionWorkspace} (Claude-like isolation)`);
+                console.log(
+                  `[New Chat] Created empty workspace for ${sid}: ${sessionWorkspace} (Claude-like isolation)`,
+                );
               } catch (e) {
                 console.error(`[New Chat] Failed to create workspace for ${sid}:`, e.message);
               }
@@ -843,17 +1126,31 @@ const server = http.createServer((req, res) => {
   if (sessionId && userEmail) {
     if (!checkSessionOwnership(sessionId, userEmail, res)) return;
     const owners = loadJson(OWNERS_FILE, {});
-    if (!owners[sessionId]) { owners[sessionId] = userEmail; saveJson(OWNERS_FILE, owners); }
+    if (!owners[sessionId]) {
+      owners[sessionId] = userEmail;
+      saveJson(OWNERS_FILE, owners);
+    }
   }
 
   const sessionMatch = urlPath.match(/^\/api\/session\/([^/?]+)$/);
   if (req.method === "DELETE" && sessionMatch) {
     const sid = decodeURIComponent(sessionMatch[1]);
-    if (!isValidSessionId(sid)) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid session ID format." })); return; }
+    if (!isValidSessionId(sid)) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid session ID format." }));
+      return;
+    }
     console.log(`[Session Cleanup] Deleting session ${sid}...`);
     const pathsToClean = [path.join(WORKDIR, "sessions", sid), path.join(WORKDIR, "uploads", sid)];
     for (const p of pathsToClean) {
-      if (fs.existsSync(p)) { try { fs.rmSync(p, { recursive: true, force: true }); console.log(`[Session Cleanup] Removed: ${p}`); } catch (err) { console.error(`[Session Cleanup] Failed to remove ${p}:`, err.message); } }
+      if (fs.existsSync(p)) {
+        try {
+          fs.rmSync(p, { recursive: true, force: true });
+          console.log(`[Session Cleanup] Removed: ${p}`);
+        } catch (err) {
+          console.error(`[Session Cleanup] Failed to remove ${p}:`, err.message);
+        }
+      }
     }
     const owners = loadJson(OWNERS_FILE, {});
     delete owners[sid];
@@ -864,7 +1161,7 @@ const server = http.createServer((req, res) => {
     const sessionWorkspace = path.join(WORKDIR, "sessions", sid, "workspace");
     const strippedUrl = req.url.startsWith("/api") ? req.url.slice(4) : req.url;
     const sep = strippedUrl.includes("?") ? "&" : "?";
-    req.url = strippedUrl + sep + `directory=${encodeURIComponent(sessionWorkspace)}`;
+    req.url = `${strippedUrl + sep}directory=${encodeURIComponent(sessionWorkspace)}`;
     systemProxy.web(req, res);
     return;
   }
@@ -880,7 +1177,9 @@ const server = http.createServer((req, res) => {
   // FIX: event endpoint needs /api prefix, message endpoint needs stripped
   try {
     const sessionWorkspace = path.join(WORKDIR, "sessions", sessionId, "workspace");
-    try { fs.mkdirSync(sessionWorkspace, { recursive: true }); } catch {}
+    try {
+      fs.mkdirSync(sessionWorkspace, { recursive: true });
+    } catch {}
     const isEvent = req.url.includes("/event");
     const sep = req.url.includes("?") ? "&" : "?";
     const dirParam = `directory=${encodeURIComponent(sessionWorkspace)}`;
@@ -934,32 +1233,32 @@ server.on("upgrade", (req, socket, head) => {
 });
 
 // Periodic cleanup of expired sessions (every 24 hours)
-setInterval(() => {
-  try {
-    const sessions = loadJson(SESSIONS_FILE, {});
-    const now = Date.now();
-    let mutated = false;
-    for (const token in sessions) {
-      if (SESSION_TTL_MS > 0 && now - (sessions[token].createdAt || 0) > SESSION_TTL_MS) {
-        delete sessions[token];
-        mutated = true;
+setInterval(
+  () => {
+    try {
+      const sessions = loadJson(SESSIONS_FILE, {});
+      const now = Date.now();
+      let mutated = false;
+      for (const token in sessions) {
+        if (SESSION_TTL_MS > 0 && now - (sessions[token].createdAt || 0) > SESSION_TTL_MS) {
+          delete sessions[token];
+          mutated = true;
+        }
       }
+      if (mutated) {
+        saveJson(SESSIONS_FILE, sessions);
+        logger.info("periodic session cleanup completed");
+      }
+    } catch (e) {
+      logger.error({ err: e.message }, "periodic session cleanup failed");
     }
-    if (mutated) {
-      saveJson(SESSIONS_FILE, sessions);
-      logger.info("periodic session cleanup completed");
-    }
-  } catch (e) {
-    logger.error({ err: e.message }, "periodic session cleanup failed");
-  }
-}, 24 * 60 * 60 * 1000).unref();
+  },
+  24 * 60 * 60 * 1000,
+).unref();
 
 // Start
 server.listen(PORT, "0.0.0.0", () => {
-  logger.info(
-    { port: PORT, systemPort: SYSTEM_PORT, workdir: WORKDIR },
-    "server listening",
-  );
+  logger.info({ port: PORT, systemPort: SYSTEM_PORT, workdir: WORKDIR }, "server listening");
   if (AUTH_PASSWORD) {
     logger.info("basic auth protection enabled");
   } else {
