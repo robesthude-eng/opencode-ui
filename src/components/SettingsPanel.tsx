@@ -34,6 +34,16 @@ export default function SettingsPanel() {
   const [auditLogs, setAuditLogs] = useState<string[]>([]);
   const [checkpointStatus, setCheckpointStatus] = useState<string | null>(null);
   const [rollbackStatus, setRollbackStatus] = useState<string | null>(null);
+  const [distSnapshots, setDistSnapshots] = useState<
+    { name: string; time: string; mtime: number }[]
+  >([]);
+  const [instantStatus, setInstantStatus] = useState<string | null>(null);
+  const [health, setHealth] = useState<{
+    status?: string;
+    opencode?: string;
+    uptime?: number;
+  } | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
 
   const getHeaders = () => ({
     "Content-Type": "application/json",
@@ -92,14 +102,77 @@ export default function SettingsPanel() {
     }
   };
 
-  const handleRollback = async (hash: string) => {
+  const loadDistSnapshots = async () => {
+    if (!isAdminUser) return;
+    try {
+      const res = await fetch("/api/dist/snapshots", {
+        credentials: "include",
+        headers: getHeaders(),
+      });
+      if (res.ok) {
+        const list = await res.json();
+        setDistSnapshots(Array.isArray(list) ? list : []);
+      }
+    } catch {
+      setDistSnapshots([]);
+    }
+  };
+
+  const loadHealth = async () => {
+    try {
+      const res = await fetch("/health", { credentials: "include" });
+      if (!res.ok) {
+        setHealthError(`HTTP ${res.status}`);
+        setHealth(null);
+        return;
+      }
+      const data = await res.json();
+      setHealth(data);
+      setHealthError(null);
+    } catch {
+      setHealthError("Нет связи");
+      setHealth(null);
+    }
+  };
+
+  const handleInstantRollback = async (index = 0) => {
     if (
       !confirm(
-        `Точно откатить код интерфейса и пересобрать проект на коммит [${hash}]? Все несохранённые правки будут потеряны.`,
+        "Мгновенно вернуть предыдущую собранную версию UI (без пересборки, ~мгновенно)? Текущая страница перезагрузится.",
       )
     )
       return;
-    setRollbackStatus(`Откат к [${hash}]...`);
+    setInstantStatus("Откат…");
+    try {
+      const res = await fetch("/api/dist/instant-rollback", {
+        credentials: "include",
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ index }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setInstantStatus(`✔ ${data.version || "готово"} — перезагрузка…`);
+        await loadDistSnapshots();
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        setInstantStatus(`Ошибка: ${data.error || data.detail || "failed"}`);
+        setTimeout(() => setInstantStatus(null), 5000);
+      }
+    } catch {
+      setInstantStatus("Ошибка сети");
+      setTimeout(() => setInstantStatus(null), 3000);
+    }
+  };
+
+  const handleRollback = async (hash: string) => {
+    if (
+      !confirm(
+        `Откатить исходники UI к коммиту [${hash}] и пересобрать (1–2 мин)? Несохранённые правки будут потеряны.`,
+      )
+    )
+      return;
+    setRollbackStatus(`Откат к [${hash}]…`);
     try {
       const res = await fetch("/api/git/rollback", {
         credentials: "include",
@@ -109,7 +182,7 @@ export default function SettingsPanel() {
       });
       const data = await res.json();
       if (res.ok) {
-        setRollbackStatus("✔ Готово! Перезагрузка...");
+        setRollbackStatus("✔ Собрано! Перезагрузка…");
         setTimeout(() => window.location.reload(), 1500);
       } else {
         setRollbackStatus(`Ошибка: ${data.error || "failed"}`);
@@ -159,13 +232,23 @@ export default function SettingsPanel() {
       const data = await res.json();
       if (res.ok) {
         setRebuildStatus("success");
+        await loadDistSnapshots();
+        // New build is live — soft prompt to reload
+        setTimeout(() => {
+          if (confirm("UI пересобран. Обновить страницу сейчас?")) {
+            window.location.reload();
+          } else {
+            setRebuildStatus(null);
+          }
+        }, 400);
       } else {
         setRebuildStatus(`error: ${data.error || "failed"}`);
+        setTimeout(() => setRebuildStatus(null), 5000);
       }
     } catch {
       setRebuildStatus("error: network");
+      setTimeout(() => setRebuildStatus(null), 4000);
     }
-    setTimeout(() => setRebuildStatus(null), 4000);
   };
 
   const handleResetUI = async () => {
@@ -200,8 +283,21 @@ export default function SettingsPanel() {
       loadAuth();
       loadCheckpoints();
       loadAuditLogs();
+      loadDistSnapshots();
+      loadHealth();
     }
-  }, [open, loadAuth, loadCheckpoints, loadAuditLogs]);
+  }, [open, loadAuth, isAdminUser]);
+
+  // Keep health + logs fresh while admin is on self-improve tab
+  useEffect(() => {
+    if (!open || activeTab !== "self-improve" || !isAdminUser) return;
+    const id = setInterval(() => {
+      loadHealth();
+      loadAuditLogs();
+      loadDistSnapshots();
+    }, 8000);
+    return () => clearInterval(id);
+  }, [open, activeTab, isAdminUser]);
 
   if (!open) return null;
 
@@ -283,6 +379,69 @@ export default function SettingsPanel() {
             {/* SELF-IMPROVE TAB */}
             {activeTab === "self-improve" && (
               <div className="space-y-4">
+                {/* Live system status — always useful for admin */}
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      🩺 Состояние сервера
+                    </h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-[11px]"
+                      onClick={loadHealth}
+                      type="button"
+                    >
+                      Обновить
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+                      <div className="text-muted-foreground mb-0.5">UI / proxy</div>
+                      <div className="font-medium flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full",
+                            health?.status === "ok" ? "bg-emerald-400" : "bg-red-400",
+                          )}
+                        />
+                        {healthError
+                          ? healthError
+                          : health?.status === "ok"
+                            ? "Работает"
+                            : health?.status || "…"}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+                      <div className="text-muted-foreground mb-0.5">OpenCode</div>
+                      <div className="font-medium flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full",
+                            health?.opencode === "healthy" ? "bg-emerald-400" : "bg-amber-400",
+                          )}
+                        />
+                        {health?.opencode || "—"}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+                      <div className="text-muted-foreground mb-0.5">Uptime</div>
+                      <div className="font-medium font-mono">
+                        {typeof health?.uptime === "number"
+                          ? `${Math.floor(health.uptime / 60)}м ${Math.floor(health.uptime % 60)}с`
+                          : "—"}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    Вы: <code className="text-foreground">{currentUser?.email}</code> · роль:{" "}
+                    <span className="font-medium text-foreground">
+                      {currentUser?.role || "user"}
+                    </span>
+                    {selfImproveEnabled ? " · саморазвитие ●" : " · саморазвитие ○"}
+                  </p>
+                </div>
+
                 {!isAdminUser && (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
                     🔒 Саморазвитие меняет исходный код интерфейса для всех пользователей этого
@@ -329,14 +488,81 @@ export default function SettingsPanel() {
                   </div>
                 </div>
 
+                {/* Instant rollback — primary recovery path for admin */}
+                {isAdminUser && (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="font-semibold text-sm flex items-center gap-2">
+                          ⚡ Мгновенный откат UI
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Возвращает последнюю удачную сборку без npm/vite (обычно &lt;1 с).
+                          Используйте, если после саморазвития UI сломался.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white"
+                        disabled={
+                          !!instantStatus || !selfImproveEnabled || distSnapshots.length < 2
+                        }
+                        onClick={() => handleInstantRollback(0)}
+                        title={
+                          distSnapshots.length < 2
+                            ? "Нужно минимум 2 сборки (сделайте «Пересобрать UI»)"
+                            : "Откатить на предыдущую сборку"
+                        }
+                      >
+                        {instantStatus || "↩ Предыдущая сборка"}
+                      </Button>
+                    </div>
+                    <div className="max-h-28 overflow-y-auto space-y-1">
+                      {distSnapshots.length === 0 ? (
+                        <p className="text-[11px] text-muted-foreground">
+                          Снимков пока нет. После «Пересобрать UI» здесь появятся версии.
+                        </p>
+                      ) : (
+                        distSnapshots.map((s, i) => (
+                          <div
+                            key={s.name}
+                            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background/60 px-2.5 py-1.5 text-[11px]"
+                          >
+                            <div className="min-w-0">
+                              <span className="font-mono text-primary mr-2">
+                                {i === 0 ? "текущая" : `−${i}`}
+                              </span>
+                              <span className="text-muted-foreground truncate">{s.name}</span>
+                              <span className="text-muted-foreground ml-2">
+                                {s.time ? new Date(s.time).toLocaleString() : ""}
+                              </span>
+                            </div>
+                            {i > 0 && selfImproveEnabled && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 text-[10px] shrink-0"
+                                disabled={!!instantStatus}
+                                onClick={() => handleInstantRollback(i - 1)}
+                              >
+                                Восстановить
+                              </Button>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="rounded-xl border border-border bg-card p-4 space-y-4">
                   <div>
                     <h4 className="font-semibold text-sm flex items-center gap-2">
-                      📸 Система чекпоинтов и управление версиями Git
+                      📸 Чекпоинты Git и тяжёлые операции
                     </h4>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Создавайте контрольные снимки кода перед экспериментами агента или мгновенно
-                      откатывайтесь назад.
+                      Снимки исходников и пересборка (дольше, чем мгновенный откат). Перед
+                      экспериментами агента — создайте чекпоинт.
                     </p>
                   </div>
 
@@ -356,9 +582,9 @@ export default function SettingsPanel() {
                     >
                       ⚡{" "}
                       {rebuildStatus === "building..."
-                        ? "Билд..."
+                        ? "Билд…"
                         : rebuildStatus === "success"
-                          ? "✓ Успешно!"
+                          ? "✓ Готово"
                           : "Пересобрать UI"}
                     </Button>
                     <Button
@@ -369,16 +595,19 @@ export default function SettingsPanel() {
                     >
                       🔄{" "}
                       {resetStatus === "resetting..."
-                        ? "Сброс..."
+                        ? "Сброс…"
                         : resetStatus === "success"
-                          ? "✓ Сброшено!"
+                          ? "✓ Сброшено"
                           : "Заводской сброс"}
                     </Button>
                   </div>
 
-                  {rollbackStatus && (
+                  {(rollbackStatus ||
+                    (rebuildStatus &&
+                      rebuildStatus !== "building..." &&
+                      rebuildStatus !== "success")) && (
                     <div className="text-xs px-3 py-2 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-300">
-                      {rollbackStatus}
+                      {rollbackStatus || rebuildStatus}
                     </div>
                   )}
 
@@ -717,24 +946,35 @@ export default function SettingsPanel() {
                   <div>
                     <div className="font-semibold">OpenCode UI (Cloud Edition)</div>
                     <div className="text-xs text-muted-foreground">
-                      Веб-интерфейс нового поколения для AI-агента OpenCode.
+                      Веб-интерфейс для AI-агента OpenCode — админка, чаты, workspace, self-improve.
                     </div>
                   </div>
                 </div>
                 {[
-                  ["Версия билда:", "v17-secured-20260706"],
-                  ["Стек технологий:", "React 19 + Vite + Zustand + TypeScript + Tailwind"],
-                  ["Рабочая директория (Volume):", "/app/workspace"],
-                  ["Безопасность (Basic Auth):", "● Защищено на сервере"],
+                  ["Версия:", "v18-modern-20260710"],
+                  ["Стек:", "React 19 · Vite 7 · Tailwind 4 · shadcn · TanStack Router · SQLite"],
+                  ["Auth:", "HttpOnly cookie + scrypt (+ optional pepper)"],
+                  ["Volume:", "/app/workspace · DB: opencode.db"],
+                  [
+                    "Админ-восстановление:",
+                    "Мгновенный откат сборки · Git rollback · factory reset",
+                  ],
+                  ["Sandbox:", "Biome → tsc → vitest → vite build"],
                 ].map(([k, v]) => (
                   <div
                     key={k}
-                    className="flex justify-between items-center rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm"
+                    className="flex justify-between items-center gap-3 rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm"
                   >
-                    <span className="text-muted-foreground">{k}</span>
-                    <code className="text-xs">{v}</code>
+                    <span className="text-muted-foreground shrink-0">{k}</span>
+                    <code className="text-xs text-right break-all">{v}</code>
                   </div>
                 ))}
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Совет администратору: перед рискованными правками агента включите саморазвитие →{" "}
+                  <strong>Создать чекпоинт</strong>. Если UI «поехал» — сначала{" "}
+                  <strong>Мгновенный откат</strong> (быстро), затем при необходимости Git-откат или
+                  заводской сброс.
+                </p>
               </div>
             )}
           </div>
