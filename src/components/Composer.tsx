@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../store/useStore";
 import { SendIcon, StopIcon, PaperclipIcon, CloseIcon } from "./icons";
-import { processFile, formatSize, ACCEPTED_EXTENSIONS, type ProcessedFile } from "../api/files";
+import { processFile, formatSize, ACCEPTED_EXTENSIONS } from "../api/files";
 import { api } from "../api/client";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function Composer() {
   const currentID = useStore((s) => s.currentID);
@@ -17,9 +19,7 @@ export default function Composer() {
   const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Upload progress: filename -> progress 0..100
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
-  // Uploaded file paths: filename -> server path
   const [uploadedPaths, setUploadedPaths] = useState<Record<string, string>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -39,9 +39,6 @@ export default function Composer() {
 
   const submit = async () => {
     const value = text.trim();
-    // Match the send button's own enabled/disabled rule: a message with no text
-    // is still sendable as long as there's at least one attachment (the store's
-    // send() already builds attachment parts even when text is empty).
     if ((!value && attachments.length === 0) || busy) return;
     setText("");
     await send(value);
@@ -51,24 +48,19 @@ export default function Composer() {
     if (!fileList) return;
     for (const file of Array.from(fileList)) {
       const name = file.name;
-      // Set initial progress
       setUploadProgress((p) => ({ ...p, [name]: 0 }));
       try {
         const result = await api.uploadFile(file, (pct) => {
           setUploadProgress((p) => ({ ...p, [name]: pct }));
         }, currentID);
-        // Upload done — store path info
         setUploadProgress((p) => {
           const next = { ...p };
           delete next[name];
           return next;
         });
         setUploadedPaths((p) => ({ ...p, [name]: result.path }));
-        // Now process the file for preview/attachment
         const processed = await processFile(file);
-        // Attach the server path for use in chat message
         (processed as any).uploadedPath = result.path;
-        // For zips: how many files are inside (read-only peek, nothing extracted to disk)
         if (typeof result.entryCount === "number") {
           (processed as any).entryCount = result.entryCount;
         }
@@ -84,7 +76,6 @@ export default function Composer() {
         setTimeout(() => setUploadError(null), 6000);
       }
     }
-    // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -94,124 +85,155 @@ export default function Composer() {
     handleFiles(e.dataTransfer.files);
   };
 
+  const canSend = (text.trim() || attachments.length > 0) && !busy;
+
   return (
     <div
-      className={`composer-wrap ${dragOver ? "drag-over" : ""}`}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragOver(true);
-      }}
+      className={cn(
+        "border-t border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        "px-3 md:px-6 pt-3 pb-4",
+        dragOver && "ring-2 ring-primary ring-inset bg-primary/5"
+      )}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
     >
-      {dragOver && <div className="drop-hint">📎 Drop files to attach</div>}
+      <div className="mx-auto max-w-3xl">
+        {dragOver && (
+          <div className="mb-2 rounded-xl border border-dashed border-primary/60 bg-primary/5 px-3 py-2 text-sm text-primary text-center">
+            📎 Drop files to attach
+          </div>
+        )}
 
-      {(attachments.length > 0 || Object.keys(uploadProgress).length > 0 || uploadError) && (
-        <div className="composer-meta">
-          {attachments.length > 0 && (
-            <div className="attachment-chips">
-              {attachments.map((a) => (
-                <span className="attach-chip" key={a.name} title={`${a.name} (${formatSize(a.size)})`}>
-                  <span className={`attach-icon-wrap ${(a as any).uploadedPath ? "uploaded" : ""}`}>
-                    {a.kind === "image" && a.dataUrl ? (
-                      <img src={a.dataUrl} alt={a.name} className="attach-preview" />
-                    ) : (
-                      <span className="attach-icon">
-                        {a.kind === "zip" ? "🗜️" : a.kind === "image" ? "🖼️" : a.kind === "pdf" ? "📄" : "📎"}
-                      </span>
-                    )}
-                    {(a as any).uploadedPath && <span className="attach-check">✓</span>}
-                  </span>
-                  <span className="attach-chip-name">{a.name}</span>
-                  <span className="attach-chip-size muted">{formatSize(a.size)}</span>
-                  <button
-                    className="attach-chip-x"
-                    onClick={() => {
-                      removeAttachment(a.name);
-                      setUploadedPaths((p) => { const n = {...p}; delete n[a.name]; return n; });
-                    }}
+        {(attachments.length > 0 || Object.keys(uploadProgress).length > 0 || uploadError) && (
+          <div className="mb-2 space-y-2">
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {attachments.map((a) => (
+                  <div
+                    key={a.name}
+                    title={`${a.name} (${formatSize(a.size)})`}
+                    className="flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs shadow-sm"
                   >
-                    <CloseIcon size={12} />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-          {Object.keys(uploadProgress).length > 0 && (
-            <div className="attachment-chips">
-              {Object.entries(uploadProgress).map(([name, pct]) => (
-                <span className="attach-chip uploading" key={name}>
-                  <svg className="upload-circle" width="24" height="24" viewBox="0 0 36 36">
-                    <circle className="upload-circle-bg" cx="18" cy="18" r="15" />
-                    <circle
-                      className="upload-circle-fill"
-                      cx="18" cy="18" r="15"
-                      strokeDasharray={`${(pct / 100) * 94.2} 94.2`}
-                    />
-                    <text x="18" y="21" className="upload-circle-text">{pct}</text>
-                  </svg>
-                  <span className="attach-chip-name">{name}</span>
-                  <span className="attach-chip-size muted">Uploading…</span>
-                </span>
-              ))}
-            </div>
-          )}
-          {uploadError && (
-            <div className="upload-error">{uploadError}</div>
+                    <div className="relative">
+                      {a.kind === "image" && a.dataUrl ? (
+                        <img src={a.dataUrl} alt={a.name} className="h-6 w-6 rounded-md object-cover" />
+                      ) : (
+                        <span className="text-[13px]">
+                          {a.kind === "zip" ? "🗜️" : a.kind === "image" ? "🖼️" : a.kind === "pdf" ? "📄" : "📎"}
+                        </span>
+                      )}
+                      {(a as any).uploadedPath && (
+                        <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[9px] text-white">✓</span>
+                      )}
+                    </div>
+                    <span className="max-w-[140px] truncate font-medium">{a.name}</span>
+                    <span className="text-muted-foreground">{formatSize(a.size)}</span>
+                    <button
+                      className="rounded-full p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground transition"
+                      onClick={() => {
+                        removeAttachment(a.name);
+                        setUploadedPaths((p) => { const n = { ...p }; delete n[a.name]; return n; });
+                      }}
+                      aria-label="Remove"
+                    >
+                      <CloseIcon size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {Object.keys(uploadProgress).length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(uploadProgress).map(([name, pct]) => (
+                  <div key={name} className="flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs">
+                    <svg className="h-6 w-6 -rotate-90" viewBox="0 0 36 36">
+                      <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" className="text-muted" strokeWidth="3" />
+                      <circle
+                        cx="18" cy="18" r="15" fill="none"
+                        stroke="currentColor" className="text-primary"
+                        strokeWidth="3"
+                        strokeDasharray={`${(pct / 100) * 94.2} 94.2`}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <span className="max-w-[140px] truncate">{name}</span>
+                    <span className="text-muted-foreground">{pct}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {uploadError && (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+                {uploadError}
+              </div>
+            )}
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ACCEPTED_EXTENSIONS}
+          className="hidden"
+          onChange={(e) => { handleFiles(e.target.files); e.currentTarget.value = ""; }}
+        />
+
+        <div className="flex items-end gap-2 rounded-2xl border border-border bg-card shadow-sm px-2 py-2 focus-within:ring-2 focus-within:ring-primary/40">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="shrink-0 rounded-xl"
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach files"
+          >
+            <PaperclipIcon />
+          </Button>
+
+          <textarea
+            ref={textareaRef}
+            value={text}
+            rows={1}
+            placeholder={currentID ? "Message…" : "Start a new chat to begin"}
+            className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground text-sm py-2 px-1 resize-none max-h-[200px] min-h-[36px]"
+            onChange={(e) => { setText(e.target.value); grow(e.target); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+
+          {busy ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              className="shrink-0 rounded-xl"
+              onClick={() => abort()}
+              title="Stop"
+            >
+              <StopIcon />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="icon"
+              className="shrink-0 rounded-xl"
+              onClick={submit}
+              disabled={!canSend}
+              title="Send"
+            >
+              <SendIcon />
+            </Button>
           )}
         </div>
-      )}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept={ACCEPTED_EXTENSIONS}
-        className="file-input-hidden"
-        onChange={(e) => {
-          handleFiles(e.target.files);
-          e.target.value = "";
-        }}
-      />
-
-      <div className="composer">
-        <button
-          className="icon-btn attach-btn"
-          onClick={() => fileInputRef.current?.click()}
-          title="Attach files"
-        >
-          <PaperclipIcon />
-        </button>
-        <textarea
-          ref={textareaRef}
-          value={text}
-          rows={1}
-          placeholder={currentID ? "Message…" : "Start a new chat to begin"}
-          onChange={(e) => {
-            setText(e.target.value);
-            grow(e.target);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-        />
-        {busy ? (
-          <button className="icon-btn stop" onClick={() => abort()} title="Stop">
-            <StopIcon />
-          </button>
-        ) : (
-          <button
-            className="icon-btn send"
-            onClick={submit}
-            disabled={!text.trim() && attachments.length === 0}
-            title="Send"
-          >
-            <SendIcon />
-          </button>
-        )}
+        <div className="mt-1.5 px-1 text-[11px] text-muted-foreground">
+          Shift+Enter for new line • Drag & drop files to attach
+        </div>
       </div>
     </div>
   );
