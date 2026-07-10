@@ -1049,7 +1049,10 @@ export default function SettingsPanel() {
                 </div>
                 {[
                   ["Версия:", "v18.1-audit-20260710"],
-                  ["Стек:", "React 19 · Vite 7 · Tailwind 4 · shadcn · TanStack Router · SQLite · Sentry"],
+                  [
+                    "Стек:",
+                    "React 19 · Vite 7 · Tailwind 4 · shadcn · TanStack Router · SQLite · Sentry",
+                  ],
                   ["Auth:", "HttpOnly cookie + scrypt (+ optional pepper)"],
                   ["Volume:", "/app/workspace · DB: opencode.db · backups/"],
                   [
