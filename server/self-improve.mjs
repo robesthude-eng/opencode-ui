@@ -45,7 +45,40 @@ export function isSelfImproveEnabled(workdir) {
 }
 
 /**
+ * Soft write-guard on UI sources only (never full-tree chmod).
+ * chmod -R on node_modules/.git/dist freezes the container for seconds–minutes.
+ */
+function softChmodUiSources(uiDir, writable) {
+  const targets = [
+    uiDir,
+    path.join(uiDir, "src"),
+    path.join(uiDir, "public"),
+    path.join(uiDir, "index.html"),
+    path.join(uiDir, "package.json"),
+    path.join(uiDir, "vite.config.ts"),
+    path.join(uiDir, "tsconfig.json"),
+    path.join(uiDir, "tsconfig.node.json"),
+    path.join(uiDir, "biome.json"),
+    path.join(uiDir, "vitest.config.ts"),
+    path.join(uiDir, "SELF_IMPROVE.md"),
+    path.join(uiDir, "SELF_IMPROVE_GUIDE.md"),
+  ];
+  const mode = writable ? "u+w" : "a-w";
+  for (const t of targets) {
+    if (!fs.existsSync(t)) continue;
+    // Non-recursive for files; shallow for directories (src only, recursive but small)
+    const args = fs.statSync(t).isDirectory()
+      ? t.endsWith(`${path.sep}src`) || t.endsWith("/src") || t === path.join(uiDir, "src")
+        ? ["-R", mode, t]
+        : [mode, t]
+      : [mode, t];
+    execFile("chmod", args, { timeout: 5000 }, () => {});
+  }
+}
+
+/**
  * Toggle self-improve mode.
+ * Writes flag immediately; chmod is best-effort and never walks node_modules.
  */
 export function toggleSelfImprove(workdir, enabled) {
   const flagFile = path.join(workdir, ".self_improve_mode");
@@ -53,13 +86,16 @@ export function toggleSelfImprove(workdir, enabled) {
   fs.writeFileSync(flagFile, String(!!enabled), "utf8");
 
   const uiDir = getUiDir(workdir);
-  if (enabled) {
-    execFile("chmod", ["-R", "u+w", uiDir], { timeout: 10000 }, () => {});
-    console.log("[Self-Improvement] ENABLED (write permissions restored)");
-  } else {
-    execFile("chmod", ["-R", "a-w", uiDir], { timeout: 10000 }, () => {});
-    console.log("[Self-Improvement] DISABLED (read-only permissions)");
+  try {
+    softChmodUiSources(uiDir, !!enabled);
+  } catch (e) {
+    console.warn("[Self-Improvement] soft chmod skipped:", e.message);
   }
+  console.log(
+    enabled
+      ? "[Self-Improvement] ENABLED (src write permissions restored)"
+      : "[Self-Improvement] DISABLED (src soft read-only)",
+  );
 }
 
 /**

@@ -114,32 +114,69 @@ export default function Workspace() {
 
   const loadingDirs = useRef<Set<string>>(new Set());
 
+  const HIDDEN_SEGMENTS = new Set([
+    "node_modules",
+    ".git",
+    "dist",
+    "dist-ssr",
+    "coverage",
+    ".vite",
+    ".cache",
+    ".turbo",
+    ".next",
+    ".arena",
+    "__pycache__",
+    ".config_opencode",
+    ".opencode_data",
+    ".local",
+    ".config",
+    ".users.json",
+    ".sessions.json",
+    ".session_owners.json",
+    ".admin_password",
+    ".self_improve_mode",
+    "package-lock.json",
+    "opencode.db",
+    "opencode.db-wal",
+    "opencode.db-shm",
+    "backups",
+  ]);
+
   const filterNodes = (nodes: any[]) => {
     if (!Array.isArray(nodes)) return [];
     const mySessionIds = new Set(useStore.getState().sessions.map((s) => s.id));
     return nodes.filter((n) => {
-      const parts = (n.path || "").split("/");
-      const p = parts[0];
-      if (
-        p === ".config_opencode" ||
-        p === ".opencode_data" ||
-        p === ".local" ||
-        p === ".config" ||
-        p === ".cache" ||
-        p === "node_modules" ||
-        p === ".git" ||
-        p === ".users.json" ||
-        p === ".sessions.json" ||
-        p === ".session_owners.json" ||
-        p === ".admin_password" ||
-        p === ".self_improve_mode" ||
-        (n.path || "").endsWith(".tsbuildinfo")
-      ) {
-        return false;
-      }
+      const raw = (n.path || "").replace(/\\/g, "/");
+      const parts = raw.split("/").filter(Boolean);
+      const p = parts[0] || "";
+
+      // Hide heavy / secret segments anywhere in the path (not only root)
+      if (parts.some((seg) => HIDDEN_SEGMENTS.has(seg))) return false;
+      if (raw.endsWith(".tsbuildinfo") || raw.endsWith(".map")) return false;
+
+      // UI sources only when self-improve is on; never dump whole monorepo tree by default
       if (!selfImproveEnabled && p === "opencode-ui") {
         return false;
       }
+      // Even with self-improve, only show opencode-ui/src + a few config files at top level
+      if (selfImproveEnabled && p === "opencode-ui" && parts.length >= 2) {
+        const second = parts[1];
+        const allowedTop = new Set([
+          "src",
+          "public",
+          "index.html",
+          "package.json",
+          "vite.config.ts",
+          "tsconfig.json",
+          "tsconfig.node.json",
+          "biome.json",
+          "vitest.config.ts",
+          "SELF_IMPROVE.md",
+          "SELF_IMPROVE_GUIDE.md",
+        ]);
+        if (!allowedTop.has(second)) return false;
+      }
+
       if ((p === "sessions" || p === "uploads" || p === "temp") && parts.length > 1) {
         const sid = parts[1];
         if (sid?.startsWith("ses_") && !mySessionIds.has(sid)) {
@@ -167,30 +204,37 @@ export default function Workspace() {
 
   useEffect(() => {
     if (!workspaceOpen) return;
-    if (tree.length === 0) refresh();
-    loadGit();
+    if (tree.length === 0) void refresh();
+    void loadGit();
+    // 5s is enough; 3s + heavy trees freezes UI when self-improve reveals sources
     const poll = setInterval(() => {
-      autoRefresh();
-      loadGit();
-    }, 3000);
+      void autoRefresh();
+      void loadGit();
+    }, 5000);
     return () => clearInterval(poll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceOpen, loadGit, tree.length, refresh, autoRefresh]);
+  }, [workspaceOpen]);
 
-  useEffect(() => {
-    if (workspaceOpen) {
-      refresh();
-      loadGit();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refresh, workspaceOpen, loadGit]);
-
+  // Reset tree when self-improve toggles so we don't keep expanded heavy paths
   useEffect(() => {
     setTree([]);
     setExpanded(new Set([""]));
-    if (workspaceOpen) refresh();
+    setActiveFile(null);
+    if (workspaceOpen) {
+      void refresh();
+      void loadGit();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceOpen, refresh]);
+  }, [selfImproveEnabled]);
+
+  // Reset when switching chats
+  useEffect(() => {
+    setTree([]);
+    setExpanded(new Set([""]));
+    setActiveFile(null);
+    if (workspaceOpen) void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentID]);
 
   async function refresh() {
     setLoading(true);

@@ -46,6 +46,7 @@ export default function SettingsPanel() {
   const [healthError, setHealthError] = useState<string | null>(null);
   const [dbBackups, setDbBackups] = useState<{ name: string; bytes: number; time: string }[]>([]);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
+  const [toggleBusy, setToggleBusy] = useState(false);
 
   const getHeaders = () => ({
     "Content-Type": "application/json",
@@ -236,7 +237,10 @@ export default function SettingsPanel() {
   };
 
   const handleToggleSelfImprove = async () => {
+    if (toggleBusy || !isAdminUser) return;
     const next = !selfImproveEnabled;
+    setToggleBusy(true);
+    // Optimistic UI — server toggle is fast now (no recursive chmod)
     setSelfImproveEnabled(next);
     try {
       const res = await fetch("/api/settings/self-improve", {
@@ -259,6 +263,8 @@ export default function SettingsPanel() {
       setSelfImproveEnabled(!next);
       setRebuildStatus("Ошибка сети");
       setTimeout(() => setRebuildStatus(null), 3000);
+    } finally {
+      setToggleBusy(false);
     }
   };
 
@@ -571,16 +577,20 @@ export default function SettingsPanel() {
                   <div className="flex items-center gap-3">
                     <Switch
                       checked={!!selfImproveEnabled}
-                      onCheckedChange={handleToggleSelfImprove}
-                      disabled={!isAdminUser}
+                      onCheckedChange={() => {
+                        void handleToggleSelfImprove();
+                      }}
+                      disabled={!isAdminUser || toggleBusy}
                     />
                     <button
                       type="button"
                       className="text-sm w-24 text-right hover:opacity-80 disabled:opacity-50"
-                      onClick={isAdminUser ? handleToggleSelfImprove : undefined}
-                      disabled={!isAdminUser}
+                      onClick={() => {
+                        void handleToggleSelfImprove();
+                      }}
+                      disabled={!isAdminUser || toggleBusy}
                     >
-                      {selfImproveEnabled ? "● Включено" : "○ Выключено"}
+                      {toggleBusy ? "…" : selfImproveEnabled ? "● Включено" : "○ Выключено"}
                     </button>
                   </div>
                 </div>
