@@ -3,28 +3,14 @@ import { useStore } from "../store/useStore";
 import MessageItem from "./MessageItem";
 import { ChevronDownIcon, SendIcon } from "./icons";
 import type { Message } from "../api/types";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
-  {
-    title: "Написать код",
-    prompt: "Напиши функцию на Python, которая сортирует список словарей по ключу",
-    icon: "💻",
-  },
-  {
-    title: "Объяснить код",
-    prompt: "Объясни, как работает этот код: def quicksort(arr): ...",
-    icon: "📖",
-  },
-  {
-    title: "Создать файл",
-    prompt: "Создай файл hello.txt с текстом 'Привет мир' используя инструмент write",
-    icon: "📄",
-  },
-  {
-    title: "Отладить",
-    prompt: "Помоги найти баг в этом коде и предложи исправление",
-    icon: "🐛",
-  },
+  { title: "Написать код", prompt: "Напиши функцию на Python, которая сортирует список словарей по ключу", icon: "💻" },
+  { title: "Объяснить код", prompt: "Объясни, как работает этот код: def quicksort(arr): ...", icon: "📖" },
+  { title: "Создать файл", prompt: "Создай файл hello.txt с текстом 'Привет мир' используя инструмент write", icon: "📄" },
+  { title: "Отладить", prompt: "Помоги найти баг в этом коде и предложи исправление", icon: "🐛" },
 ];
 
 export default function ChatView() {
@@ -51,48 +37,40 @@ export default function ChatView() {
     if (!el) return;
     const isUp = el.scrollHeight - el.scrollTop - el.clientHeight >= 80;
     atBottomRef.current = !isUp;
-    if (isScrolledUp !== isUp) {
-      setIsScrolledUp(isUp);
-    }
+    if (isScrolledUp !== isUp) setIsScrolledUp(isUp);
   };
 
   const showScrollBtn = isScrolledUp && messages && messages.length > 0;
 
   useEffect(() => {
-    if (atBottomRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (atBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, status]);
 
   if (!currentID) {
     return (
-      <div className="chat empty">
-        <div className="welcome-claude">
-          <div className="welcome-logo">
-            <span className="welcome-logo-icon">✦</span>
-          </div>
-          <h1>Чем могу помочь?</h1>
-          <p className="welcome-subtitle muted">
-            Твой персональный AI-ассистент для кода. Выбери пример или напиши свой запрос.
-          </p>
-          
-          <div className="suggestions-grid">
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="max-w-2xl w-full text-center">
+          <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-2xl shadow">✦</div>
+          <h1 className="text-2xl md:text-3xl font-semibold mb-2">Чем могу помочь?</h1>
+          <p className="text-muted-foreground mb-8">Твой персональный AI-ассистент для кода. Выбери пример или напиши свой запрос.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
             {SUGGESTIONS.map((s, i) => (
               <button
                 key={i}
-                className="suggestion-card"
+                className="group rounded-2xl border border-border bg-card p-4 hover:bg-muted/60 transition text-left"
                 onClick={() => send(s.prompt)}
               >
-                <span className="suggestion-icon">{s.icon}</span>
-                <div className="suggestion-content">
-                  <span className="suggestion-title">{s.title}</span>
-                  <span className="suggestion-prompt">{s.prompt.slice(0, 60)}...</span>
+                <div className="flex items-start gap-3">
+                  <span className="text-xl">{s.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm">{s.title}</div>
+                    <div className="text-xs text-muted-foreground truncate">{s.prompt.slice(0, 60)}...</div>
+                  </div>
+                  <SendIcon size={14} />
                 </div>
-                <SendIcon size={14} />
               </button>
             ))}
           </div>
-
         </div>
       </div>
     );
@@ -120,45 +98,60 @@ export default function ChatView() {
     : visibleMessages;
 
   return (
-    <div className={`chat ${status === "busy" ? "busy" : ""}`} ref={scrollRef} onScroll={onScroll}>
-      {error && <div className="error-banner">{error}</div>}
-      <div className="messages">
-        {(!messages || messages.length === 0) && status !== "busy" && (
-          <p className="muted">Начни диалог — напиши сообщение ниже</p>
-        )}
-        {isWindowed && (
-          <div style={{ textAlign: "center", margin: "8px 0 16px" }}>
-            <button
-              className="btn-ghost sm"
-              style={{ fontSize: 12.5, padding: "8px 16px", borderRadius: 20, background: "var(--bg-elev)", color: "var(--text)", border: "1px solid var(--border)", cursor: "pointer", fontWeight: 600, transition: "all 0.15s" }}
-              onClick={() => setWindowSize((s) => s + 40)}
-            >
-              ↑ Показать предыдущие сообщения ({visibleMessages.length - windowSize})
-            </button>
+    <div className="flex-1 relative overflow-hidden bg-background">
+      <div
+        className="h-full overflow-y-auto"
+        ref={scrollRef}
+        onScroll={onScroll}
+      >
+        {error && (
+          <div className="mx-auto max-w-3xl px-3 md:px-6 pt-3">
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>
           </div>
         )}
-        {renderedMessages.map((m, i, arr) => {
-          const isWorking = status === "busy" && m.role === "assistant" && i === arr.length - 1;
-          return <MessageItem key={m.id} message={m} isWorking={isWorking} />;
-        })}
-        {showTyping && (
-          <div className="msg assistant">
-            <span className="avatar assistant working">
-              <span>✦</span>
-            </span>
-            <div className="msg-body">
-              <span className="typing">
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-              </span>
+        <div className="mx-auto max-w-3xl">
+          {(!messages || messages.length === 0) && status !== "busy" && (
+            <p className="text-center text-muted-foreground py-12">Начни диалог — напиши сообщение ниже</p>
+          )}
+          {isWindowed && (
+            <div className="text-center py-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => setWindowSize((s) => s + 40)}
+              >
+                ↑ Показать предыдущие сообщения ({visibleMessages.length - windowSize})
+              </Button>
             </div>
+          )}
+          <div>
+            {renderedMessages.map((m, i, arr) => {
+              const isWorking = status === "busy" && m.role === "assistant" && i === arr.length - 1;
+              return <MessageItem key={m.id} message={m} isWorking={isWorking} />;
+            })}
+            {showTyping && (
+              <div className="flex gap-3 py-5 px-3 md:px-6">
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-sm animate-pulse">✦</div>
+                <div className="rounded-2xl border border-border bg-card px-4 py-3">
+                  <span className="flex gap-1">
+                    <span className="h-1.5 w-1.5 bg-muted-foreground rounded-full animate-bounce" />
+                    <span className="h-1.5 w-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:120ms]" />
+                    <span className="h-1.5 w-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:240ms]" />
+                  </span>
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
           </div>
-        )}
-        <div ref={bottomRef} />
+        </div>
       </div>
       {showScrollBtn && (
-        <button className="scroll-to-bottom" onClick={scrollToBottom} title="К последнему сообщению">
+        <button
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-card border border-border shadow-lg p-2 hover:bg-muted transition"
+          onClick={scrollToBottom}
+          title="К последнему сообщению"
+        >
           <ChevronDownIcon size={18} />
         </button>
       )}
