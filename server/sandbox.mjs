@@ -86,8 +86,29 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback) {
     }
   }
 
-  console.log("[Sandbox] Starting pre-flight compilation check...");
-  execFile("npx", ["tsc", "-b"], { cwd: sandboxDir, timeout: 30000 }, (err, stdout, stderr) => {
+  // Step 4.5: Run Prettier to auto-format files in sandbox
+  const filesToFormat = files.map(f => path.join(sandboxDir, f.path));
+  console.log("[Sandbox] Auto-formatting files with Prettier...");
+  execFile("npx", ["prettier", "--write", ...filesToFormat], { timeout: 15000 }, (prettierErr, prettierStdout, prettierStderr) => {
+    if (prettierErr) {
+      console.warn("[Sandbox] Prettier formatting warning:", prettierStderr || prettierErr.message);
+      // We don't fail compilation for Prettier errors, we just proceed
+    } else {
+      console.log("[Sandbox] Files successfully formatted!");
+      // Update our files array with the newly formatted content from disk so we deploy the formatted version!
+      for (const f of files) {
+        try {
+          const filePath = path.join(sandboxDir, f.path);
+          f.content = fs.readFileSync(filePath, "utf8");
+        } catch (e) {
+          console.warn(`[Sandbox] Failed to read formatted content for ${f.path}:`, e.message);
+        }
+      }
+    }
+
+    // Step 5: Run TypeScript compilation check
+    console.log("[Sandbox] Starting pre-flight compilation check...");
+    execFile("./node_modules/.bin/tsc", ["-b"], { cwd: sandboxDir, timeout: 30000 }, (err, stdout, stderr) => {
     if (err) {
       const compileErrors = (stdout || stderr || "").trim();
       console.log("[Sandbox] Compilation check failed.");
@@ -143,6 +164,7 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback) {
       });
     });
   });
+});
 }
 
 function createGitCheckpoint(repoDir, files, callback) {
