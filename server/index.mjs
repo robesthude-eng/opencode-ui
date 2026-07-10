@@ -21,7 +21,7 @@ import { loadJson, saveJson, saveAuthJson } from "./db.mjs";
 import { hashPassword, verifyPassword, getUserEmail, checkAuth, checkAuthRateLimit, resetAuthRateLimit, isAdmin } from "./auth.mjs";
 import { setSecurityHeaders, readBody, checkRateLimit, MAX_BODY_BYTES, MAX_JSON_BODY_BYTES, checkUploadRateLimit } from "./middleware.mjs";
 import { parseMultipart } from "./upload.mjs";
-import { getUiDir, isSelfImproveEnabled, toggleSelfImprove, rebuildUi, resetUi, createCheckpoint, listCheckpoints, rollbackToCommit } from "./self-improve.mjs";
+import { getUiDir, isSelfImproveEnabled, toggleSelfImprove, rebuildUi, resetUi, createCheckpoint, listCheckpoints, rollbackToCommit, logAudit } from "./self-improve.mjs";
 import AdmZip from "adm-zip";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -241,8 +241,29 @@ const server = http.createServer((req, res) => {
   setSecurityHeaders(res);
 
   if (req.url === "/health" || req.url === "/global/health" || req.url === "/api/global/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", uptime: process.uptime() }));
+    const ocPort = process.env.OC_SYSTEM_PORT || 4096;
+    const ocUrl = `http://127.0.0.1:${ocPort}/global/health`;
+    
+    const opencodeReq = http.get(ocUrl, { timeout: 1500 }, (opencodeRes) => {
+      if (opencodeRes.statusCode >= 200 && opencodeRes.statusCode < 400) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "ok", opencode: "healthy", uptime: process.uptime() }));
+      } else {
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "error", opencode: `unhealthy_status_${opencodeRes.statusCode}`, uptime: process.uptime() }));
+      }
+    });
+
+    opencodeReq.on("error", (err) => {
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "error", opencode: `unreachable_${err.message}`, uptime: process.uptime() }));
+    });
+
+    opencodeReq.on("timeout", () => {
+      opencodeReq.destroy();
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "error", opencode: "timeout", uptime: process.uptime() }));
+    });
     return;
   }
 
@@ -457,6 +478,7 @@ const server = http.createServer((req, res) => {
       try {
         const { enabled } = JSON.parse(buf.toString("utf8") || "{}");
         toggleSelfImprove(WORKDIR, enabled);
+        logAudit(WORKDIR, userEmail, "TOGGLE_SELF_IMPROVE", `Enabled: ${!!enabled}`);
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ status: "success", enabled: !!enabled }));
       } catch (e) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid JSON" })); }
@@ -466,26 +488,49 @@ const server = http.createServer((req, res) => {
   if (req.url === "/api/rebuild" && req.method === "POST") {
     if (!isSelfImproveEnabled(WORKDIR)) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." })); return; }
     if (!checkRateLimit(res)) return;
+    logAudit(WORKDIR, userEmail, "REBUILD_UI_START", "Starting UI build process");
     rebuildUi(WORKDIR, (err, stdout) => {
-      if (err) { res.writeHead(500, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Rebuild failed", detail: err.message })); }
-      else { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ status: "success", stdout })); }
+      if (err) {
+        logAudit(WORKDIR, userEmail, "REBUILD_UI_FAILED", err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Rebuild failed", detail: err.message }));
+      } else {
+        logAudit(WORKDIR, userEmail, "REBUILD_UI_SUCCESS", "UI built successfully");
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "success", stdout }));
+      }
     });
     return;
   }
   if (req.url === "/api/reset-ui" && req.method === "POST") {
     if (!isSelfImproveEnabled(WORKDIR)) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." })); return; }
     if (!checkRateLimit(res)) return;
+    logAudit(WORKDIR, userEmail, "RESET_UI_START", "Starting UI factory reset");
     resetUi(WORKDIR, (err, stdout) => {
-      if (err) { res.writeHead(500, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Reset failed", detail: err.message })); }
-      else { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ status: "success", stdout })); }
+      if (err) {
+        logAudit(WORKDIR, userEmail, "RESET_UI_FAILED", err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Reset failed", detail: err.message }));
+      } else {
+        logAudit(WORKDIR, userEmail, "RESET_UI_SUCCESS", "UI reset and rebuilt successfully");
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "success", stdout }));
+      }
     });
     return;
   }
   if (req.url === "/api/git/checkpoint" && req.method === "POST") {
     if (!isSelfImproveEnabled(WORKDIR)) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." })); return; }
     createCheckpoint(WORKDIR, (err, result) => {
-      if (err) { res.writeHead(500, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Failed to create checkpoint", detail: err.message })); }
-      else { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify(result)); }
+      if (err) {
+        logAudit(WORKDIR, userEmail, "CHECKPOINT_FAILED", err.message);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to create checkpoint", detail: err.message }));
+      } else {
+        logAudit(WORKDIR, userEmail, "CHECKPOINT_SUCCESS", `Commit: ${result.commit || ""}`);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(result));
+      }
     });
     return;
   }
@@ -503,9 +548,17 @@ const server = http.createServer((req, res) => {
       try {
         const { hash } = JSON.parse(buf.toString("utf8") || "{}");
         if (!hash || !/^[a-fA-F0-9]{4,40}$/.test(hash)) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid commit hash format." })); return; }
+        logAudit(WORKDIR, userEmail, "ROLLBACK_START", `Rolling back UI to commit: ${hash}`);
         rollbackToCommit(WORKDIR, hash, (err, result) => {
-          if (err) { res.writeHead(500, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Rollback failed", detail: err.message })); }
-          else { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ status: "success", message: result.message })); }
+          if (err) {
+            logAudit(WORKDIR, userEmail, "ROLLBACK_FAILED", `Hash ${hash}: ${err.message}`);
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Rollback failed", detail: err.message }));
+          } else {
+            logAudit(WORKDIR, userEmail, "ROLLBACK_SUCCESS", `Successfully rolled back UI to commit: ${hash}`);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ status: "success", message: result.message }));
+          }
         });
       } catch (e) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Invalid JSON" })); }
     }).catch(() => { res.writeHead(413, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Request body too large" })); });
@@ -732,6 +785,27 @@ server.on("upgrade", (req, socket, head) => {
   req.url = strippedUrl;
   systemProxy.ws(req, socket, head);
 });
+
+// Periodic cleanup of expired sessions (every 24 hours)
+setInterval(() => {
+  try {
+    const sessions = loadJson(SESSIONS_FILE, {});
+    const now = Date.now();
+    let mutated = false;
+    for (const token in sessions) {
+      if (SESSION_TTL_MS > 0 && now - (sessions[token].createdAt || 0) > SESSION_TTL_MS) {
+        delete sessions[token];
+        mutated = true;
+      }
+    }
+    if (mutated) {
+      saveJson(SESSIONS_FILE, sessions);
+      console.log("[DB] Periodic session cleanup completed.");
+    }
+  } catch (e) {
+    console.error("[DB] Periodic session cleanup failed:", e.message);
+  }
+}, 24 * 60 * 60 * 1000).unref();
 
 // Start
 server.listen(PORT, "0.0.0.0", () => {

@@ -36,7 +36,9 @@ export function saveJson(file, data) {
   dbCache.set(file, data);
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify(data, null, 2), { mode: 0o600 });
+    const tempFile = `${file}.tmp`;
+    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), { mode: 0o600 });
+    fs.renameSync(tempFile, file);
   } catch (e) {
     console.error(`[DB] Failed to save ${file}:`, e.message);
   }

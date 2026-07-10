@@ -69,62 +69,12 @@ else
   echo "WARNING: OPENCODE_ZEN_API_KEY not set — no models will be available."
 fi
 
-# Configure Aerolink
-if [ -n "$AEROLINK_API_KEY" ]; then
-  echo "Configuring Aerolink key…"
-  if [ -f "$AUTH_FILE" ]; then
-    node -e "
-      const fs = require('fs');
-      const f = '$AUTH_FILE';
-      let a = {};
-      try { a = JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
-      a.aerolink = { type: 'api', key: '$AEROLINK_API_KEY' };
-      fs.writeFileSync(f, JSON.stringify(a, null, 2));
-    "
-  else
-    cat > "$AUTH_FILE" <<AEOF
-{
-  "aerolink": {
-    "type": "api",
-    "key": "$AEROLINK_API_KEY"
-  }
-}
-AEOF
-  fi
-  export ANTHROPIC_API_KEY="$AEROLINK_API_KEY"
-  export ANTHROPIC_BASE_URL="https://capi.aerolink.lat"
-  echo "Aerolink: key configured"
-else
-  if [ -f "$AUTH_FILE" ]; then
-    AEROLINK_SAVED=$(node -e "
-      try {
-        const a = JSON.parse(require('fs').readFileSync('$AUTH_FILE', 'utf8'));
-        if (a.aerolink && a.aerolink.key) process.stdout.write(a.aerolink.key);
-      } catch {}
-    " 2>/dev/null)
-    if [ -n "$AEROLINK_SAVED" ]; then
-      export ANTHROPIC_API_KEY="$AEROLINK_SAVED"
-      export ANTHROPIC_BASE_URL="https://capi.aerolink.lat"
-      echo "Aerolink: key loaded from auth.json"
-    fi
-  fi
-fi
-
 # Configure model
 cat > "$CONFIG_FILE" <<EOF
 {
   "\$schema": "https://opencode.ai/config.json",
   "model": "${OPENCODE_MODEL:-opencode/deepseek-v4-flash-free}",
   "provider": {
-    "aerolink": {
-      "npm": "@ai-sdk/anthropic",
-      "name": "Aerolink",
-      "options": { "baseURL": "https://capi.aerolink.lat" },
-      "models": {
-        "claude-opus-4-8": { "displayName": "Claude Opus 4.8", "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
-        "claude-sonnet-4": { "displayName": "Claude Sonnet 4", "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } }
-      }
-    },
     "opencode": {
       "models": {
         "deepseek-v4-flash-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },

@@ -238,3 +238,18 @@ export function rollbackToCommit(workdir, hash, callback) {
     });
   });
 }
+
+/**
+ * Write audit log for administrative actions.
+ */
+export function logAudit(workdir, userEmail, action, details = "") {
+  try {
+    const logFile = path.join(workdir, "audit.log");
+    const now = new Date().toISOString();
+    const line = `[${now}] [User: ${userEmail || "anonymous/unknown"}] [Action: ${action}] ${details}\n`;
+    fs.appendFileSync(logFile, line, "utf8");
+    console.log(`[Audit] ${line.trim()}`);
+  } catch (e) {
+    console.error("[Audit] Failed to write audit log:", e.message);
+  }
+}
