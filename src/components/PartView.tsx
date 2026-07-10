@@ -35,12 +35,12 @@ const SAFE_MD_COMPONENTS = {
       // fallback
     }
     return (
-      <div className="group/code relative my-3 overflow-hidden rounded-xl border border-border bg-background/80">
+      <div className="group/code relative my-2 overflow-hidden rounded-lg bg-black/30 dark:bg-black/40">
         <div className="absolute right-2 top-2 z-10 opacity-0 transition group-hover/code:opacity-100">
           <CopyButton text={codeText || String(children)} title="Copy code" />
         </div>
         <pre
-          className="overflow-x-auto p-4 font-mono text-[13px] leading-relaxed text-foreground/90"
+          className="overflow-x-auto p-3 font-mono text-[12.5px] leading-relaxed text-foreground/90"
           {...props}
         >
           {children}
@@ -125,15 +125,11 @@ const OptimizedPartView = ({
       };
       const icon = KIND_ICONS[att.kind || ""] || <Paperclip className="h-4 w-4" />;
       return (
-        <div className="flex items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm not-prose">
+        <div className="flex items-center gap-2.5 rounded-lg bg-muted/35 px-2.5 py-2 text-sm not-prose">
           {att.kind === "image" && att.dataUrl ? (
-            <img
-              src={att.dataUrl}
-              alt={att.name}
-              className="h-10 w-10 rounded-lg object-cover border border-border"
-            />
+            <img src={att.dataUrl} alt={att.name} className="h-10 w-10 rounded-lg object-cover" />
           ) : (
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-background text-muted-foreground">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-background/60 text-muted-foreground">
               {icon}
             </span>
           )}
@@ -155,16 +151,13 @@ const OptimizedPartView = ({
     case "reasoning":
       if (!p.text) return null;
       return (
-        <details
-          className="not-prose group my-1.5 overflow-hidden rounded-xl border border-border/60 bg-[#12121a]/70"
-          open={!!isLastStreaming}
-        >
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-[12.5px] font-medium text-sky-300/90 marker:content-none [&::-webkit-details-marker]:hidden hover:bg-white/[0.02]">
-            <span className="text-[13px]">💭</span>
+        <details className="not-prose group my-1 overflow-hidden" open={!!isLastStreaming}>
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 py-1 text-[12.5px] font-medium text-muted-foreground marker:content-none [&::-webkit-details-marker]:hidden hover:text-foreground/80">
+            <span className="text-[13px] opacity-80">💭</span>
             <span className="flex-1">Рассуждение</span>
-            <ChevronDown className="h-3.5 w-3.5 opacity-70 transition group-open:rotate-180" />
+            <ChevronDown className="h-3.5 w-3.5 opacity-60 transition group-open:rotate-180" />
           </summary>
-          <div className="border-t border-border/50 px-2.5 py-2 text-[13px] leading-relaxed text-muted-foreground prose prose-invert prose-sm max-w-none prose-p:my-1.5">
+          <div className="pl-0.5 pb-1 text-[13px] leading-relaxed text-muted-foreground prose prose-invert prose-sm max-w-none prose-p:my-1.5">
             {renderMarkdown(p.text)}
             {isLastStreaming && <span className="streaming-cursor" />}
           </div>
@@ -175,7 +168,7 @@ const OptimizedPartView = ({
     default:
       if (!p.text) return null;
       return (
-        <div className="part-text break-words">
+        <div className="break-words text-[14.5px] leading-[1.55] [&_p]:my-1.5 [&_pre]:my-2">
           {renderMarkdown(p.text)}
           {isLastStreaming && <span className="streaming-cursor" />}
         </div>

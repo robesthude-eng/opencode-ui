@@ -173,14 +173,14 @@ function QuestionCard({ part }: { part: ToolPart }) {
       className={cn(
         "not-prose my-1.5 overflow-hidden rounded-xl border",
         answered || !isWaiting
-          ? "border-emerald-500/25 bg-emerald-500/[0.04]"
-          : "border-violet-500/25 bg-violet-500/[0.04]",
+          ? "border-emerald-500/30 bg-emerald-500/[0.05]"
+          : "border-violet-500/30 bg-violet-500/[0.05]",
       )}
     >
       {questions.map((q, qIdx) => (
         <div
           key={qIdx}
-          className={cn("flex flex-col gap-2 p-3", qIdx > 0 && "border-t border-border/60")}
+          className={cn("flex flex-col gap-2 p-3", qIdx > 0 && "border-t border-white/5")}
         >
           {q.header && (
             <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300/90">
@@ -263,7 +263,7 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
   const label = friendlyToolLabel(toolName);
 
   return (
-    <div className="not-prose my-1 overflow-hidden rounded-xl border border-border/70 bg-[#12121a]/90">
+    <div className="not-prose my-1 overflow-hidden rounded-xl border border-white/10 bg-[#14141c]">
       <button
         type="button"
         className={cn(
@@ -296,14 +296,14 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
         )}
       </button>
       {hasBody && expanded && (
-        <div className="space-y-1.5 border-t border-border/50 px-2.5 py-2">
+        <div className="space-y-1.5 border-t border-white/5 px-2.5 py-2">
           {input && (
-            <pre className="max-h-36 overflow-auto rounded-lg bg-black/35 p-2 font-mono text-[11px] leading-relaxed text-zinc-300/90 whitespace-pre-wrap break-all">
+            <pre className="max-h-36 overflow-auto rounded-lg bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-zinc-300/90 whitespace-pre-wrap break-all">
               {input}
             </pre>
           )}
           {output && (
-            <pre className="max-h-44 overflow-auto rounded-lg bg-black/35 p-2 font-mono text-[11px] leading-relaxed text-zinc-400 whitespace-pre-wrap break-all">
+            <pre className="max-h-44 overflow-auto rounded-lg bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-zinc-400 whitespace-pre-wrap break-all">
               {output}
             </pre>
           )}

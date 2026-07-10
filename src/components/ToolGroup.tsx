@@ -36,7 +36,7 @@ const ToolGroup = ({ tool, parts }: { tool: string; parts: ToolPart[] }) => {
   const toolName = typeof tool === "string" ? tool : "tool";
 
   return (
-    <div className="not-prose my-1.5 overflow-hidden rounded-xl border border-border/70 bg-[#12121a]/90">
+    <div className="not-prose my-1.5 overflow-hidden rounded-xl border border-white/10 bg-[#14141c]">
       <button
         type="button"
         className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-white/[0.03] transition"
@@ -64,7 +64,7 @@ const ToolGroup = ({ tool, parts }: { tool: string; parts: ToolPart[] }) => {
         </span>
       </button>
       {expanded && (
-        <div className="space-y-1 border-t border-border/50 p-1.5">
+        <div className="space-y-1 border-t border-white/5 p-1.5">
           {parts.map((part, i) => (
             <ToolCard key={i} part={part} />
           ))}
