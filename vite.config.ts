@@ -3,6 +3,43 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
+// Optional plugins – gracefully degrade if not installed (e.g. local Node 20)
+let reactCompilerPlugin: any[] = [];
+try {
+  // @ts-ignore – optional peer dep, may not be installed locally
+  await import("babel-plugin-react-compiler");
+  reactCompilerPlugin = [["babel-plugin-react-compiler", {}]];
+} catch {}
+let pwaPlugin: any[] = [];
+try {
+  // @ts-ignore – optional dep
+  const { VitePWA } = await import("vite-plugin-pwa");
+  pwaPlugin = [VitePWA({
+      registerType: "autoUpdate",
+      includeAssets: ["favicon.ico"],
+      manifest: {
+        name: "OpenCode UI",
+        short_name: "OpenCode",
+        description: "A custom web UI for OpenCode",
+        theme_color: "#0b0b0f",
+        background_color: "#0b0b0f",
+        display: "standalone",
+        icons: [
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png" }
+        ]
+      },
+      workbox: {
+        navigateFallback: "/index.html",
+        runtimeCaching: [{
+          urlPattern: /^https:\/\/.*\/api\/.*/i,
+          handler: "NetworkFirst",
+          options: { cacheName: "api-cache", networkTimeoutSeconds: 3 }
+        }]
+      }
+    })];
+} catch {}
+
 /**
  * The OpenCode headless server.
  *   opencode serve          # headless HTTP/SSE API (default port 4096)
@@ -14,7 +51,15 @@ const OPENCODE_TARGET =
   process.env.OPENCODE_TARGET ?? "http://localhost:4096";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react({
+      babel: {
+        plugins: reactCompilerPlugin,
+      },
+    }),
+    tailwindcss(),
+    ...pwaPlugin,
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
