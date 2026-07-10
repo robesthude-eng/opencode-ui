@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { createDbBackup, getBackupDir, listDbBackups } from "../backup.mjs";
+import { createDbBackup, getBackupDir, listDbBackups, resolveBackupFile } from "../backup.mjs";
 import { clearCache, closeDb, initDb, saveJson } from "../db.mjs";
 
 let tmpDir;
@@ -46,5 +46,13 @@ describe("createDbBackup", () => {
     const list = listDbBackups(tmpDir);
     expect(list.length).toBeGreaterThanOrEqual(2);
     expect(list[0].mtime).toBeGreaterThanOrEqual(list[1].mtime);
+  });
+
+  test("resolveBackupFile blocks path traversal", () => {
+    const r = createDbBackup(tmpDir);
+    expect(resolveBackupFile(tmpDir, r.name)).toBeTruthy();
+    expect(resolveBackupFile(tmpDir, "../opencode.db")).toBeNull();
+    expect(resolveBackupFile(tmpDir, "evil.db")).toBeNull();
+    expect(resolveBackupFile(tmpDir, "opencode-../../x.db")).toBeNull();
   });
 });

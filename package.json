@@ -21,7 +21,9 @@
     "preview": "vite preview",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "check": "biome check --write ."
+    "check": "biome check --write .",
+    "typecheck": "tsc -b",
+    "ci": "npm run lint && npm run test:all && npm run build"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.14",
@@ -34,6 +36,8 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tabs": "^1.1.12",
     "@radix-ui/react-tooltip": "^1.2.7",
+    "@sentry/node": "^10.65.0",
+    "@sentry/react": "^10.65.0",
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/react-router": "^1.170.17",
     "@tanstack/react-virtual": "^3.14.5",

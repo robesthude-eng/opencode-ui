@@ -517,11 +517,21 @@ export default function SettingsPanel() {
                             key={b.name}
                             className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-[11px]"
                           >
-                            <span className="font-mono truncate">{b.name}</span>
-                            <span className="text-muted-foreground shrink-0">
-                              {(b.bytes / 1024).toFixed(1)} KB ·{" "}
-                              {b.time ? new Date(b.time).toLocaleString() : ""}
+                            <span className="font-mono truncate min-w-0" title={b.name}>
+                              {b.name}
                             </span>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-muted-foreground">
+                                {(b.bytes / 1024).toFixed(1)} KB
+                              </span>
+                              <a
+                                className="text-primary hover:underline"
+                                href={`/api/db/backups/${encodeURIComponent(b.name)}`}
+                                download={b.name}
+                              >
+                                Скачать
+                              </a>
+                            </div>
                           </div>
                         ))
                       )}

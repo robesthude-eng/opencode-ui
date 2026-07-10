@@ -1,18 +1,32 @@
 /**
- * Optional Sentry bootstrap.
- *
- * To enable for real:
- *   npm i @sentry/react
- *   VITE_SENTRY_DSN=https://...@....ingest.sentry.io/...
- * then replace this file with a real init that imports @sentry/react.
- *
- * This stub never imports @sentry/* so production builds stay dependency-free.
+ * Browser Sentry bootstrap.
+ * Requires VITE_SENTRY_DSN. Package @sentry/react is a real dependency.
  */
+import * as Sentry from "@sentry/react";
+
+let inited = false;
 
 export function initSentryBrowser() {
-  // no-op stub
+  if (inited) return;
+  inited = true;
+
+  const dsn = import.meta.env.VITE_SENTRY_DSN;
+  if (!dsn) return;
+
+  Sentry.init({
+    dsn,
+    environment: import.meta.env.MODE || "production",
+    tracesSampleRate: 0.1,
+    replaysSessionSampleRate: 0,
+    replaysOnErrorSampleRate: 0,
+  });
 }
 
-export function captureException(_err: unknown) {
-  // no-op stub — ErrorBoundary still shows UI recovery actions
+export function captureException(err: unknown) {
+  try {
+    if (!import.meta.env.VITE_SENTRY_DSN) return;
+    Sentry.captureException(err);
+  } catch {
+    // ignore
+  }
 }

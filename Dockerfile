@@ -47,6 +47,7 @@ RUN node --input-type=module -e "\
   import './server/logger.mjs'; \
   import './server/rate-limit.mjs'; \
   import './server/backup.mjs'; \
+  import './server/sentry.mjs'; \
   console.log('All modules OK');"
 
 COPY start.sh ./

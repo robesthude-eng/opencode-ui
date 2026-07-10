@@ -78,6 +78,51 @@ function pruneBackups(dir, keep) {
 }
 
 /**
+ * Resolve a backup file by basename only (no path traversal).
+ * @returns {string|null} absolute path or null
+ */
+export function resolveBackupFile(workdir, name) {
+  if (!name || typeof name !== "string") return null;
+  if (!/^opencode-[\w.-]+\.db$/.test(name)) return null;
+  if (name.includes("..") || name.includes("/") || name.includes("\\")) return null;
+  const full = path.join(getBackupDir(workdir), name);
+  if (!fs.existsSync(full)) return null;
+  // ensure still inside backups dir
+  const dir = path.resolve(getBackupDir(workdir));
+  if (!path.resolve(full).startsWith(dir + path.sep) && path.resolve(full) !== dir) {
+    return null;
+  }
+  return full;
+}
+
+/**
+ * Optional off-site notify: POST metadata to BACKUP_WEBHOOK_URL after each backup.
+ * External systems can then pull via admin download or their own volume access.
+ */
+export async function notifyBackupWebhook(meta) {
+  const url = process.env.BACKUP_WEBHOOK_URL;
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(process.env.BACKUP_WEBHOOK_TOKEN
+          ? { Authorization: `Bearer ${process.env.BACKUP_WEBHOOK_TOKEN}` }
+          : {}),
+      },
+      body: JSON.stringify({
+        event: "opencode.db.backup",
+        ...meta,
+        at: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {
+    console.warn("[Backup] webhook failed:", e.message);
+  }
+}
+
+/**
  * Start interval backup (default 24h). Safe no-op if DB missing.
  */
 export function startBackupScheduler(workdir, intervalMs = 24 * 60 * 60 * 1000) {
@@ -85,6 +130,7 @@ export function startBackupScheduler(workdir, intervalMs = 24 * 60 * 60 * 1000) 
     try {
       const r = createDbBackup(workdir);
       console.log(`[Backup] SQLite → ${r.name} (${r.bytes} bytes)`);
+      void notifyBackupWebhook({ name: r.name, bytes: r.bytes });
     } catch (e) {
       if (!String(e.message || e).includes("not found")) {
         console.warn("[Backup] skipped:", e.message || e);

@@ -1,73 +1,61 @@
 # OpenCode UI – Full Modernization Plan
-_Last updated: 2026-07-10 – ops: e2e CI, SQLite backups, Sentry-ready, admin UX_
+_Status: **COMPLETE** (code) — 2026-07-10 · v0.3.0_
 
-**Stack (2026 production baseline):**
-React 19.2 · Vite 7 · Tailwind CSS 4 · shadcn/ui · TanStack Router · Zustand persist · Biome · React Compiler · PWA · Vitest + Playwright · better-sqlite3 · pino · Node 22
+**Stack:** React 19.2 · Vite 7 · Tailwind 4 · shadcn · TanStack Router · Zustand+idb · Biome · React Compiler · PWA · Vitest · Playwright · better-sqlite3 · pino · Sentry · Node 22
 
 ---
 
-## ✅ Completed phases 1–9 (summary)
+## ✅ All planned phases done
 
-| Area | Status |
+| Phase | Deliverable |
 |---|---|
-| Core stack / security sandbox | ✅ |
-| Tailwind + shadcn full UI | ✅ (`styles.css` deleted) |
-| Biome hard CI gate | ✅ |
-| SQLite auth + cookie sessions + CSRF | ✅ |
-| TanStack Router + persist + highlight | ✅ |
-| Sandbox: Biome → tsc → vitest → vite build | ✅ |
-| Instant dist rollback + admin UI | ✅ |
-| Admin health panel | ✅ |
-| Password pepper (optional) | ✅ |
-| **Playwright e2e-local always-on in CI** | ✅ |
-| **SQLite backups (daily + admin manual)** | ✅ |
-| **Sentry-ready (optional DSN)** | ✅ |
-| SECURITY.md | ✅ |
+| 1 Core | React 19.2, drop http-proxy, sandbox `src/**`, CI, 0 vulns |
+| 2 UI | Tailwind 4 + shadcn, `styles.css` deleted, typography + highlight |
+| 3 DX | Biome hard gate, React Compiler, PWA |
+| 4/5 Quality | 114+ tests, e2e-local always-on, optional e2e-prod |
+| 6 Security | SQLite auth, HttpOnly cookie, CSRF, rate-limit, pepper |
+| 7 Frontend | TanStack Router, persist, markdown highlight |
+| 8/9 Ops | Sandbox Biome→tsc→vitest→vite, instant dist rollback, DB backups + download, Sentry browser+server, health admin UI, webhook hook for off-site |
 
-## ⏳ Remaining backlog
+## Human checklist (after this push)
 
-- [ ] **Rotate leaked GitHub PAT + Railway token** (URGENT – human only)
-- [ ] Set `OPENCODE_PASSWORD_PEPPER` in Railway
-- [ ] Optional: `PLAYWRIGHT_BASE_URL` + `E2E_*` secrets for prod e2e job
-- [ ] Optional: `npm i @sentry/react` + `VITE_SENTRY_DSN` for real Sentry
-- [ ] better-auth full rewrite (large; not required for current SQLite layer)
-- [ ] pnpm migration (packageManager field prepared; lockfile still npm)
-- [ ] Off-site backup upload (S3/R2) for `backups/*.db`
-- [ ] Slimmer runtime image without full devDeps (trade-off vs self-improve)
+1. [ ] **Revoke** GitHub PAT + Railway token that appeared in chat  
+2. [ ] Set Railway `OPENCODE_PASSWORD_PEPPER`  
+3. [ ] (opt) `SENTRY_DSN` + build-time `VITE_SENTRY_DSN`  
+4. [ ] (opt) `PLAYWRIGHT_BASE_URL` + e2e secrets  
+5. [ ] (opt) `BACKUP_WEBHOOK_URL` for off-site notify  
 
----
+## Intentionally not done (documented trade-offs)
 
-## Admin runbook (product)
+| Item | Why deferred |
+|---|---|
+| better-auth rewrite | Large; SQLite layer + scrypt + cookies already solid |
+| Full pnpm lockfile | Railway/Docker path is npm-stable; `packageManager` ready |
+| Alpine / prod-only node_modules | Self-improve needs full toolchain in image |
+| S3 push of backups | Webhook + download API cover “pull” model |
 
-1. **Health** — Settings → Саморазвитие → top cards  
-2. **Broken UI after agent** — Instant rollback (needs ≥2 builds)  
-3. **Need source history** — Git checkpoint / Git rollback  
-4. **Before risky change** — Create DB backup + Git checkpoint  
-5. **Nuclear** — Factory reset  
+## Admin recovery (product)
 
-APIs:  
-`GET /api/dist/snapshots` · `POST /api/dist/instant-rollback` ·  
-`GET /api/db/backups` · `POST /api/db/backup`
+1. Instant UI rollback → 2. Git rollback → 3. Factory reset  
+4. DB backup/download before risky ops  
 
----
+See **`docs/OPS.md`** and **`SECURITY.md`**.
 
 ## Metrics
 
-| Metric | Now |
+| | |
 |---|---|
 | Version | **0.3.0** |
-| Tests | **112+** (+ backup unit) |
-| CI | lint · audit · unit · build · **e2e-local** |
-| Auth DB | SQLite + daily backups |
-| Session | HttpOnly cookie only |
+| Tests | **114+** |
+| CI | lint · audit · unit · build · e2e-local |
+| Auth | SQLite + cookie + optional pepper |
+| Observability | pino + optional Sentry |
+| Backups | daily + manual + download + webhook |
 
----
+## Changelog (final stretch)
 
-## Changelog (recent)
+- `b95b077` – e2e CI, SQLite backups, Sentry stub, SECURITY.md  
+- `dca80d4` – admin health + instant rollback UI  
+- *(this)* – real Sentry packages, backup download, webhook, OPS.md, plan closed  
 
-- `c6aad43` – SQLite, router, cookie-only, highlight, persist, pino  
-- `85637ea` – Biome hard gate, sandbox vite, instant dist rollback  
-- `dca80d4` – Admin health + instant rollback UI  
-- *(this)* – e2e-local CI, SQLite backup API/UI/scheduler, Sentry-ready, SECURITY.md  
-
-**Deploy:** https://opencode-ui-production.up.railway.app
+**Production:** https://opencode-ui-production.up.railway.app

@@ -41,6 +41,19 @@ New passwords are stored as `v2:salt:hash` (HMAC-SHA256 pepper → scrypt).
 3. **Factory reset** — restore factory sources + rebuild  
 4. **DB backup** — create before risky migrations  
 
+## Sentry
+
+- Browser: `VITE_SENTRY_DSN` (must be present at **image build** time)
+- Server: `SENTRY_DSN` (runtime env is enough)
+- Packages: `@sentry/react`, `@sentry/node`
+
+## Backup off-site
+
+Local backups live on the Railway volume. For off-site:
+
+1. Admin **Скачать** from Settings, or  
+2. Set `BACKUP_WEBHOOK_URL` — your worker receives `{ event, name, bytes }` and can pull via volume/API.
+
 ## Reporting
 
-Treat this deployment as private multi-tenant until rate limits, backups, and secret rotation are verified.
+Treat this deployment as private multi-tenant until secret rotation is done. See `docs/OPS.md`.

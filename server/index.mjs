@@ -29,7 +29,13 @@ import {
   verifyPassword,
 } from "./auth.mjs";
 // Import modules
-import { createDbBackup, listDbBackups, startBackupScheduler } from "./backup.mjs";
+import {
+  createDbBackup,
+  listDbBackups,
+  notifyBackupWebhook,
+  resolveBackupFile,
+  startBackupScheduler,
+} from "./backup.mjs";
 import { closeDb, initDb, loadJson, saveAuthJson, saveJson } from "./db.mjs";
 import { logger } from "./logger.mjs";
 import {
@@ -53,6 +59,7 @@ import {
   rollbackToCommit,
   toggleSelfImprove,
 } from "./self-improve.mjs";
+import { captureServerException, initSentryServer } from "./sentry.mjs";
 import { parseMultipart } from "./upload.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -878,12 +885,38 @@ const server = http.createServer((req, res) => {
     try {
       const result = createDbBackup(WORKDIR);
       logAudit(WORKDIR, userEmail, "DB_BACKUP", result.name);
+      void notifyBackupWebhook({ name: result.name, bytes: result.bytes, by: userEmail });
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "success", ...result, path: undefined }));
+      res.end(JSON.stringify({ status: "success", name: result.name, bytes: result.bytes }));
     } catch (e) {
+      captureServerException(e);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Backup failed", detail: e.message }));
     }
+    return;
+  }
+  // Download a specific backup: GET /api/db/backups/<name>
+  const backupDl = urlPath.match(/^\/api\/db\/backups\/([^/]+)$/);
+  if (backupDl && req.method === "GET") {
+    if (!isRequestAdmin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Admin access required." }));
+      return;
+    }
+    const name = decodeURIComponent(backupDl[1]);
+    const file = resolveBackupFile(WORKDIR, name);
+    if (!file) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Backup not found" }));
+      return;
+    }
+    logAudit(WORKDIR, userEmail, "DB_BACKUP_DOWNLOAD", name);
+    res.writeHead(200, {
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${name}"`,
+      "Content-Length": fs.statSync(file).size,
+    });
+    fs.createReadStream(file).pipe(res);
     return;
   }
   if (req.url === "/api/dist/instant-rollback" && req.method === "POST") {
@@ -1290,20 +1323,22 @@ setInterval(
 ).unref();
 
 // Start
-server.listen(PORT, "0.0.0.0", () => {
-  logger.info({ port: PORT, systemPort: SYSTEM_PORT, workdir: WORKDIR }, "server listening");
-  if (AUTH_PASSWORD) {
-    logger.info("basic auth protection enabled");
-  } else {
-    logger.warn("no OPENCODE_SERVER_PASSWORD set; unsecured until first user registers");
-  }
-  // Nightly SQLite backups under $WORKDIR/backups (also manual via admin UI)
-  try {
-    startBackupScheduler(WORKDIR);
-    logger.info("sqlite backup scheduler started (daily)");
-  } catch (e) {
-    logger.warn({ err: e.message }, "backup scheduler failed to start");
-  }
+void initSentryServer().finally(() => {
+  server.listen(PORT, "0.0.0.0", () => {
+    logger.info({ port: PORT, systemPort: SYSTEM_PORT, workdir: WORKDIR }, "server listening");
+    if (AUTH_PASSWORD) {
+      logger.info("basic auth protection enabled");
+    } else {
+      logger.warn("no OPENCODE_SERVER_PASSWORD set; unsecured until first user registers");
+    }
+    // Nightly SQLite backups under $WORKDIR/backups (also manual via admin UI)
+    try {
+      startBackupScheduler(WORKDIR);
+      logger.info("sqlite backup scheduler started (daily)");
+    } catch (e) {
+      logger.warn({ err: e.message }, "backup scheduler failed to start");
+    }
+  });
 });
 
 function shutdown(signal) {
@@ -1322,3 +1357,11 @@ function shutdown(signal) {
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("uncaughtException", (err) => {
+  logger.error({ err: err?.message || String(err) }, "uncaughtException");
+  captureServerException(err);
+});
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: String(reason) }, "unhandledRejection");
+  captureServerException(reason instanceof Error ? reason : new Error(String(reason)));
+});
