@@ -17,7 +17,19 @@ import { fileURLToPath } from "url";
 
 // Import modules
 import { loadJson, saveJson, saveAuthJson } from "./db.mjs";
-import { hashPassword, verifyPassword, getUserEmail, checkAuth, checkAuthRateLimit, resetAuthRateLimit, isAdmin } from "./auth.mjs";
+import {
+  hashPassword,
+  verifyPassword,
+  getUserEmail,
+  checkAuth,
+  checkAuthRateLimit,
+  resetAuthRateLimit,
+  isAdmin,
+  extractToken,
+  buildSessionCookie,
+  buildClearSessionCookie,
+  checkCsrf,
+} from "./auth.mjs";
 import { setSecurityHeaders, readBody, checkRateLimit, MAX_BODY_BYTES, MAX_JSON_BODY_BYTES, checkUploadRateLimit } from "./middleware.mjs";
 import { parseMultipart } from "./upload.mjs";
 import { getUiDir, isSelfImproveEnabled, toggleSelfImprove, rebuildUi, resetUi, createCheckpoint, listCheckpoints, rollbackToCommit, logAudit } from "./self-improve.mjs";
@@ -371,7 +383,11 @@ const server = http.createServer((req, res) => {
         saveAuthJson(SESSIONS_FILE, sessions);
         resetAuthRateLimit(req);
         console.log(`[Auth] New user registered: ${cleanEmail} (role: ${role})`);
-        res.writeHead(200, { "Content-Type": "application/json" });
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS),
+        });
+        // token still returned for EventSource ?token= fallback during transition; prefer cookie
         res.end(JSON.stringify({ status: "success", token, user: { email: cleanEmail, role } }));
       } catch (e) {
         res.writeHead(400, { "Content-Type": "application/json" });
@@ -404,8 +420,18 @@ const server = http.createServer((req, res) => {
         saveAuthJson(SESSIONS_FILE, sessions);
         resetAuthRateLimit(req);
         console.log(`[Auth] User logged in: ${cleanEmail}`);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "success", token, user: { email: cleanEmail, role: isAdmin(cleanEmail, USERS_FILE) ? "admin" : (user.role || "user") } }));
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS),
+        });
+        res.end(JSON.stringify({
+          status: "success",
+          token,
+          user: {
+            email: cleanEmail,
+            role: isAdmin(cleanEmail, USERS_FILE) ? "admin" : (user.role || "user"),
+          },
+        }));
       } catch (e) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Login failed" }));
@@ -436,11 +462,14 @@ const server = http.createServer((req, res) => {
   }
 
   if (urlPath === "/auth/logout" || urlPath === "/api/auth/logout") {
-    let token = (req.headers["x-auth-token"] || req.headers["authorization"] || "").replace(/^Bearer\s+/i, "").trim();
+    const token = extractToken(req);
     const sessions = loadJson(SESSIONS_FILE, {});
-    delete sessions[token];
+    if (token) delete sessions[token];
     saveAuthJson(SESSIONS_FILE, sessions);
-    res.writeHead(200, { "Content-Type": "application/json" });
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "Set-Cookie": buildClearSessionCookie(),
+    });
     res.end(JSON.stringify({ status: "success" }));
     return;
   }
@@ -458,6 +487,8 @@ const server = http.createServer((req, res) => {
   if (!passwordModeAdmin) {
     if (!checkAuth(req, res, USERS_FILE, SESSIONS_FILE, SESSION_TTL_MS)) return;
   }
+  // CSRF: cookie-authenticated mutating requests must match Origin/Referer
+  if (!checkCsrf(req, res)) return;
   const userEmail = getUserEmail(req, SESSIONS_FILE, SESSION_TTL_MS);
   const isRequestAdmin = passwordModeAdmin || isAdmin(userEmail, USERS_FILE);
 

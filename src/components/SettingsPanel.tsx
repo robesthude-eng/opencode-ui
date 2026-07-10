@@ -35,12 +35,14 @@ export default function SettingsPanel() {
 
   const getHeaders = () => ({
     "Content-Type": "application/json",
-    "X-Auth-Token": typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") || "" : "",
+    // Cookie is primary (credentials: "include"); header is transitional fallback
+    "X-Auth-Token":
+      typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") || "" : "",
   });
 
   const loadAuditLogs = async () => {
     try {
-      const res = await fetch("/api/git/audit-logs", { headers: getHeaders() });
+      const res = await fetch("/api/git/audit-logs", { credentials: "include", headers: getHeaders() });
       if (res.ok) {
         const logs = await res.json();
         setAuditLogs(Array.isArray(logs) ? logs : []);
@@ -52,7 +54,7 @@ export default function SettingsPanel() {
 
   const loadCheckpoints = async () => {
     try {
-      const res = await fetch("/api/git/checkpoints", { headers: getHeaders() });
+      const res = await fetch("/api/git/checkpoints", { credentials: "include", headers: getHeaders() });
       if (res.ok) {
         const cps = await res.json();
         setCheckpoints(Array.isArray(cps) ? cps : []);
@@ -65,7 +67,7 @@ export default function SettingsPanel() {
   const handleCreateCheckpoint = async () => {
     setCheckpointStatus("Создание...");
     try {
-      const res = await fetch("/api/git/checkpoint", { method: "POST", headers: getHeaders() });
+      const res = await fetch("/api/git/checkpoint", { credentials: "include", method: "POST", headers: getHeaders() });
       const data = await res.json();
       if (res.ok) {
         setCheckpointStatus(data.status === "noop" ? "✔ Нет изменений" : `✔ ${data.commit}`);
@@ -86,6 +88,7 @@ export default function SettingsPanel() {
     setRollbackStatus(`Откат к [${hash}]...`);
     try {
       const res = await fetch("/api/git/rollback", {
+        credentials: "include",
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ hash }),
@@ -109,6 +112,7 @@ export default function SettingsPanel() {
     setSelfImproveEnabled(next);
     try {
       const res = await fetch("/api/settings/self-improve", {
+        credentials: "include",
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ enabled: next }),
@@ -129,7 +133,7 @@ export default function SettingsPanel() {
   const handleRebuild = async () => {
     setRebuildStatus("building...");
     try {
-      const res = await fetch("/api/rebuild", { method: "POST", headers: getHeaders() });
+      const res = await fetch("/api/rebuild", { credentials: "include", method: "POST", headers: getHeaders() });
       const data = await res.json();
       if (res.ok) {
         setRebuildStatus("success");
@@ -146,7 +150,7 @@ export default function SettingsPanel() {
     if (!confirm("Вы уверены? Весь код интерфейса в /app/workspace/opencode-ui будет сброшен к исходной версии из Git и пересобран.")) return;
     setResetStatus("resetting...");
     try {
-      const res = await fetch("/api/reset-ui", { method: "POST", headers: getHeaders() });
+      const res = await fetch("/api/reset-ui", { credentials: "include", method: "POST", headers: getHeaders() });
       const data = await res.json();
       if (res.ok) {
         setResetStatus("success");

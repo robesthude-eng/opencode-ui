@@ -8,6 +8,8 @@ import type {
 
 export interface ClientConfig {
   baseUrl: string;
+  /** Optional username for merge tests / future use */
+  username?: string;
 }
 
 let config: ClientConfig = { baseUrl: "/api" };
@@ -20,9 +22,15 @@ export function getConfig() {
   return config;
 }
 
+/**
+ * Auth headers for same-origin requests.
+ * Prefer HttpOnly cookie (credentials: "include"). Legacy X-Auth-Token from
+ * localStorage is kept as a transition fallback for SSE ?token= and older tabs.
+ */
 function headers(): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json" };
-  const token = typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
   if (token) {
     h["X-Auth-Token"] = token;
   }
@@ -35,6 +43,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     const res = await fetch(`${config.baseUrl}${path}`, {
       ...init,
+      credentials: "include",
       signal: controller.signal,
       headers: { ...headers(), ...(init?.headers as Record<string, string> | undefined) },
     });
@@ -91,7 +100,7 @@ export const api = {
     id: string,
     parts: Record<string, unknown>[],
     model?: PromptModel,
-    systemInstruction?: string
+    systemInstruction?: string,
   ) =>
     req<Message>(`/session/${id}/message`, {
       method: "POST",
@@ -110,25 +119,29 @@ export const api = {
 
   listDir: (path = ".", sessionId?: string | null) =>
     req<FileNode[]>(
-      `/file?path=${encodeURIComponent(path)}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ""}`
+      `/file?path=${encodeURIComponent(path)}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ""}`,
     ),
   readFile: (path: string, sessionId?: string | null) =>
     req<{ content?: string; text?: string; path: string }>(
-      `/file/content?path=${encodeURIComponent(path)}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ""}`
+      `/file/content?path=${encodeURIComponent(path)}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ""}`,
     ),
   gitStatus: (sessionId?: string | null) =>
-    req<TrackedFile[]>(`/file/status${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`),
+    req<TrackedFile[]>(
+      `/file/status${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`,
+    ),
 
   uploadFolder: async (files: { path: string; file: File }[]) => {
     const form = new FormData();
     for (const { path, file } of files) {
       form.append(path, file);
     }
-    const token = typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
     const headers: Record<string, string> = {};
     if (token) headers["X-Auth-Token"] = token;
     const res = await fetch(`${config.baseUrl}/workspace/upload-folder`, {
       method: "POST",
+      credentials: "include",
       headers,
       body: form,
     });
@@ -142,14 +155,16 @@ export const api = {
   uploadFile: (
     file: File,
     onProgress?: (pct: number) => void,
-    sessionId?: string | null
+    sessionId?: string | null,
   ): Promise<{ ok: boolean; path: string; size: number; entryCount?: number | null }> =>
     new Promise((resolve, reject) => {
       const base = `${config.baseUrl}/workspace/upload`;
       const url = sessionId ? `${base}?sessionId=${encodeURIComponent(sessionId)}` : base;
       const xhr = new XMLHttpRequest();
       xhr.open("POST", url);
-      const token = typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
+      xhr.withCredentials = true;
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
       if (token) xhr.setRequestHeader("X-Auth-Token", token);
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) {
@@ -158,11 +173,17 @@ export const api = {
       };
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          try { resolve(JSON.parse(xhr.responseText)); }
-          catch { reject(new Error("Invalid server response")); }
+          try {
+            resolve(JSON.parse(xhr.responseText));
+          } catch {
+            reject(new Error("Invalid server response"));
+          }
         } else {
-          try { reject(new Error(JSON.parse(xhr.responseText)?.error || xhr.statusText)); }
-          catch { reject(new Error(`${xhr.status} ${xhr.statusText}`)); }
+          try {
+            reject(new Error(JSON.parse(xhr.responseText)?.error || xhr.statusText));
+          } catch {
+            reject(new Error(`${xhr.status} ${xhr.statusText}`));
+          }
         }
       };
       xhr.onerror = () => reject(new Error("Upload failed — network error"));
@@ -173,14 +194,17 @@ export const api = {
 
   listProviders: () => req<ProvidersResponse>(`/config/providers`),
   listConnected: () =>
-    req<{ connected?: string[]; all?: unknown[]; default?: Record<string, string> }>(`/provider`),
+    req<{ connected?: string[]; all?: unknown[]; default?: Record<string, string> }>(
+      `/provider`,
+    ),
 
   setAuth: (providerId: string, key: string) =>
     req<boolean>(`/auth/${providerId}`, {
       method: "PUT",
       body: JSON.stringify({ type: "api", key }),
     }),
-  removeAuth: (providerId: string) => req<void>(`/auth/${providerId}`, { method: "DELETE" }),
+  removeAuth: (providerId: string) =>
+    req<void>(`/auth/${providerId}`, { method: "DELETE" }),
 
   saveCustomKey: (providerId: string, key: string) =>
     req<{ status: string }>(`/auth/custom`, {
@@ -192,13 +216,17 @@ export const api = {
       method: "DELETE",
       body: JSON.stringify({ providerId }),
     }),
-  listCustomKeys: () =>
-    req<string[]>(`/auth/custom`),
+  listCustomKeys: () => req<string[]>(`/auth/custom`),
 };
 
-/** URL for the SSE event stream - now always global, no per-session dead endpoint */
+/**
+ * URL for the SSE event stream.
+ * EventSource cannot set custom headers; cookie is sent automatically same-origin.
+ * Legacy ?token= kept if localStorage still has a transitional token.
+ */
 export function eventUrl(_sessionId?: string | null): string {
-  const token = typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
   const params = new URLSearchParams();
   if (token) params.set("token", token);
   const qs = params.toString();

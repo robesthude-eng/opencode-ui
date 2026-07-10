@@ -6,7 +6,21 @@ import { describe, test, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { hashPassword, verifyPassword, getUserEmail, checkAuth, checkAuthRateLimit, resetAuthRateLimit, isAdmin } from "../auth.mjs";
+import {
+  hashPassword,
+  verifyPassword,
+  getUserEmail,
+  checkAuth,
+  checkAuthRateLimit,
+  resetAuthRateLimit,
+  isAdmin,
+  extractToken,
+  parseCookies,
+  buildSessionCookie,
+  buildClearSessionCookie,
+  checkCsrf,
+  SESSION_COOKIE,
+} from "../auth.mjs";
 import { loadJson, saveJson, clearCache } from "../db.mjs";
 
 // Create temp directory for tests
@@ -68,6 +82,85 @@ describe("verifyPassword", () => {
   });
 });
 
+describe("cookies / extractToken", () => {
+  test("parseCookies splits cookie header", () => {
+    const req = { headers: { cookie: `${SESSION_COOKIE}=abc%20123; other=1` } };
+    expect(parseCookies(req)[SESSION_COOKIE]).toBe("abc 123");
+    expect(parseCookies(req).other).toBe("1");
+  });
+
+  test("extractToken prefers cookie over header", () => {
+    const req = {
+      headers: {
+        cookie: `${SESSION_COOKIE}=cookie-token`,
+        "x-auth-token": "header-token",
+      },
+      url: "/api/test",
+    };
+    expect(extractToken(req)).toBe("cookie-token");
+  });
+
+  test("extractToken falls back to header", () => {
+    const req = { headers: { "x-auth-token": "header-token" }, url: "/api/test" };
+    expect(extractToken(req)).toBe("header-token");
+  });
+
+  test("buildSessionCookie is HttpOnly + SameSite=Lax", () => {
+    const c = buildSessionCookie("tok", 1000);
+    expect(c).toContain(`${SESSION_COOKIE}=tok`);
+    expect(c).toContain("HttpOnly");
+    expect(c).toContain("SameSite=Lax");
+    expect(c).toContain("Max-Age=1");
+  });
+
+  test("buildClearSessionCookie expires cookie", () => {
+    expect(buildClearSessionCookie()).toContain("Max-Age=0");
+  });
+});
+
+describe("checkCsrf", () => {
+  test("allows GET without origin", () => {
+    const req = { method: "GET", headers: { cookie: `${SESSION_COOKIE}=t`, host: "example.com" } };
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+    expect(checkCsrf(req, res)).toBe(true);
+  });
+
+  test("allows POST without cookie (header auth)", () => {
+    const req = { method: "POST", headers: { host: "example.com", "x-auth-token": "t" } };
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+    expect(checkCsrf(req, res)).toBe(true);
+  });
+
+  test("blocks cookie POST with bad origin", () => {
+    const req = {
+      method: "POST",
+      headers: {
+        cookie: `${SESSION_COOKIE}=t`,
+        host: "example.com",
+        origin: "https://evil.com",
+        "x-forwarded-proto": "https",
+      },
+    };
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+    expect(checkCsrf(req, res)).toBe(false);
+    expect(res.writeHead).toHaveBeenCalledWith(403, { "Content-Type": "application/json" });
+  });
+
+  test("allows cookie POST with matching origin", () => {
+    const req = {
+      method: "POST",
+      headers: {
+        cookie: `${SESSION_COOKIE}=t`,
+        host: "example.com",
+        origin: "https://example.com",
+        "x-forwarded-proto": "https",
+      },
+    };
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+    expect(checkCsrf(req, res)).toBe(true);
+  });
+});
+
 describe("getUserEmail", () => {
   test("returns email for valid token", () => {
     saveJson(sessionsFile, { "token123": { email: "test@example.com", createdAt: Date.now() } });
@@ -76,6 +169,15 @@ describe("getUserEmail", () => {
     const result = getUserEmail(req, sessionsFile, 7 * 24 * 60 * 60 * 1000);
 
     expect(result).toBe("test@example.com");
+  });
+
+  test("returns email from HttpOnly cookie", () => {
+    saveJson(sessionsFile, { "cookie-tok": { email: "cookie@example.com", createdAt: Date.now() } });
+    const req = {
+      headers: { cookie: `${SESSION_COOKIE}=cookie-tok` },
+      url: "/api/test",
+    };
+    expect(getUserEmail(req, sessionsFile, 7 * 24 * 60 * 60 * 1000)).toBe("cookie@example.com");
   });
 
   test("returns null for invalid token", () => {

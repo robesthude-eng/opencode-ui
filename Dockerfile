@@ -23,14 +23,7 @@ COPY --from=build /app/dist ./dist
 # Copy server modules — DEPLOY_TS forces cache bust on every deploy
 ARG DEPLOY_TS=unknown
 COPY server.mjs ./
-COPY server/db.mjs ./server/db.mjs
-COPY server/auth.mjs ./server/auth.mjs
-COPY server/middleware.mjs ./server/middleware.mjs
-COPY server/upload.mjs ./server/upload.mjs
-COPY server/self-improve.mjs ./server/self-improve.mjs
-COPY server/index.mjs ./server/index.mjs
-COPY start.sh ./
-RUN chmod +x start.sh
+COPY server/ ./server/
 
 # Verify all server modules load correctly (fails build if any missing).
 # ESM modules can't be require()'d, so import them with --input-type=module.
@@ -40,7 +33,12 @@ RUN node --input-type=module -e "\
   import './server/middleware.mjs'; \
   import './server/upload.mjs'; \
   import './server/self-improve.mjs'; \
+  import './server/sandbox.mjs'; \
+  import './server/ast-modifier.mjs'; \
   console.log('All modules OK');"
+
+COPY start.sh ./
+RUN chmod +x start.sh
 
 # Copy SOURCE CODE into workspace so the agent can edit & improve the UI
 COPY src ./workspace-src/src
@@ -52,6 +50,7 @@ COPY vite.config.ts ./workspace-src/vite.config.ts
 
 # Railway injects PORT; our proxy listens on it.
 ENV PORT=3000
+ENV NODE_ENV=production
 EXPOSE 3000
 
 # The opencode workspace (mount a Railway Volume here for persistence)

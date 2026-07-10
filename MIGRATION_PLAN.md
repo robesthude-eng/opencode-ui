@@ -1,5 +1,5 @@
 # OpenCode UI – Full Modernization Plan
-_Last updated: 2026-07-10 – commit 4d5c960 (+ in-progress 2b finish)_
+_Last updated: 2026-07-10 – Phase 2b done + Phase 6 cookie auth started_
 
 This document tracks the ongoing migration to latest technologies. Use it as a checklist for the self-improvement agent and human contributors.
 
@@ -177,13 +177,14 @@ Goal: migrate all `src/components/*.tsx` + shell layout from legacy `styles.css`
     3. Admin → Settings → Self-improve toggle → sandbox dry-run
     4. Visual regression: Composer, Sidebar, ChatView screenshots
 - [ ] **Vitest coverage**
-  - Current: 96 tests, no coverage threshold
+  - Current: **106 tests**, no coverage threshold
   - Add: `"test:coverage": "vitest run --coverage"`
   - Target: >70% statements for `src/api/`, `src/store/`
   - Add: `npm install -D @vitest/coverage-v8`
-- [ ] **Biome CI gate**
-  - Add to `.github/workflows/ci.yml`: `npm run lint`
-  - Fail PR if biome check fails
+- [x] **Biome CI gate (soft)** – `npm run lint` in CI with `continue-on-error: true`
+  - [ ] Make hard gate after cleaning ~186 existing Biome diagnostics
+- [x] **npm audit in CI** – fail on high/critical
+- [x] **Dependabot** – `.github/dependabot.yml` weekly npm + actions
 - [ ] **TypeScript strict mode – full**
   - Currently: `noUnusedLocals: false`, `noUnusedParameters: false`
   - Enable both, fix warnings
@@ -202,15 +203,17 @@ Priority: HIGH – do before public multi-tenant launch.
   - Files: `server/auth.mjs` → rewrite
   - Migration script: JSON → SQLite on first boot
   - Keep scrypt password hashes – compatible
-- [ ] **Session tokens – localStorage → HttpOnly cookie**
-  - Current: `X-Auth-Token` header, token stored in localStorage → XSS = account takeover
-  - Change to: `Set-Cookie: session=...; HttpOnly; Secure; SameSite=Lax`
-  - CSRF protection: Double-submit token OR SameSite strict + Origin check
-  - Update: `server/auth.mjs`, `src/api/client.ts`, `src/store/useStore.ts`
-- [ ] **CSRF protection**
-  - Add CSRF token to all POST/PUT/DELETE
-  - Middleware: `checkCsrf(req)` in `server/middleware.mjs`
-  - Exempt: `/api/auth/login`, `/api/auth/register` (they set the cookie)
+- [x] **Session tokens – HttpOnly cookie (primary) + transitional header**
+  - Cookie: `opencode_session`; `HttpOnly; SameSite=Lax; Secure` (prod/Railway)
+  - Login/register set `Set-Cookie`; logout clears it
+  - Server `extractToken`: cookie → `X-Auth-Token` → `?token=` (SSE)
+  - Client: `credentials: "include"` everywhere; localStorage kept only for EventSource transitional fallback
+  - Files: `server/auth.mjs`, `server/index.mjs`, `src/api/client.ts`, `src/store/slices/authSlice.ts`
+  - [ ] Remove localStorage token entirely once SSE no longer needs `?token=`
+- [x] **CSRF protection (Origin/Referer)**
+  - `checkCsrf(req, res)` for cookie-authenticated mutating methods
+  - SameSite=Lax + origin allowlist (host / x-forwarded-*)
+  - Auth login/register exempt (no cookie yet / set cookie)
 - [ ] **Rate limiting – per-user, not just per-IP**
   - Current: IP-based only – easy to bypass with proxies
   - Add: Redis / in-memory per-user bucket
@@ -232,10 +235,10 @@ Priority: HIGH – do before public multi-tenant launch.
   - Store new tokens in: 1Password / Railway Variables / GitHub Secrets only
   - Add `.env` to `.gitignore` – already done? check
   - Add GitHub secret scanning / push protection
-- [ ] **Dependency scanning**
-  - Enable Dependabot: `.github/dependabot.yml` – weekly npm updates
-  - Add `npm audit` to CI – fail on high/critical
-  - Add Snyk / OSV scanner
+- [x] **Dependency scanning (baseline)**
+  - Dependabot: `.github/dependabot.yml` – weekly npm + GitHub Actions
+  - `npm audit --audit-level=high` in CI
+  - [ ] Add Snyk / OSV scanner
 
 ---
 
@@ -377,7 +380,7 @@ Priority: HIGH – do before public multi-tenant launch.
 | Tailwind | none | **4.x** | 4.x |
 | Node | 22 | 22 | 22 LTS |
 | npm audit vulns | 0 | **0** | 0 |
-| Test count | 96 | **96+** | >120 |
+| Test count | 96 | **106** | >120 |
 | Test coverage | ? | ? | >70% |
 | Legacy `styles.css` | 56 KB / 2300 LOC | **deleted** | deleted |
 | Bundle CSS | dual stack | Tailwind only | <25 KB gzip |
@@ -385,7 +388,8 @@ Priority: HIGH – do before public multi-tenant launch.
 | `http-proxy` CVE risk | YES | **NO** | NO |
 | Sandbox RCE risk | HIGH | **MEDIUM** (src/** only) | LOW |
 | Auth storage | JSON files | JSON files | SQLite |
-| Session tokens | localStorage | localStorage | HttpOnly cookie |
+| Session tokens | localStorage | **HttpOnly cookie (+ header fallback)** | cookie only |
+
 | CSP `unsafe-inline` (style) | YES | reduced | NO |
 | PWA | NO | **YES** (manifest + workbox) | YES + icons |
 | React Compiler | NO | **YES** (opt-in) | YES, fully enabled |
@@ -451,9 +455,16 @@ Priority: HIGH – do before public multi-tenant launch.
   - Migrate: CopyButton, Skeleton, PartView, ToolCard, ToolGroup, LoginPage, PermissionDialog, ErrorBoundary, Workspace, App shell
   - Add `@tailwindcss/typography`
   - Delete `src/styles.css`, base layout in `src/index.css`
-  - Tests + build gate
+  - Tests + build gate – commit `ea7cb24`
+- **2026-07-10 14:20 UTC** – Phase 6 security baseline + CI quality
+  - HttpOnly `opencode_session` cookie + CSRF Origin check
+  - Client `credentials: "include"`; transitional localStorage for SSE
+  - Dependabot, npm audit CI, Biome soft gate
+  - Dockerfile copies full `server/` (sandbox/ast modules)
+  - Auth tests expanded → **106 tests**
+  - Docs: SELF_IMPROVE.md, .env.example
 
-**Next up:** Phase 5 (Playwright + coverage) or Phase 6 security (HttpOnly cookies / SQLite auth). Rotate secrets first.
+**Next up:** verify Railway SUCCESS for cookie deploy; rotate secrets; hard Biome gate / Playwright / SQLite auth.
 
 ---
 

@@ -14,7 +14,14 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
     set({ authChecking: true });
     try {
       const res = await fetch("/api/auth/me", {
-        headers: { "X-Auth-Token": typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") || "" : "" },
+        credentials: "include",
+        // transitional: still send header if old tab has localStorage token
+        headers: {
+          "X-Auth-Token":
+            typeof window !== "undefined"
+              ? localStorage.getItem("opencode_auth_token") || ""
+              : "",
+        },
       });
       const data = await res.json();
       if (res.ok && data.status === "success" && data.user) {
@@ -31,12 +38,17 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (res.ok && data.status === "success" && data.token) {
-        if (typeof window !== "undefined") localStorage.setItem("opencode_auth_token", data.token);
+      if (res.ok && data.status === "success" && data.user) {
+        // Prefer HttpOnly cookie (Set-Cookie from server). Keep localStorage only
+        // as EventSource transitional fallback until fully cookie-based SSE.
+        if (typeof window !== "undefined" && data.token) {
+          localStorage.setItem("opencode_auth_token", data.token);
+        }
         set({ currentUser: data.user || { email }, authChecking: false });
         void get().loadSessions();
         void get().loadModels(true);
@@ -52,12 +64,15 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (res.ok && data.status === "success" && data.token) {
-        if (typeof window !== "undefined") localStorage.setItem("opencode_auth_token", data.token);
+      if (res.ok && data.status === "success" && data.user) {
+        if (typeof window !== "undefined" && data.token) {
+          localStorage.setItem("opencode_auth_token", data.token);
+        }
         set({ currentUser: data.user || { email }, authChecking: false });
         void get().loadSessions();
         void get().loadModels(true);
@@ -71,10 +86,16 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
 
   logout: async () => {
     try {
-      const token = typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") || "" : "";
-      if (token) {
-        await fetch("/api/auth/logout", { method: "POST", headers: { "X-Auth-Token": token } });
-      }
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "X-Auth-Token":
+            typeof window !== "undefined"
+              ? localStorage.getItem("opencode_auth_token") || ""
+              : "",
+        },
+      });
     } catch {
       // ignore
     }
@@ -88,7 +109,7 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
       const connected = data.connected ?? [];
       const authed: Record<string, boolean> = {};
       for (const id of connected) authed[id] = true;
-      // Also check custom providers (aerolink, etc.) stored in auth.json
+      // Also check custom providers stored in auth.json
       try {
         const custom = await api.listCustomKeys();
         for (const id of custom) authed[id] = true;

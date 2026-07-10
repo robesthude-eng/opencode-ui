@@ -20,6 +20,12 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
       - run: npm ci
+      # Soft gate until codebase is fully Biome-clean (Phase 5)
+      - name: Lint (Biome – report only)
+        run: npm run lint
+        continue-on-error: true
+      - name: Audit (high/critical)
+        run: npm audit --audit-level=high
       - run: npm run test:all --if-present
       - run: npm run build
       - name: Upload dist
