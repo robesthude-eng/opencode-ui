@@ -24,6 +24,8 @@ export default function SettingsPanel() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("self-improve");
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [editingZen, setEditingZen] = useState(false);
+  const [editingProviders, setEditingProviders] = useState<Record<string, boolean>>({});
   const [rebuildStatus, setRebuildStatus] = useState<string | null>(null);
   const [resetStatus, setResetStatus] = useState<string | null>(null);
   const [checkpoints, setCheckpoints] = useState<{ hash: string; subject: string; time: string }[]>([]);
@@ -158,11 +160,14 @@ export default function SettingsPanel() {
 
   const handleSave = async (id: string) => {
     const key = (values[id] ?? "").trim();
-    if (!key) return;
+    if (!key) return false;
     setSaving(id);
     const ok = await saveKey(id, key);
     setSaving(null);
-    if (ok) setValues((v) => ({ ...v, [id]: "" }));
+    if (ok) {
+      setValues((v) => ({ ...v, [id]: "" }));
+    }
+    return ok;
   };
 
   const zenConfigured = !!authed[ZEN_PROVIDER_ID];
@@ -381,14 +386,26 @@ export default function SettingsPanel() {
                   </a>
                 </div>
 
-                {zenConfigured ? (
+                {zenConfigured && !editingZen ? (
                   <div className="zen-connected">
                     <span className="key-line">
                       <CheckIcon size={16} /> OpenCode Zen connected — all free models available
                     </span>
-                    <button className="link-btn" onClick={() => removeKey(ZEN_PROVIDER_ID)} type="button">
-                      Remove
-                    </button>
+                    <span className="key-actions" style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        className="link-btn"
+                        onClick={() => {
+                          setEditingZen(true);
+                          setValues((v) => ({ ...v, [ZEN_PROVIDER_ID]: "" }));
+                        }}
+                        type="button"
+                      >
+                        Change key
+                      </button>
+                      <button className="link-btn" onClick={() => removeKey(ZEN_PROVIDER_ID)} type="button">
+                        Remove
+                      </button>
+                    </span>
                   </div>
                 ) : (
                   <div className="zen-connect">
@@ -399,16 +416,43 @@ export default function SettingsPanel() {
                       onChange={(e) =>
                         setValues((v) => ({ ...v, [ZEN_PROVIDER_ID]: e.target.value }))
                       }
-                      onKeyDown={(e) => e.key === "Enter" && handleSave(ZEN_PROVIDER_ID)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSave(ZEN_PROVIDER_ID).then((ok) => {
+                        if (ok) setEditingZen(false);
+                      })}
+                      autoFocus={editingZen}
                     />
                     <button
                       className="btn-primary"
                       disabled={!values[ZEN_PROVIDER_ID]?.trim() || saving === ZEN_PROVIDER_ID}
-                      onClick={() => handleSave(ZEN_PROVIDER_ID)}
+                      onClick={() => {
+                        handleSave(ZEN_PROVIDER_ID).then((ok) => {
+                          if (ok) setEditingZen(false);
+                        });
+                      }}
                       type="button"
                     >
-                      {saving === ZEN_PROVIDER_ID ? "Connecting…" : "Connect free models"}
+                      {saving === ZEN_PROVIDER_ID ? "Connecting…" : (editingZen ? "Save key" : "Connect free models")}
                     </button>
+                    {editingZen && (
+                      <button
+                        className="btn-ghost sm"
+                        style={{
+                          padding: "8px 12px",
+                          border: "1px solid var(--border)",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          background: "transparent",
+                          color: "var(--text)",
+                        }}
+                        onClick={() => {
+                          setEditingZen(false);
+                          setValues((v) => ({ ...v, [ZEN_PROVIDER_ID]: "" }));
+                        }}
+                        type="button"
+                      >
+                        Cancel
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -464,14 +508,26 @@ export default function SettingsPanel() {
                           </div>
                         </div>
 
-                        {configured ? (
+                        {configured && !editingProviders[p.id] ? (
                           <div className="provider-configured">
                             <span className="key-line">
                               <KeyIcon size={14} /> API key connected
                             </span>
-                            <button className="link-btn" onClick={() => removeKey(p.id)} type="button">
-                              Remove
-                            </button>
+                            <span className="key-actions" style={{ display: "flex", gap: "8px" }}>
+                              <button
+                                className="link-btn"
+                                onClick={() => {
+                                  setEditingProviders((prev) => ({ ...prev, [p.id]: true }));
+                                  setValues((v) => ({ ...v, [p.id]: "" }));
+                                }}
+                                type="button"
+                              >
+                                Change
+                              </button>
+                              <button className="link-btn" onClick={() => removeKey(p.id)} type="button">
+                                Remove
+                              </button>
+                            </span>
                           </div>
                         ) : (
                           <div className="provider-input">
@@ -482,16 +538,39 @@ export default function SettingsPanel() {
                               onChange={(e) =>
                                 setValues((v) => ({ ...v, [p.id]: e.target.value }))
                               }
-                              onKeyDown={(e) => e.key === "Enter" && handleSave(p.id)}
+                              onKeyDown={(e) =>
+                                e.key === "Enter" &&
+                                handleSave(p.id).then((ok) => {
+                                  if (ok) setEditingProviders((prev) => ({ ...prev, [p.id]: false }));
+                                })
+                              }
+                              autoFocus={editingProviders[p.id]}
                             />
                             <button
                               className="btn-primary sm"
                               disabled={!values[p.id]?.trim() || saving === p.id}
-                              onClick={() => handleSave(p.id)}
+                              onClick={() => {
+                                handleSave(p.id).then((ok) => {
+                                  if (ok) setEditingProviders((prev) => ({ ...prev, [p.id]: false }));
+                                });
+                              }}
                               type="button"
                             >
-                              {saving === p.id ? "…" : "Connect"}
+                              {saving === p.id ? "…" : (editingProviders[p.id] ? "Save" : "Connect")}
                             </button>
+                            {editingProviders[p.id] && (
+                              <button
+                                className="link-btn"
+                                style={{ fontSize: "12px", color: "var(--text-2)" }}
+                                onClick={() => {
+                                  setEditingProviders((prev) => ({ ...prev, [p.id]: false }));
+                                  setValues((v) => ({ ...v, [p.id]: "" }));
+                                }}
+                                type="button"
+                              >
+                                Cancel
+                              </button>
+                            )}
                           </div>
                         )}
 

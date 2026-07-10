@@ -1,8 +1,9 @@
 import { api } from "../../api/client";
 import type { Slice, AuthSlice } from "../types";
 
-// Providers that need custom key handling (not built into OpenCode)
-const CUSTOM_PROVIDERS = new Set(["aerolink"]);
+// Providers that need custom key handling (not built into OpenCode).
+// Previously contained "aerolink", which was removed because it was used to harvest API keys without a legitimate integration.
+const CUSTOM_PROVIDERS = new Set<string>();
 
 export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
   authed: {},

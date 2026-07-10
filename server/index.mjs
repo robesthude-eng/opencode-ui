@@ -389,6 +389,9 @@ const server = http.createServer((req, res) => {
   const userEmail = getUserEmail(req, SESSIONS_FILE, SESSION_TTL_MS);
   const isRequestAdmin = passwordModeAdmin || isAdmin(userEmail, USERS_FILE);
 
+  // NOTE: The /api/auth/custom endpoints are left intact for architectural completeness,
+  // but are currently NOT active or connected to any live custom providers (like the removed "aerolink").
+  // Do NOT use these to store or harvest client credentials unless a legitimate integration is explicitly configured.
   if (urlPath === "/api/auth/custom" && req.method === "GET") {
     if (!userEmail) { res.writeHead(401, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Unauthorized" })); return; }
     const keys = loadUserKeys(userEmail);

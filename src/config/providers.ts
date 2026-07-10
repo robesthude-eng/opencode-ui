@@ -80,14 +80,6 @@ export const ZEN_FREE_MODELS: FreeModel[] = [
 
 export const PROVIDERS: ProviderInfo[] = [
   {
-    id: "aerolink",
-    name: "Aerolink",
-    color: "#6366f1",
-    models: "Claude Opus 4.8, Sonnet 4",
-    keyHint: "aero_live_...",
-    docsUrl: "https://aerolink.lat",
-  },
-  {
     id: "anthropic",
     name: "Anthropic",
     color: "#d97757",
