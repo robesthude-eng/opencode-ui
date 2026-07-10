@@ -244,25 +244,29 @@ const server = http.createServer((req, res) => {
     const ocPort = process.env.OC_SYSTEM_PORT || 4096;
     const ocUrl = `http://127.0.0.1:${ocPort}/global/health`;
     
+    let responseSent = false;
+    const sendResponse = (statusCode, body) => {
+      if (responseSent) return;
+      responseSent = true;
+      res.writeHead(statusCode, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(body));
+    };
+
     const opencodeReq = http.get(ocUrl, { timeout: 1500 }, (opencodeRes) => {
       if (opencodeRes.statusCode >= 200 && opencodeRes.statusCode < 400) {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", opencode: "healthy", uptime: process.uptime() }));
+        sendResponse(200, { status: "ok", opencode: "healthy", uptime: process.uptime() });
       } else {
-        res.writeHead(503, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "error", opencode: `unhealthy_status_${opencodeRes.statusCode}`, uptime: process.uptime() }));
+        sendResponse(503, { status: "error", opencode: `unhealthy_status_${opencodeRes.statusCode}`, uptime: process.uptime() });
       }
     });
 
     opencodeReq.on("error", (err) => {
-      res.writeHead(503, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "error", opencode: `unreachable_${err.message}`, uptime: process.uptime() }));
+      sendResponse(503, { status: "error", opencode: `unreachable_${err.message}`, uptime: process.uptime() });
     });
 
     opencodeReq.on("timeout", () => {
       opencodeReq.destroy();
-      res.writeHead(503, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "error", opencode: "timeout", uptime: process.uptime() }));
+      sendResponse(503, { status: "error", opencode: "timeout", uptime: process.uptime() });
     });
     return;
   }
