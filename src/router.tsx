@@ -83,16 +83,24 @@ function AppShell() {
     };
   }, [currentUser, loadSessions, loadModels, applyEvent, setConnection, checkConnection]);
 
-  // Sync URL → store
+  // Sync URL → store (ignore optimistic temp IDs)
   useEffect(() => {
-    if (params.sessionId && params.sessionId !== currentID) {
+    if (
+      params.sessionId &&
+      params.sessionId !== currentID &&
+      !params.sessionId.startsWith("tmp_")
+    ) {
       void select(params.sessionId);
     }
   }, [params.sessionId, currentID, select]);
 
-  // Sync store → URL when chat selected without route param
+  // Sync store → URL when chat selected without route param (skip temp IDs)
   useEffect(() => {
-    if (currentID && params.sessionId !== currentID) {
+    if (
+      currentID &&
+      !currentID.startsWith("tmp_") &&
+      params.sessionId !== currentID
+    ) {
       void navigate({
         to: "/chat/$sessionId",
         params: { sessionId: currentID },

@@ -3,6 +3,9 @@ import { normalizeMessages } from "../helpers";
 import type { SessionsSlice, Slice } from "../types";
 import { byUpdated } from "../types";
 
+// Prevent concurrent optimistic session creation from rapid "New chat" clicks.
+let creatingSession = false;
+
 export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
   sessions: [],
   currentID: null,
@@ -36,6 +39,9 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
 
   // Claude-like new chat: optimistic, reuse empty, empty workspace, no memory overlap
   newSession: async () => {
+    if (creatingSession) return;
+    creatingSession = true;
+
     const { sessions, messages } = get();
 
     // Check if there's already an empty session (no messages) — like Claude, don't create duplicate empty chats
@@ -46,6 +52,7 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
     if (emptySession) {
       // Just select existing empty chat instead of creating new one
       set({ currentID: emptySession.id });
+      creatingSession = false;
       return;
     }
 
@@ -93,6 +100,8 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
         currentID: s.sessions.find((x) => x.id !== tempId)?.id || null,
         error: (e as Error).message,
       }));
+    } finally {
+      creatingSession = false;
     }
   },
 

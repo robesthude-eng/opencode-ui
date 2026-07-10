@@ -166,7 +166,7 @@ export default function Workspace() {
 
   const loadDir = useCallback(
     async (path: string) => {
-      if (!currentID) return [];
+      if (!currentID || currentID.startsWith("tmp_")) return [];
       try {
         const nodes = await api.listDir(path, currentID);
         return Array.isArray(nodes)
@@ -180,7 +180,7 @@ export default function Workspace() {
   );
 
   const refresh = useCallback(async () => {
-    if (!currentID) {
+    if (!currentID || currentID.startsWith("tmp_")) {
       setTree([]);
       setLoading(false);
       setError(null);
@@ -203,7 +203,7 @@ export default function Workspace() {
   }, [currentID, loadDir]);
 
   const autoRefresh = useCallback(async () => {
-    if (!currentID) return;
+    if (!currentID || currentID.startsWith("tmp_")) return;
     try {
       const t = await loadDir(".");
       const curExpanded = expandedRef.current;
@@ -234,7 +234,7 @@ export default function Workspace() {
   }, [currentID, loadDir]);
 
   const loadGit = useCallback(async () => {
-    if (!currentID) {
+    if (!currentID || currentID.startsWith("tmp_")) {
       setGitFiles([]);
       return;
     }
@@ -307,7 +307,7 @@ export default function Workspace() {
   expandedRef.current = expanded;
 
   useEffect(() => {
-    if (!workspaceOpen) return;
+    if (!workspaceOpen || !currentID || currentID.startsWith("tmp_")) return;
     void refresh();
     void loadGit();
     const poll = setInterval(() => {
