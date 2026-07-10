@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore, type ModelEntry } from "../store/useStore";
 import { ChevronDownIcon, CheckIcon } from "./icons";
+import { cn } from "@/lib/utils";
 
 export default function ModelSelector() {
   const models = useStore((s) => s.models);
@@ -25,7 +26,6 @@ export default function ModelSelector() {
       m.modelID === selectedModel?.modelID
   );
 
-  // Group: free models first, then by provider.
   const free = models.filter((m) => m.free);
   const paid = models.filter((m) => !m.free);
 
@@ -41,15 +41,18 @@ export default function ModelSelector() {
     return (
       <button
         key={`${m.providerID}/${m.modelID}`}
-        className={`model-option ${active ? "active" : ""}`}
+        className={cn(
+          "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg text-left transition",
+          active ? "bg-muted text-foreground" : "hover:bg-muted/70 text-muted-foreground hover:text-foreground"
+        )}
         onClick={() => {
           setSelectedModel({ providerID: m.providerID, modelID: m.modelID });
           setOpen(false);
         }}
       >
-        <span className="model-option-label">
+        <span className="flex items-center gap-2">
           {m.modelName}
-          {m.free && <span className="model-free-pill">FREE</span>}
+          {m.free && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">FREE</span>}
         </span>
         {active && <CheckIcon size={14} />}
       </button>
@@ -57,26 +60,29 @@ export default function ModelSelector() {
   };
 
   return (
-    <div className="model-select" ref={ref}>
-      <button className="model-select-btn" onClick={() => setOpen((o) => !o)}>
-        <span className="model-select-name">
+    <div className="relative" ref={ref}>
+      <button
+        className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-sm hover:bg-muted transition shadow-sm"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="flex items-center gap-2">
           {current?.modelName ?? "Select model"}
-          {current?.free && <span className="model-free-pill">FREE</span>}
+          {current?.free && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">FREE</span>}
         </span>
         <ChevronDownIcon size={14} />
       </button>
       {open && (
-        <div className="model-select-menu">
+        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-[320px] max-h-[420px] overflow-y-auto rounded-2xl border border-border bg-popover shadow-xl p-2 z-50">
           {free.length > 0 && (
-            <div className="model-group">
-              <div className="model-group-title">🎁 Free · OpenCode Zen</div>
-              {free.map(renderOption)}
+            <div className="mb-2">
+              <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">🎁 Free · OpenCode Zen</div>
+              <div className="space-y-0.5">{free.map(renderOption)}</div>
             </div>
           )}
           {Object.entries(paidGrouped).map(([providerName, list]) => (
-            <div className="model-group" key={providerName}>
-              <div className="model-group-title">{providerName}</div>
-              {list.map(renderOption)}
+            <div key={providerName} className="mb-2">
+              <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{providerName}</div>
+              <div className="space-y-0.5">{list.map(renderOption)}</div>
             </div>
           ))}
         </div>

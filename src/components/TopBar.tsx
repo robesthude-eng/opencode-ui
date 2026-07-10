@@ -1,6 +1,7 @@
 import { useStore } from "../store/useStore";
 import { SunIcon, MoonIcon, MenuIcon, PanelIcon } from "./icons";
 import ModelSelector from "./ModelSelector";
+import { Button } from "@/components/ui/button";
 
 export default function TopBar() {
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
@@ -10,27 +11,32 @@ export default function TopBar() {
   const setWorkspaceOpen = useStore((s) => s.setWorkspaceOpen);
 
   return (
-    <header className="topbar">
-      <button
-        className="icon-btn hamburger"
+    <header className="h-14 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-3 md:px-4 flex items-center gap-2 sticky top-0 z-30">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden"
         onClick={() => setSidebarOpen(true)}
         title="Menu"
       >
         <MenuIcon />
-      </button>
-      <div className="topbar-model">
+      </Button>
+
+      <div className="flex-1 min-w-0 flex justify-center">
         <ModelSelector />
       </div>
-      <button
-        className={`icon-btn ${workspaceOpen ? "active" : ""}`}
+
+      <Button
+        variant={workspaceOpen ? "secondary" : "ghost"}
+        size="icon"
         onClick={() => setWorkspaceOpen(!workspaceOpen)}
         title="Toggle workspace"
       >
         <PanelIcon />
-      </button>
-      <button className="icon-btn" onClick={toggleTheme} title="Toggle theme">
+      </Button>
+      <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle theme">
         {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-      </button>
+      </Button>
     </header>
   );
 }
