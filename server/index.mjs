@@ -457,6 +457,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Pluggable Sandbox pre-flight compilation endpoints (dry-run and safe-deploy)
+  if (urlPath.startsWith("/api/sandbox/")) {
+    if (!userEmail) { res.writeHead(401, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Unauthorized" })); return; }
+    if (!isRequestAdmin) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Admin access required for sandbox feature." })); return; }
+    import("./sandbox.mjs").then((m) => {
+      m.handleSandboxRequest(req, res, WORKDIR, userEmail);
+    }).catch((err) => {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to load sandbox module", detail: err.message }));
+    });
+    return;
+  }
+
   // Self-improvement endpoints — ADMIN ONLY.
   // These mutate the UI source code shared by every user of this deployment
   // (toggle write permissions, rebuild, reset to factory, git checkpoint/rollback),
