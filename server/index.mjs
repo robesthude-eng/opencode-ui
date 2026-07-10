@@ -10,7 +10,6 @@
  */
 
 import http from "http";
-import httpProxy from "http-proxy";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -113,30 +112,78 @@ const MIME = {
   ".map": "application/json",
 };
 
-// Proxy
-function createProxy(target) {
-  const p = httpProxy.createProxyServer({
-    target,
-    changeOrigin: true,
-    ws: true,
-    selfHandleResponse: false,
-  });
-  p.on("proxyRes", (proxyRes, req, res) => {
-    const ct = proxyRes.headers["content-type"] || "";
-    if (ct.includes("text/event-stream")) {
-      res.setHeader("X-Accel-Buffering", "no");
-      res.setHeader("Cache-Control", "no-cache, no-transform");
-    }
-  });
-  p.on("error", (err, req, res) => {
-    if (res && !res.headersSent) {
-      res.writeHead(502, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "OpenCode server not reachable", detail: err.message }));
-    } else if (res) {
-      res.end();
-    }
-  });
-  return p;
+// Native HTTP proxy - replaces http-proxy (unmaintained)
+// Simple, zero-dependency reverse proxy for OpenCode backend
+function createProxy(targetBase) {
+  const targetUrl = new URL(targetBase);
+
+  function web(req, res) {
+    // req.url is already rewritten by the caller (includes ?directory=...)
+    const options = {
+      hostname: targetUrl.hostname,
+      port: targetUrl.port,
+      path: req.url,
+      method: req.method,
+      headers: { ...req.headers, host: `${targetUrl.hostname}:${targetUrl.port}` },
+    };
+    // Remove hop-by-hop headers
+    delete options.headers["connection"];
+    delete options.headers["upgrade"];
+
+    const proxyReq = http.request(options, (proxyRes) => {
+      const headers = { ...proxyRes.headers };
+      // SSE fix: disable buffering proxies
+      const ct = headers["content-type"] || "";
+      if (ct.includes("text/event-stream")) {
+        headers["x-accel-buffering"] = "no";
+        headers["cache-control"] = "no-cache, no-transform";
+      }
+      res.writeHead(proxyRes.statusCode || 502, headers);
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on("error", (err) => {
+      if (!res.headersSent) {
+        res.writeHead(502, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "OpenCode server not reachable", detail: err.message }));
+      } else {
+        res.end();
+      }
+    });
+
+    req.pipe(proxyReq);
+  }
+
+  function ws(req, socket, head) {
+    const options = {
+      hostname: targetUrl.hostname,
+      port: targetUrl.port,
+      path: req.url,
+      method: "GET",
+      headers: req.headers,
+    };
+    const proxyReq = http.request(options);
+    proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+      // Forward 101 Switching Protocols to client
+      socket.write(`HTTP/${proxyRes.httpVersion} 101 ${proxyRes.statusMessage}\r\n`);
+      for (const [k, v] of Object.entries(proxyRes.headers)) {
+        socket.write(`${k}: ${v}\r\n`);
+      }
+      socket.write("\r\n");
+      if (proxyHead && proxyHead.length) proxySocket.unshift(proxyHead);
+      if (head && head.length) socket.unshift(head);
+      proxySocket.pipe(socket);
+      socket.pipe(proxySocket);
+    });
+    proxyReq.on("error", () => {
+      socket.end();
+    });
+    proxyReq.end();
+  }
+
+  function close(cb) { if (cb) cb(); }
+
+  return { web, ws, close };
 }
 
 const systemProxy = createProxy(`http://127.0.0.1:${SYSTEM_PORT}`);
