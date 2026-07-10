@@ -1,8 +1,6 @@
 import { api } from "../../api/client";
 import type { Slice, AuthSlice } from "../types";
 
-// Providers that need custom key handling (not built into OpenCode).
-// Previously contained "aerolink", which was removed because it was used to harvest API keys without a legitimate integration.
 const CUSTOM_PROVIDERS = new Set<string>();
 
 export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
@@ -13,16 +11,7 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
   checkCurrentUser: async () => {
     set({ authChecking: true });
     try {
-      const res = await fetch("/api/auth/me", {
-        credentials: "include",
-        // transitional: still send header if old tab has localStorage token
-        headers: {
-          "X-Auth-Token":
-            typeof window !== "undefined"
-              ? localStorage.getItem("opencode_auth_token") || ""
-              : "",
-        },
-      });
+      const res = await fetch("/api/auth/me", { credentials: "include" });
       const data = await res.json();
       if (res.ok && data.status === "success" && data.user) {
         set({ currentUser: data.user, authChecking: false });
@@ -44,10 +33,9 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
       });
       const data = await res.json();
       if (res.ok && data.status === "success" && data.user) {
-        // Prefer HttpOnly cookie (Set-Cookie from server). Keep localStorage only
-        // as EventSource transitional fallback until fully cookie-based SSE.
-        if (typeof window !== "undefined" && data.token) {
-          localStorage.setItem("opencode_auth_token", data.token);
+        // Session is HttpOnly cookie only — never store token in JS
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("opencode_auth_token");
         }
         set({ currentUser: data.user || { email }, authChecking: false });
         void get().loadSessions();
@@ -70,8 +58,8 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
       });
       const data = await res.json();
       if (res.ok && data.status === "success" && data.user) {
-        if (typeof window !== "undefined" && data.token) {
-          localStorage.setItem("opencode_auth_token", data.token);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("opencode_auth_token");
         }
         set({ currentUser: data.user || { email }, authChecking: false });
         void get().loadSessions();
@@ -89,17 +77,13 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
       await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "include",
-        headers: {
-          "X-Auth-Token":
-            typeof window !== "undefined"
-              ? localStorage.getItem("opencode_auth_token") || ""
-              : "",
-        },
       });
     } catch {
       // ignore
     }
-    if (typeof window !== "undefined") localStorage.removeItem("opencode_auth_token");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("opencode_auth_token");
+    }
     set({ currentUser: null, sessions: [], currentID: null, messages: {} });
   },
 
@@ -109,7 +93,6 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
       const connected = data.connected ?? [];
       const authed: Record<string, boolean> = {};
       for (const id of connected) authed[id] = true;
-      // Also check custom providers stored in auth.json
       try {
         const custom = await api.listCustomKeys();
         for (const id of custom) authed[id] = true;

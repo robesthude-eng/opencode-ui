@@ -16,7 +16,7 @@ import crypto from "crypto";
 import { fileURLToPath } from "url";
 
 // Import modules
-import { loadJson, saveJson, saveAuthJson } from "./db.mjs";
+import { loadJson, saveJson, saveAuthJson, initDb, closeDb } from "./db.mjs";
 import {
   hashPassword,
   verifyPassword,
@@ -31,6 +31,8 @@ import {
   checkCsrf,
 } from "./auth.mjs";
 import { setSecurityHeaders, readBody, checkRateLimit, MAX_BODY_BYTES, MAX_JSON_BODY_BYTES, checkUploadRateLimit } from "./middleware.mjs";
+import { logger } from "./logger.mjs";
+import { checkUserRateLimit } from "./rate-limit.mjs";
 import { parseMultipart } from "./upload.mjs";
 import { getUiDir, isSelfImproveEnabled, toggleSelfImprove, rebuildUi, resetUi, createCheckpoint, listCheckpoints, rollbackToCommit, logAudit } from "./self-improve.mjs";
 import AdmZip from "adm-zip";
@@ -44,7 +46,10 @@ const PORT = process.env.PORT || 3000;
 const DIST = path.join(__dirname, "..", "dist");
 const WORKDIR = process.env.OPENCODE_WORKDIR || "/app/workspace";
 
-// Files
+// SQLite auth store (migrates legacy JSON on first boot)
+initDb(WORKDIR);
+
+// Logical paths — still used as keys; content lives in SQLite for these three
 const USERS_FILE = path.join(WORKDIR, ".users.json");
 const SESSIONS_FILE = path.join(WORKDIR, ".sessions.json");
 const SESSION_TTL_MS = parseInt(process.env.OPENCODE_SESSION_TTL_MS || "", 10) || (7 * 24 * 60 * 60 * 1000);
@@ -382,7 +387,7 @@ const server = http.createServer((req, res) => {
         sessions[token] = { email: cleanEmail, createdAt: Date.now() };
         saveAuthJson(SESSIONS_FILE, sessions);
         resetAuthRateLimit(req);
-        console.log(`[Auth] New user registered: ${cleanEmail} (role: ${role})`);
+        logger.info({ email: cleanEmail, role }, "user registered");
         res.writeHead(200, {
           "Content-Type": "application/json",
           "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS),
@@ -419,7 +424,7 @@ const server = http.createServer((req, res) => {
         sessions[token] = { email: cleanEmail, createdAt: Date.now() };
         saveAuthJson(SESSIONS_FILE, sessions);
         resetAuthRateLimit(req);
-        console.log(`[Auth] User logged in: ${cleanEmail}`);
+        logger.info({ email: cleanEmail }, "user logged in");
         res.writeHead(200, {
           "Content-Type": "application/json",
           "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS),
@@ -490,6 +495,23 @@ const server = http.createServer((req, res) => {
   // CSRF: cookie-authenticated mutating requests must match Origin/Referer
   if (!checkCsrf(req, res)) return;
   const userEmail = getUserEmail(req, SESSIONS_FILE, SESSION_TTL_MS);
+
+  // Per-user rate limit on heavy endpoints
+  const heavy =
+    /\/message$|\/sandbox\/|\/rebuild$|\/reset-ui$|\/git\/rollback$|\/workspace\/upload/.test(
+      urlPath,
+    );
+  if (heavy && req.method !== "GET" && req.method !== "HEAD") {
+    if (
+      !checkUserRateLimit(req, res, userEmail || "anon", {
+        limit: 120,
+        windowMs: 60_000,
+        bucket: "heavy",
+      })
+    ) {
+      return;
+    }
+  }
   const isRequestAdmin = passwordModeAdmin || isAdmin(userEmail, USERS_FILE);
 
   // NOTE: The /api/auth/custom endpoints are left intact for architectural completeness,
@@ -878,10 +900,7 @@ const server = http.createServer((req, res) => {
 
 // WebSocket — always system for single event bus
 server.on("upgrade", (req, socket, head) => {
-  let token = (req.headers["x-auth-token"] || req.headers["authorization"] || "").replace(/^Bearer\s+/i, "").trim();
-  if (!token && req.url.includes("token=")) {
-    try { token = new URL(req.url, "http://localhost").searchParams.get("token") || ""; } catch (e) {}
-  }
+  const token = extractToken(req);
   const sessions = loadJson(SESSIONS_FILE, {});
   const users = loadJson(USERS_FILE, {});
   if (Object.keys(users).length > 0 && (!token || !sessions[token])) {
@@ -928,36 +947,36 @@ setInterval(() => {
     }
     if (mutated) {
       saveJson(SESSIONS_FILE, sessions);
-      console.log("[DB] Periodic session cleanup completed.");
+      logger.info("periodic session cleanup completed");
     }
   } catch (e) {
-    console.error("[DB] Periodic session cleanup failed:", e.message);
+    logger.error({ err: e.message }, "periodic session cleanup failed");
   }
 }, 24 * 60 * 60 * 1000).unref();
 
 // Start
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server listening on :${PORT} (frontend + proxy)`);
-  console.log(`System OpenCode instance on port ${SYSTEM_PORT}`);
-  console.log(`Workdir: ${WORKDIR}`);
+  logger.info(
+    { port: PORT, systemPort: SYSTEM_PORT, workdir: WORKDIR },
+    "server listening",
+  );
   if (AUTH_PASSWORD) {
-    console.log("🔒 Basic Auth protection is ENABLED.");
+    logger.info("basic auth protection enabled");
   } else {
-    console.log("⚠️ No OPENCODE_SERVER_PASSWORD set; server is running unsecured.");
+    logger.warn("no OPENCODE_SERVER_PASSWORD set; unsecured until first user registers");
   }
 });
 
 function shutdown(signal) {
-  console.log(`Received ${signal}. Shutting down...`);
+  logger.info({ signal }, "shutting down");
   server.close(() => {
-    console.log("HTTP server closed.");
+    closeDb();
     systemProxy.close(() => {
-      console.log("Proxy closed.");
       process.exit(0);
     });
   });
   setTimeout(() => {
-    console.error("Forcing shutdown after 10s timeout.");
+    logger.error("forcing shutdown after 10s timeout");
     process.exit(1);
   }, 10000).unref();
 }

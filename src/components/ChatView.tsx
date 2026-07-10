@@ -4,7 +4,6 @@ import MessageItem from "./MessageItem";
 import { ChevronDownIcon, SendIcon } from "./icons";
 import type { Message } from "../api/types";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 const SUGGESTIONS = [
   { title: "Написать код", prompt: "Напиши функцию на Python, которая сортирует список словарей по ключу", icon: "💻" },

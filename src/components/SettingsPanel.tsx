@@ -35,9 +35,6 @@ export default function SettingsPanel() {
 
   const getHeaders = () => ({
     "Content-Type": "application/json",
-    // Cookie is primary (credentials: "include"); header is transitional fallback
-    "X-Auth-Token":
-      typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") || "" : "",
   });
 
   const loadAuditLogs = async () => {

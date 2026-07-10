@@ -36,12 +36,6 @@ export default class ErrorBoundary extends Component<Props, State> {
       await fetch("/api/reset-ui", {
         method: "POST",
         credentials: "include",
-        headers: {
-          "X-Auth-Token":
-            typeof window !== "undefined"
-              ? localStorage.getItem("opencode_auth_token") || ""
-              : "",
-        },
       });
       setTimeout(() => window.location.reload(), 1500);
     } catch {

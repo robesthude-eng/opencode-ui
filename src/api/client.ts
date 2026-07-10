@@ -8,7 +8,6 @@ import type {
 
 export interface ClientConfig {
   baseUrl: string;
-  /** Optional username for merge tests / future use */
   username?: string;
 }
 
@@ -22,19 +21,9 @@ export function getConfig() {
   return config;
 }
 
-/**
- * Auth headers for same-origin requests.
- * Prefer HttpOnly cookie (credentials: "include"). Legacy X-Auth-Token from
- * localStorage is kept as a transition fallback for SSE ?token= and older tabs.
- */
+/** Same-origin JSON headers. Auth is HttpOnly cookie (credentials: include). */
 function headers(): Record<string, string> {
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
-  if (token) {
-    h["X-Auth-Token"] = token;
-  }
-  return h;
+  return { "Content-Type": "application/json" };
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -135,14 +124,9 @@ export const api = {
     for (const { path, file } of files) {
       form.append(path, file);
     }
-    const token =
-      typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
-    const headers: Record<string, string> = {};
-    if (token) headers["X-Auth-Token"] = token;
     const res = await fetch(`${config.baseUrl}/workspace/upload-folder`, {
       method: "POST",
       credentials: "include",
-      headers,
       body: form,
     });
     if (!res.ok) {
@@ -163,9 +147,6 @@ export const api = {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", url);
       xhr.withCredentials = true;
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
-      if (token) xhr.setRequestHeader("X-Auth-Token", token);
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) {
           onProgress(Math.round((e.loaded / e.total) * 100));
@@ -220,15 +201,8 @@ export const api = {
 };
 
 /**
- * URL for the SSE event stream.
- * EventSource cannot set custom headers; cookie is sent automatically same-origin.
- * Legacy ?token= kept if localStorage still has a transitional token.
+ * SSE URL — cookie is sent automatically same-origin by EventSource.
  */
 export function eventUrl(_sessionId?: string | null): string {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") : null;
-  const params = new URLSearchParams();
-  if (token) params.set("token", token);
-  const qs = params.toString();
-  return qs ? `${config.baseUrl}/event?${qs}` : `${config.baseUrl}/event`;
+  return `${config.baseUrl}/event`;
 }

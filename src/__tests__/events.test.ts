@@ -70,13 +70,10 @@ describe("EventStream", () => {
     expect(MockEventSource.instances[0].url).toBe("http://localhost:3000/api/event");
   });
 
-  test("includes token in URL when available", () => {
-    localStorageMock.getItem.mockReturnValue("test-token");
-    
+  test("uses cookie auth — default event URL has no token query", () => {
     const stream = new EventStream();
     stream.connect();
-
-    expect(MockEventSource.instances[0].url).toContain("token=test-token");
+    expect(MockEventSource.instances[0].url).toBe("/api/event");
   });
 
   test("dispatches named events to handlers", () => new Promise<void>((done) => {

@@ -143,7 +143,7 @@ describe("SettingsPanel", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/git/checkpoints",
       expect.objectContaining({
-        headers: expect.objectContaining({ "X-Auth-Token": expect.any(String) }),
+        credentials: "include",
       }),
     );
   });

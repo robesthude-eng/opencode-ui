@@ -117,10 +117,8 @@ describe("client", () => {
     });
   });
 
-  describe("auth headers", () => {
-    test("includes token from localStorage", async () => {
-      localStorage.setItem("opencode_auth_token", "test-token");
-
+  describe("credentials", () => {
+    test("sends credentials include for cookie auth", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -133,9 +131,7 @@ describe("client", () => {
       expect(global.fetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          headers: expect.objectContaining({
-            "X-Auth-Token": "test-token",
-          }),
+          credentials: "include",
         })
       );
     });

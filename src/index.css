@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
+/* Syntax highlighting for markdown code blocks (rehype-highlight) */
+@import "highlight.js/styles/github-dark.css";
+
 @theme {
   --color-background: #0b0b0f;
   --color-foreground: #e6e6e6;

@@ -1,6 +1,8 @@
 # ===== Stage 1: build the React frontend =====
 FROM node:22-slim AS build
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 RUN npm ci
 COPY . .
@@ -14,6 +16,9 @@ WORKDIR /app
 RUN npm install -g opencode-ai@1.17.13
 
 # Copy package.json + install ALL deps (including dev) for rebuilds
+# better-sqlite3 needs build tools for native module
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 RUN npm ci
 

@@ -1,6 +1,7 @@
 import React, { memo, type ReactNode, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 import { ChevronDown, FileText, Image as ImageIcon, Paperclip, FileArchive } from "lucide-react";
 import { Part } from "../api/types";
 import ToolCard from "./ToolCard";
@@ -80,6 +81,7 @@ const KIND_ICONS: Record<string, ReactNode> = {
 const STEP_TYPES = new Set(["step-start", "step-finish", "step-reasoning"]);
 
 const markdownPlugins = [remarkGfm];
+const rehypePlugins = [rehypeHighlight];
 
 const OptimizedPartView = ({
   part,
@@ -92,7 +94,11 @@ const OptimizedPartView = ({
   if (HIDDEN_TYPES.has(p.type ?? "")) return null;
 
   const renderMarkdown = (text: string) => (
-    <ReactMarkdown remarkPlugins={markdownPlugins} components={SAFE_MD_COMPONENTS}>
+    <ReactMarkdown
+      remarkPlugins={markdownPlugins}
+      rehypePlugins={rehypePlugins}
+      components={SAFE_MD_COMPONENTS}
+    >
       {text}
     </ReactMarkdown>
   );
