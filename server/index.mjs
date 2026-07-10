@@ -461,12 +461,45 @@ const server = http.createServer((req, res) => {
   if (urlPath.startsWith("/api/sandbox/")) {
     if (!userEmail) { res.writeHead(401, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Unauthorized" })); return; }
     if (!isRequestAdmin) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Admin access required for sandbox feature." })); return; }
-    import("./sandbox.mjs").then((m) => {
-      m.handleSandboxRequest(req, res, WORKDIR, userEmail);
-    }).catch((err) => {
+    
+    if (urlPath === "/api/sandbox/ast-modify") {
+      import("./ast-modifier.mjs").then((m) => {
+        m.handleASTModifyRequest(req, res, WORKDIR, userEmail);
+      }).catch((err) => {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to load AST modifier module", detail: err.message }));
+      });
+    } else {
+      import("./sandbox.mjs").then((m) => {
+        m.handleSandboxRequest(req, res, WORKDIR, userEmail);
+      }).catch((err) => {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to load sandbox module", detail: err.message }));
+      });
+    }
+    return;
+  }
+
+  // Retrieve persistent audit logs for the Admin Panel
+  if (urlPath === "/api/git/audit-logs" && req.method === "GET") {
+    if (!userEmail) { res.writeHead(401, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Unauthorized" })); return; }
+    if (!isRequestAdmin) { res.writeHead(403, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: "Admin access required" })); return; }
+    
+    const logFile = path.join(WORKDIR, "audit.log");
+    try {
+      if (fs.existsSync(logFile)) {
+        const content = fs.readFileSync(logFile, "utf8");
+        const lines = content.trim().split("\n").slice(-25).reverse(); // last 25 lines, newest first
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(lines));
+      } else {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(["[System] No audit logs recorded yet."]));
+      }
+    } catch (e) {
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Failed to load sandbox module", detail: err.message }));
-    });
+      res.end(JSON.stringify({ error: "Failed to read audit logs", detail: e.message }));
+    }
     return;
   }
 

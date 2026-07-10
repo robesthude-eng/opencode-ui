@@ -38,7 +38,24 @@ function setState(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   setState();
-  global.fetch = vi.fn();
+  
+  // URL-aware resilient fetch mock
+  global.fetch = vi.fn().mockImplementation((url: string) => {
+    if (url.includes("/api/git/checkpoints")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
+    if (url.includes("/api/git/audit-logs")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(["[Test Log] Action occurred"]) });
+    }
+    if (url.includes("/api/git/checkpoint")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: "success", commit: "abc123" }) });
+    }
+    if (url.includes("/api/settings/self-improve")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: "success" }) });
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+  });
+
   (useStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
     (selector?: (s: typeof mockState) => unknown) =>
       selector ? selector(mockState as any) : mockState,
@@ -105,12 +122,6 @@ describe("SettingsPanel", () => {
 
   test("creates checkpoint when button clicked", async () => {
     setState({ selfImproveEnabled: true });
-    (global.fetch as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([]) })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ status: "success", commit: "abc123" }),
-      });
     render(<SettingsPanel />);
     fireEvent.click(screen.getByRole("button", { name: /Создать чекпоинт/i }));
     await waitFor(() => {

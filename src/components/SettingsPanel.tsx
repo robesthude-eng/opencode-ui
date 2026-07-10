@@ -29,6 +29,7 @@ export default function SettingsPanel() {
   const [rebuildStatus, setRebuildStatus] = useState<string | null>(null);
   const [resetStatus, setResetStatus] = useState<string | null>(null);
   const [checkpoints, setCheckpoints] = useState<{ hash: string; subject: string; time: string }[]>([]);
+  const [auditLogs, setAuditLogs] = useState<string[]>([]);
   const [checkpointStatus, setCheckpointStatus] = useState<string | null>(null);
   const [rollbackStatus, setRollbackStatus] = useState<string | null>(null);
 
@@ -36,6 +37,18 @@ export default function SettingsPanel() {
     "Content-Type": "application/json",
     "X-Auth-Token": typeof window !== "undefined" ? localStorage.getItem("opencode_auth_token") || "" : "",
   });
+
+  const loadAuditLogs = async () => {
+    try {
+      const res = await fetch("/api/git/audit-logs", { headers: getHeaders() });
+      if (res.ok) {
+        const logs = await res.json();
+        setAuditLogs(Array.isArray(logs) ? logs : []);
+      }
+    } catch {
+      setAuditLogs([]);
+    }
+  };
 
   const loadCheckpoints = async () => {
     try {
@@ -153,6 +166,7 @@ export default function SettingsPanel() {
     if (open) {
       loadAuth();
       loadCheckpoints();
+      loadAuditLogs();
     }
   }, [open, loadAuth]);
 
@@ -355,6 +369,51 @@ export default function SettingsPanel() {
                             )}
                           </div>
                         ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: "1px solid var(--border-soft)", paddingTop: 12, marginTop: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span>🖥️ Консоль событий (Логи самоулучшения):</span>
+                      <button 
+                        style={{ fontSize: 11, background: "transparent", border: "1px solid var(--border)", borderRadius: 4, cursor: "pointer", color: "var(--text-2)", padding: "2px 6px" }}
+                        onClick={loadAuditLogs}
+                        type="button"
+                      >
+                        Обновить 🔄
+                      </button>
+                    </div>
+                    <div style={{ 
+                      maxHeight: 180, 
+                      overflowY: "auto", 
+                      background: "#1e1e1e", 
+                      color: "#d4d4d4", 
+                      padding: "10px 12px", 
+                      borderRadius: 8, 
+                      fontFamily: "monospace", 
+                      fontSize: "11.5px", 
+                      lineHeight: "1.5", 
+                      display: "flex", 
+                      flexDirection: "column", 
+                      gap: 4,
+                      border: "1px solid var(--border-soft)"
+                    }}>
+                      {auditLogs.length === 0 ? (
+                        <div style={{ color: "#808080", fontStyle: "italic" }}>Лог событий пуст. Выполните действие, чтобы наполнить консоль.</div>
+                      ) : (
+                        auditLogs.map((log, index) => {
+                          let color = "#d4d4d4";
+                          if (log.includes("SUCCESS")) color = "#4ec9b0";
+                          else if (log.includes("FAILED") || log.includes("WARNING")) color = "#f44336";
+                          else if (log.includes("START")) color = "#569cd6";
+                          
+                          return (
+                            <div key={index} style={{ color, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                              {log}
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   </div>
