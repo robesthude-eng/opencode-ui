@@ -23,6 +23,28 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
           return;
         }
 
+        // Security: self-improve sandbox may only touch src/** files
+        // Block package.json, server/**, config files, etc. to prevent RCE via npm install
+        const ALLOWED_PREFIXES = ["src/"];
+        const BLOCKED_EXACT = new Set([
+          "package.json", "package-lock.json",
+          "vite.config.ts", "tsconfig.json", "tsconfig.node.json", "vitest.config.ts",
+          "index.html", "Dockerfile", "railway.json", "server.mjs", "start.sh"
+        ]);
+        for (const f of files) {
+          const p = (f.path || "").replace(/\\/g, "/");
+          if (BLOCKED_EXACT.has(p) || p.startsWith("server/") || p.startsWith(".github/")) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: `Sandbox security: editing '${p}' is blocked. Allowed: src/** only.` }));
+            return;
+          }
+          if (!ALLOWED_PREFIXES.some(pref => p.startsWith(pref))) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: `Sandbox security: path '${p}' is outside allowed scope (src/).` }));
+            return;
+          }
+        }
+
         runSandboxCheck(WORKDIR, files, dryRun, userEmail, (err, result) => {
           if (err) {
             res.writeHead(500, { "Content-Type": "application/json" });
@@ -47,7 +69,7 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
   res.end(JSON.stringify({ error: "Sandbox endpoint not found." }));
 }
 
-function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLeft = 1) {
+function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLeft = 2) {
   const activeUiDir = path.join(workdir, "opencode-ui");
   const sandboxDir = "/tmp/opencode-ui-sandbox";
 
@@ -114,7 +136,7 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
         console.log("[Sandbox] Compilation check failed.");
         
         if (attemptsLeft > 0) {
-          console.log("[Sandbox] Attempting autonomous self-correction using local OpenCode...");
+          console.log(`[Sandbox] Attempting autonomous self-correction (${3-attemptsLeft+1}/2)...`);
           import("./auto-correct.mjs").then((ac) => {
             ac.runAutoCorrection(files, compileErrors, (acErr, correctedFiles) => {
               if (acErr || !correctedFiles) {
@@ -156,10 +178,24 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
 
     console.log("[Sandbox] Compilation check succeeded!");
 
+    // Step 5.5: Run vitest - fail deploy if tests break
+    console.log("[Sandbox] Running vitest...");
+    execFile("npx", ["vitest", "run", "--reporter=dot"], { cwd: sandboxDir, timeout: 30000 }, (testErr, testStdout, testStderr) => {
+      if (testErr) {
+        const testOutput = (testStdout + "\n" + testStderr).trim().split("\n").slice(-30);
+        console.log("[Sandbox] Tests failed.");
+        return callback(null, {
+          status: "tests_failed",
+          message: "TypeScript compiled, but tests failed. Fix failing tests before deploy.",
+          errors: testOutput,
+        });
+      }
+      console.log("[Sandbox] Tests passed!");
+
     if (dryRun) {
       return callback(null, {
         status: "success",
-        message: "Pre-flight compilation check succeeded! Code is clean and safe to deploy.",
+        message: "Pre-flight compilation + tests succeeded! Code is clean and safe to deploy.",
       });
     }
 
@@ -194,10 +230,11 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
       logAudit(workdir, userEmail, "SANDBOX_DEPLOY_SUCCESS", `Code deployed. Git commit: ${commitMessage}`);
       callback(null, {
         status: "success",
-        message: "Pre-flight compilation succeeded and changes were successfully deployed!",
+        message: "Pre-flight compilation + tests succeeded and changes were successfully deployed!",
         commit: commitMessage,
       });
     });
+    }); // end vitest
   });
 });
 }

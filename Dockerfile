@@ -2,10 +2,7 @@
 FROM node:22-slim AS build
 WORKDIR /app
 COPY package*.json ./
-# No package-lock.json is committed offline after the dependency bump — `npm
-# install` resolves and writes a fresh lockfile at build time. If a lockfile
-# is later committed, switch this back to `npm ci` for reproducible builds.
-RUN npm install
+RUN npm ci
 COPY . .
 RUN npm run build
 
@@ -18,7 +15,7 @@ RUN npm install -g opencode-ai@1.17.13
 
 # Copy package.json + install ALL deps (including dev) for rebuilds
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 # Copy built frontend
 COPY --from=build /app/dist ./dist
