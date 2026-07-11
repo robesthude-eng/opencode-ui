@@ -75,7 +75,9 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
           <div
             className={cn(
               "absolute -top-2 right-1 transition-opacity z-10",
-              showUserActions ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+              showUserActions
+                ? "opacity-100"
+                : "opacity-60 group-hover:opacity-100 [@media(hover:none)]:opacity-100",
             )}
           >
             <CopyButton
@@ -145,7 +147,7 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
           })()}
         </div>
         {msgText && (
-          <div className="pt-0.5 opacity-0 transition-opacity hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+          <div className="pt-0.5 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
             <CopyButton text={msgText} title="Copy message" className="h-7 w-7" />
           </div>
         )}

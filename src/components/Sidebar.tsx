@@ -82,9 +82,9 @@ export default function Sidebar() {
       )}
       <aside
         className={cn(
-          "fixed md:static inset-y-0 left-0 z-50 w-[300px] shrink-0",
+          "fixed md:static inset-y-0 left-0 z-50 w-[min(300px,85vw)] shrink-0",
           "bg-card border-r border-border",
-          "flex flex-col h-screen transition-transform duration-200",
+          "flex flex-col h-dvh transition-transform duration-200",
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         )}
       >
@@ -148,12 +148,14 @@ export default function Sidebar() {
                     {s.title || "New chat"}
                   </span>
                   <button
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-background transition text-muted-foreground hover:text-red-400"
+                    type="button"
+                    className="opacity-60 group-hover:opacity-100 [@media(hover:none)]:opacity-100 p-2 -mr-1 rounded-lg hover:bg-background transition text-muted-foreground hover:text-red-400 min-w-[36px] min-h-[36px] flex items-center justify-center"
                     onClick={(e) => {
                       e.stopPropagation();
                       removeSession(s.id);
                     }}
                     title="Delete"
+                    aria-label={`Delete chat ${s.title || "New chat"}`}
                   >
                     <TrashIcon />
                   </button>

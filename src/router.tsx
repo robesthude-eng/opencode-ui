@@ -34,7 +34,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (authChecking) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
+      <div className="flex h-dvh w-dvw items-center justify-center bg-background">
         <div className="text-sm text-muted-foreground">Загрузка OpenCode UI…</div>
       </div>
     );
@@ -75,15 +75,33 @@ function AppShell() {
     loadModels();
     const stream = new EventStream();
     const off = stream.on((e) => applyEvent(e));
-    const poll = setInterval(() => setConnection(stream.status), 400);
-    const healthPoll = setInterval(() => checkConnection(), 15000);
-    const modelsPoll = setInterval(() => loadModels(true), 60000);
+    let poll: ReturnType<typeof setInterval> | null = setInterval(() => setConnection(stream.status), 400);
+    let healthPoll: ReturnType<typeof setInterval> | null = setInterval(() => checkConnection(), 15000);
+    let modelsPoll: ReturnType<typeof setInterval> | null = setInterval(() => loadModels(true), 60000);
+
+    // Pause polling when tab is hidden (mobile background, browser tab switch).
+    // Saves battery and prevents unnecessary network requests.
+    const onVisibility = () => {
+      if (document.hidden) {
+        if (poll) { clearInterval(poll); poll = null; }
+        if (healthPoll) { clearInterval(healthPoll); healthPoll = null; }
+        if (modelsPoll) { clearInterval(modelsPoll); modelsPoll = null; }
+      } else {
+        if (!poll) poll = setInterval(() => setConnection(stream.status), 400);
+        if (!healthPoll) healthPoll = setInterval(() => checkConnection(), 15000);
+        if (!modelsPoll) modelsPoll = setInterval(() => loadModels(true), 60000);
+        checkConnection(); // immediate check on resume
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       off();
       stream.close();
-      clearInterval(poll);
-      clearInterval(healthPoll);
-      clearInterval(modelsPoll);
+      if (poll) clearInterval(poll);
+      if (healthPoll) clearInterval(healthPoll);
+      if (modelsPoll) clearInterval(modelsPoll);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [currentUser, loadSessions, loadModels, applyEvent, setConnection, checkConnection]);
 
@@ -128,7 +146,7 @@ function AppShell() {
   }, [currentID, params.sessionId, navigate]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background">
+    <div className="flex h-dvh w-dvw overflow-hidden bg-background">
       {!sidebarCollapsed && <Sidebar />}
       {sidebarCollapsed && (
         <div className="md:hidden">

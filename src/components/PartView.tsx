@@ -36,7 +36,7 @@ const SAFE_MD_COMPONENTS = {
     }
     return (
       <div className="group/code relative my-2 overflow-hidden rounded-lg bg-black/30 dark:bg-black/40">
-        <div className="absolute right-2 top-2 z-10 opacity-0 transition group-hover/code:opacity-100">
+        <div className="absolute right-2 top-2 z-10 opacity-60 transition group-hover/code:opacity-100 [@media(hover:none)]:opacity-100">
           <CopyButton text={codeText || String(children)} title="Copy code" />
         </div>
         <pre

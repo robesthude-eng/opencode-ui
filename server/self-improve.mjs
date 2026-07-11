@@ -22,6 +22,26 @@ const DIST_VERSIONS_DIR = "/app/dist-versions";
 const DIST_CURRENT_LINK = "/app/dist-current";
 const MAX_DIST_VERSIONS = 3;
 
+// Concurrency lock: prevents rebuild/reset/rollback from running in parallel.
+// Without this, two concurrent operations can race on /app/dist and corrupt it.
+let buildInProgress = false;
+
+/**
+ * Try to acquire the build lock. Returns true if acquired, false if busy.
+ */
+export function tryAcquireBuildLock() {
+  if (buildInProgress) return false;
+  buildInProgress = true;
+  return true;
+}
+
+/**
+ * Release the build lock.
+ */
+export function releaseBuildLock() {
+  buildInProgress = false;
+}
+
 /**
  * Get the UI directory path.
  */
@@ -126,6 +146,10 @@ export function promoteDistSnapshot() {
 /**
  * Instant rollback: restore /app/dist from a previous snapshot (no rebuild).
  * index: 0 = previous, 1 = older, …
+ *
+ * ATOMICITY: Instead of rm + cp (which leaves /app/dist empty for 1-3s
+ * during the copy, causing 404s for concurrent requests), we build to a
+ * temp dir and rename atomically.
  */
 export function instantRollbackDist(index = 0) {
   try {
@@ -140,10 +164,17 @@ export function instantRollbackDist(index = 0) {
     // index 0 = second newest (previous), because [0] is current after promote
     const target = entries[index + 1] || entries[index];
     if (!target) throw new Error("No older dist snapshot to roll back to");
+    if (entries.length < 2 && index === 0) {
+      throw new Error("Only one snapshot exists — nothing to roll back to");
+    }
     const versionDir = path.join(DIST_VERSIONS_DIR, target.name);
-    // Replace live dist
+    // Atomic swap: copy to temp dir, then rename over /app/dist
+    const tempDir = `${BUILD_OUT_DIR}.rollback-tmp`;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.cpSync(versionDir, tempDir, { recursive: true });
+    // Rename is atomic on the same filesystem
     fs.rmSync(BUILD_OUT_DIR, { recursive: true, force: true });
-    fs.cpSync(versionDir, BUILD_OUT_DIR, { recursive: true });
+    fs.renameSync(tempDir, BUILD_OUT_DIR);
     try {
       fs.unlinkSync(DIST_CURRENT_LINK);
     } catch {
@@ -251,9 +282,13 @@ export default defineConfig({
             `<script type="module" crossorigin src="/assets/index-rebuilt-${stamp}.js"></script>`,
           );
           // Find the actual generated JS filename and update the reference
+          // Sort by mtime descending to get the LATEST build, not a stale one
           const assetsDir = path.join(BUILD_OUT_DIR, "assets");
           if (fs.existsSync(assetsDir)) {
-            const newJs = fs.readdirSync(assetsDir).find(f => f.startsWith("index-rebuilt-") && f.endsWith(".js"));
+            const newJs = fs.readdirSync(assetsDir)
+              .filter(f => f.startsWith("index-rebuilt-") && f.endsWith(".js"))
+              .map(f => ({ f, m: fs.statSync(path.join(assetsDir, f)).mtimeMs }))
+              .sort((a, b) => b.m - a.m)[0]?.f;
             if (newJs) {
               html = html.replace(
                 /<script[^>]*src="\/assets\/index-rebuilt-[^"]*\.js"[^>]*><\/script>/,
@@ -272,81 +307,6 @@ export default defineConfig({
         callback(null, `${stdout1 || ""}\n${stdout2 || ""}`);
       },
     );
-  });
-}
-
-/**
- * Fallback build using esbuild directly. Much lower memory (~50MB vs 800MB
- * for vite). Only rebuilds the JS bundle; keeps existing CSS from the last
- * Docker-built /app/dist. Handles .tsx, .ts, .css imports, and JSX automatic
- * runtime. Does NOT handle Tailwind processing or PWA service worker — those
- * remain from the previous build.
- */
-function runEsbuildFallback(cwd, callback) {
-  const entryPoint = path.join(cwd, "src", "main.tsx");
-  if (!fs.existsSync(entryPoint)) {
-    return callback(new Error("src/main.tsx not found"));
-  }
-  // Find existing JS bundle in /app/dist/assets to OVERWRITE.
-  // We overwrite the existing file (so index.html's script tag still works)
-  // and add a ?v=<timestamp> query parameter to bust the browser cache
-  // (server sets Cache-Control: max-age=31536000, immutable on .js files).
-  const assetsDir = path.join(BUILD_OUT_DIR, "assets");
-  let targetJsFile = null;
-  if (fs.existsSync(assetsDir)) {
-    const files = fs.readdirSync(assetsDir);
-    targetJsFile = files.find((f) => /^index-[A-Za-z0-9_-]+\.js$/.test(f) && !f.includes("esbuild"));
-  }
-  if (!targetJsFile) {
-    return callback(new Error("No existing JS bundle found in /app/dist/assets to overwrite"));
-  }
-  const outFile = path.join(assetsDir, targetJsFile);
-  console.log(`[esbuild] Overwriting ${targetJsFile} with esbuild output`);
-
-  const args = [
-    entryPoint,
-    "--bundle",
-    `--outfile=${outFile}`,
-    "--alias:@=./src",
-    "--loader:.tsx=tsx",
-    "--loader:.ts=ts",
-    "--loader:.css=empty",
-    "--loader:.png=file",
-    "--loader:.jpg=file",
-    "--loader:.svg=file",
-    "--loader:.woff=file",
-    "--loader:.woff2=file",
-    "--jsx=automatic",
-    '--define:process.env.NODE_ENV="production"',
-    "--format=esm",
-    "--charset=utf8",
-    "--log-level=info",
-  ];
-
-  execFile("npx", ["esbuild", ...args], { cwd, timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
-    if (err) {
-      return callback(new Error(`esbuild failed: ${stderr || err.message}`));
-    }
-    // Add cache-busting query parameter to the script tag in index.html
-    // AND remove the PWA service worker registration — the SW caches old
-    // assets and prevents the rebuilt bundle from loading.
-    const indexHtml = path.join(BUILD_OUT_DIR, "index.html");
-    if (fs.existsSync(indexHtml)) {
-      let html = fs.readFileSync(indexHtml, "utf8");
-      const stamp = Date.now();
-      // Replace the script tag's src with a cache-busting query param
-      html = html.replace(
-        /(<script[^>]*src="\/assets\/index-[^"]*\.js)(\?[^"]*)?("[^>]*><\/script>)/,
-        `$1?v=${stamp}$3`,
-      );
-      // Remove PWA service worker registration to prevent stale cache
-      html = html.replace(
-        /<script[^>]*id="vite-plugin-pwa:register-sw"[^>]*><\/script>/,
-        "",
-      );
-      fs.writeFileSync(indexHtml, html);
-    }
-    callback(null, stdout + `\n[overwrote ${targetJsFile}, cache-bust?v=${Date.now()}, SW disabled]`);
   });
 }
 

@@ -56,9 +56,11 @@ import {
   logAudit,
   promoteDistSnapshot,
   rebuildUi,
+  releaseBuildLock,
   resetUi,
   rollbackToCommit,
   toggleSelfImprove,
+  tryAcquireBuildLock,
 } from "./self-improve.mjs";
 import { captureServerException, initSentryServer } from "./sentry.mjs";
 import { parseMultipart } from "./upload.mjs";
@@ -679,8 +681,19 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (!isRequestAdmin) {
+      logAudit(WORKDIR, userEmail, "SANDBOX_DENIED", "Non-admin attempted sandbox access");
       res.writeHead(403, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Admin access required for sandbox feature." }));
+      return;
+    }
+    // Sandbox mutates src/ files — require self-improve to be ON, same as
+    // /api/rebuild and /api/git/checkpoint. Without this check, an admin
+    // could bypass the "Self-Improvement OFF = read-only" guarantee via
+    // /api/sandbox/apply.
+    if (!isSelfImproveEnabled(WORKDIR)) {
+      logAudit(WORKDIR, userEmail, "SANDBOX_DENIED", "Self-Improvement is disabled");
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
       return;
     }
 
@@ -786,8 +799,14 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (!checkRateLimit(res)) return;
+    if (!tryAcquireBuildLock()) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress. Wait for it to finish." }));
+      return;
+    }
     logAudit(WORKDIR, userEmail, "REBUILD_UI_START", "Starting UI build process");
     rebuildUi(WORKDIR, (err, stdout) => {
+      releaseBuildLock();
       if (err) {
         logAudit(WORKDIR, userEmail, "REBUILD_UI_FAILED", err.message);
         res.writeHead(500, { "Content-Type": "application/json" });
@@ -807,8 +826,14 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (!checkRateLimit(res)) return;
+    if (!tryAcquireBuildLock()) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress. Wait for it to finish." }));
+      return;
+    }
     logAudit(WORKDIR, userEmail, "RESET_UI_START", "Starting UI factory reset");
     resetUi(WORKDIR, (err, stdout) => {
+      releaseBuildLock();
       if (err) {
         logAudit(WORKDIR, userEmail, "RESET_UI_FAILED", err.message);
         res.writeHead(500, { "Content-Type": "application/json" });
@@ -959,17 +984,24 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (!checkRateLimit(res)) return;
+    if (!tryAcquireBuildLock()) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress. Wait for it to finish." }));
+      return;
+    }
     readBody(req, MAX_JSON_BODY_BYTES)
       .then((buf) => {
         try {
           const { hash } = JSON.parse(buf.toString("utf8") || "{}");
           if (!hash || !/^[a-fA-F0-9]{4,40}$/.test(hash)) {
+            releaseBuildLock();
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Invalid commit hash format." }));
             return;
           }
           logAudit(WORKDIR, userEmail, "ROLLBACK_START", `Rolling back UI to commit: ${hash}`);
           rollbackToCommit(WORKDIR, hash, (err, result) => {
+            releaseBuildLock();
             if (err) {
               logAudit(WORKDIR, userEmail, "ROLLBACK_FAILED", `Hash ${hash}: ${err.message}`);
               res.writeHead(500, { "Content-Type": "application/json" });
@@ -986,11 +1018,13 @@ const server = http.createServer((req, res) => {
             }
           });
         } catch (_e) {
+          releaseBuildLock();
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Invalid JSON" }));
         }
       })
       .catch(() => {
+        releaseBuildLock();
         res.writeHead(413, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Request body too large" }));
       });

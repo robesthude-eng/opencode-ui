@@ -43,18 +43,27 @@ export default function ChatView() {
     setIsScrolledUp(false);
   };
 
+  // Throttle onScroll via requestAnimationFrame — without this, streaming
+  // re-renders fire scroll events on every token, creating a feedback loop
+  // (scroll → setState → re-render → scroll) that causes jank on mobile.
+  const scrollRafRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
   const onScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const isUp = el.scrollHeight - el.scrollTop - el.clientHeight >= 80;
-    atBottomRef.current = !isUp;
-    if (isScrolledUp !== isUp) setIsScrolledUp(isUp);
+    if (scrollRafRef.current) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = scrollRef.current;
+      if (!el) return;
+      const isUp = el.scrollHeight - el.scrollTop - el.clientHeight >= 80;
+      atBottomRef.current = !isUp;
+      if (isScrolledUp !== isUp) setIsScrolledUp(isUp);
+    });
   };
 
   const showScrollBtn = isScrolledUp && messages && messages.length > 0;
 
   useEffect(() => {
-    if (atBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (atBottomRef.current) bottomRef.current?.scrollIntoView({ behavior: "auto" });
+    return () => { if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current); };
   }, []);
 
   if (!currentID) {

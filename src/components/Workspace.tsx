@@ -441,7 +441,7 @@ export default function Workspace() {
         className={cn(
           "z-50 flex flex-col border-border bg-card",
           // Mobile: full-screen sheet from right
-          "fixed inset-y-0 right-0 w-full max-w-full border-l shadow-2xl md:static md:h-screen md:w-[300px] md:max-w-[300px] md:shrink-0 md:shadow-none",
+          "fixed inset-y-0 right-0 w-full max-w-full border-l shadow-2xl md:static md:h-dvh md:w-[300px] md:max-w-[300px] md:shrink-0 md:shadow-none",
         )}
       >
         <header className="flex items-center justify-between border-b border-border px-3 py-3 safe-top">

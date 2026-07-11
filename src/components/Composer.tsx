@@ -95,7 +95,7 @@ export default function Composer() {
     <div
       className={cn(
         "shrink-0 border-t border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60",
-        "px-3 md:px-6 pt-2 pb-2 md:pt-3 md:pb-4",
+        "px-3 md:px-6 pt-2 pb-2 md:pt-3 md:pb-4 safe-bottom",
         dragOver && "ring-2 ring-primary ring-inset bg-primary/5",
       )}
       onDragOver={(e) => {
