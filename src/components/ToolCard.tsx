@@ -95,6 +95,7 @@ function parseQuestions(input: unknown): QuestionItem[] {
   if (!input || typeof input !== "object") return [];
   const obj = input as Record<string, unknown>;
   if (Array.isArray(obj.questions)) {
+    // biome-ignore lint/suspicious/noExplicitAny: question structure is dynamic
     return obj.questions.map((q: any) => ({
       question: q.question || q.text || "",
       header: q.header || q.title || "",

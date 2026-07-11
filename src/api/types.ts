@@ -14,6 +14,12 @@ export interface SessionInfo {
 
 export type SessionStatus = "idle" | "busy" | "retry" | "error" | string;
 
+/** Status can be a plain string or an object with .type — normalize at use site. */
+export interface SessionStatusObject {
+  type: SessionStatus;
+  [k: string]: unknown;
+}
+
 export interface BasePart {
   id?: string;
 }
@@ -26,6 +32,19 @@ export interface TextPart extends BasePart {
 export interface ReasoningPart extends BasePart {
   type: "reasoning";
   text: string;
+}
+
+export interface AttachmentPart extends BasePart {
+  type: "attachment";
+  name: string;
+  size: number;
+  kind: "image" | "zip" | "pdf" | "text" | string;
+  path?: string;
+  dataUrl?: string;
+  textPart?: Record<string, unknown>;
+  part?: Record<string, unknown>;
+  uploadedPath?: string;
+  entryCount?: number;
 }
 
 export interface ToolOutput {
@@ -54,7 +73,12 @@ export interface ToolState {
   time?: { start?: number; end?: number };
 }
 
-export type Part = TextPart | ReasoningPart | ToolPart | (BasePart & Record<string, unknown>);
+export type Part =
+  | TextPart
+  | ReasoningPart
+  | ToolPart
+  | AttachmentPart
+  | (BasePart & Record<string, unknown>);
 
 export interface Message {
   id: string;
@@ -63,12 +87,16 @@ export interface Message {
   sessionID?: string;
   time?: { created: number; completed?: number };
   info?: {
+    id?: string;
     role?: string;
     model?: string;
+    finish?: "stop" | "error" | "length" | "tool_call" | string;
     tokens?: { input?: number; output?: number };
-    error?: { message?: string; name?: string };
+    time?: { created?: number; completed?: number };
+    error?: { message?: string; name?: string; data?: { message?: string } };
     structured_output?: unknown;
   };
+  // Allow legacy/extra fields without forcing `any` casts in consumer code.
   [k: string]: unknown;
 }
 

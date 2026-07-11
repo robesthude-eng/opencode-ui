@@ -55,6 +55,7 @@ import {
   listDistSnapshots,
   logAudit,
   promoteDistSnapshot,
+  readAuditLog,
   rebuildUi,
   releaseBuildLock,
   resetUi,
@@ -734,17 +735,15 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    const logFile = path.join(WORKDIR, "audit.log");
     try {
-      if (fs.existsSync(logFile)) {
-        const content = fs.readFileSync(logFile, "utf8");
-        const lines = content.trim().split("\n").slice(-25).reverse(); // last 25 lines, newest first
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(lines));
-      } else {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(["[System] No audit logs recorded yet."]));
-      }
+      const entries = readAuditLog(WORKDIR, 100);
+      // Format entries for the frontend — keep backward compat with plain-text display
+      const formatted = entries.map((e) => {
+        if (e.raw) return e.raw; // legacy format
+        return `[${e.timestamp}] [User: ${e.user}] [Action: ${e.action}] ${e.details || ""}`;
+      });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(formatted.length > 0 ? formatted : ["[System] No audit logs recorded yet."]));
     } catch (e) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to read audit logs", detail: e.message }));

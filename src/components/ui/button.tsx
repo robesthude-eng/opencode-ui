@@ -19,7 +19,8 @@ const buttonVariants = cva(
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-lg px-3 text-xs",
         lg: "h-10 rounded-xl px-6",
-        icon: "h-9 w-9",
+        icon: "h-9 w-9 md:h-9 md:w-9", // 36px base; ensure min 44px on touch via min-w/min-h below
+        // 'icon' buttons get min touch target via CSS — see index.css .min-touch
       },
     },
     defaultVariants: {

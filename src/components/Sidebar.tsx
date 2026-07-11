@@ -125,7 +125,7 @@ export default function Sidebar() {
             {sessions.map((s) => {
               const isActive = s.id === currentID;
               const sStatus =
-                typeof status[s.id] === "string" ? status[s.id] : (status[s.id] as any)?.type;
+                typeof status[s.id] === "string" ? status[s.id] : (status[s.id] as { type?: string })?.type;
               const busy = sStatus === "busy";
               return (
                 <div

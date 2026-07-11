@@ -1,4 +1,5 @@
 import { api } from "../../api/client";
+import type { SessionInfo, SessionStatus } from "../../api/types";
 import { normalizeMessages } from "../helpers";
 import type { SessionsSlice, Slice } from "../types";
 import { byUpdated } from "../types";
@@ -58,17 +59,17 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
 
     // Optimistic creation — show new chat instantly like Claude, without waiting for backend
     const tempId = `tmp_${Date.now()}`;
-    const tempSession = {
+    const tempSession: SessionInfo = {
       id: tempId,
       title: "New chat",
       time: { created: Date.now(), updated: Date.now() },
-    } as any;
+    };
 
     set((s) => ({
       sessions: [tempSession, ...s.sessions].sort(byUpdated),
       currentID: tempId,
       messages: { ...s.messages, [tempId]: [] },
-      status: { ...s.status, [tempId]: "idle" as any },
+      status: { ...s.status, [tempId]: "idle" as SessionStatus },
     }));
 
     try {

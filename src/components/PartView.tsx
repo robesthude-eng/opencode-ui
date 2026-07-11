@@ -5,7 +5,7 @@ import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { formatSize } from "../api/files";
-import type { Part } from "../api/types";
+import type { Part, ToolPart} from "../api/types";
 import CopyButton from "./CopyButton";
 import ToolCard from "./ToolCard";
 
@@ -164,7 +164,7 @@ const OptimizedPartView = ({
         </details>
       );
     case "tool":
-      return <ToolCard part={part as any} />;
+      return <ToolCard part={part as ToolPart} />;
     default:
       if (!p.text) return null;
       return (

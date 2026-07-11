@@ -9,7 +9,7 @@ function getState(part: ToolPart): string {
   const s = part.state;
   if (typeof s === "string") return s === "pending" ? "running" : s;
   if (s && typeof s === "object") {
-    const status = (s as any).status ?? "running";
+    const status = (s as { status?: string }).status ?? "running";
     return status === "pending" ? "running" : status;
   }
   return "running";

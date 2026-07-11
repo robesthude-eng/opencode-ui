@@ -69,6 +69,16 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  /* Touch devices: ensure icon buttons meet 44px minimum (Apple HIG).
+     Desktop keeps 36px for compact density. */
+  @media (hover: none) and (pointer: coarse) {
+    button.h-9.w-9,
+    button[class*="h-9"][class*="w-9"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+
   /* Light theme tokens (set via [data-theme="light"] on <html>) */
   [data-theme="light"] {
     --color-background: #ffffff;

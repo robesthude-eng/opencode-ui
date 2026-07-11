@@ -9,7 +9,7 @@ import { CloseIcon, PaperclipIcon, SendIcon, StopIcon } from "./icons";
 export default function Composer() {
   const currentID = useStore((s) => s.currentID);
   const rawStatus = useStore((s) => (currentID ? s.status[currentID] : undefined));
-  const status = typeof rawStatus === "string" ? rawStatus : (rawStatus as any)?.type || "idle";
+  const status = typeof rawStatus === "string" ? rawStatus : (rawStatus as unknown as { type?: string })?.type || "idle";
   const send = useStore((s) => s.send);
   const abort = useStore((s) => s.abort);
   const attachments = useStore((s) => s.attachments);
@@ -64,18 +64,18 @@ export default function Composer() {
         });
         setUploadedPaths((p) => ({ ...p, [name]: result.path }));
         const processed = await processFile(file);
-        (processed as any).uploadedPath = result.path;
+        processed.uploadedPath = result.path;
         if (typeof result.entryCount === "number") {
-          (processed as any).entryCount = result.entryCount;
+          processed.entryCount = result.entryCount;
         }
         addAttachments([processed]);
-      } catch (err: any) {
+      } catch (err: unknown) {
         setUploadProgress((p) => {
           const next = { ...p };
           delete next[name];
           return next;
         });
-        const msg = err?.message || String(err);
+        const msg = (err as Error)?.message || String(err);
         setUploadError(msg);
         setTimeout(() => setUploadError(null), 6000);
       }
@@ -140,7 +140,7 @@ export default function Composer() {
                                 : "📎"}
                         </span>
                       )}
-                      {(a as any).uploadedPath && (
+                      {a.uploadedPath && (
                         <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[9px] text-white">
                           ✓
                         </span>

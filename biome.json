@@ -29,7 +29,7 @@
       "preset": "recommended",
       "a11y": {
         "noSvgWithoutTitle": "off",
-        "useButtonType": "off",
+        "useButtonType": "warn",
         "useKeyWithClickEvents": "off",
         "noLabelWithoutControl": "off",
         "useSemanticElements": "off",
@@ -48,16 +48,16 @@
         "noUnusedTemplateLiteral": "off"
       },
       "suspicious": {
-        "noExplicitAny": "off",
+        "noExplicitAny": "warn",
         "noArrayIndexKey": "off",
         "noAssignInExpressions": "off",
         "noDocumentCookie": "off",
         "useIterableCallbackReturn": "off"
       },
       "correctness": {
-        "useExhaustiveDependencies": "off",
-        "noUnusedVariables": "off",
-        "noUnusedImports": "off",
+        "useExhaustiveDependencies": "warn",
+        "noUnusedVariables": "warn",
+        "noUnusedImports": "warn",
         "noInvalidUseBeforeDeclaration": "off",
         "noInvalidPositionAtImportRule": "off"
       },

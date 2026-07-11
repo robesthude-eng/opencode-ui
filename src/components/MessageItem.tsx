@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { Message, Part, ToolPart } from "../api/types";
+import type { Message, Part, ToolOutput, ToolPart } from "../api/types";
 import CopyButton from "./CopyButton";
 import PartView from "./PartView";
 import ToolGroup from "./ToolGroup";
@@ -9,11 +9,14 @@ function getMessageText(message: Message): string {
   if (!message.parts) return "";
   return message.parts
     .map((p) => {
-      if (p.type === "text" || p.type === "reasoning") return (p as any).text || "";
+      if ((p.type === "text" || p.type === "reasoning") && "text" in p) return p.text || "";
       if (p.type === "tool") {
-        const out = (p as any).state?.output ?? (p as any).output;
+        const toolP = p as ToolPart;
+        const state = typeof toolP.state === "object" ? toolP.state : undefined;
+        const stateOut = state?.output;
+        const out: unknown = typeof stateOut === "string" ? stateOut : (stateOut as ToolOutput | undefined) ?? toolP.output;
         if (typeof out === "string") return out;
-        if (out && typeof out === "object" && out.text) return out.text;
+        if (out && typeof out === "object" && "text" in out && out.text) return out.text;
       }
       return "";
     })
@@ -110,7 +113,7 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
         {message.info?.error && (
           <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">
             {message.info.error.message ||
-              (message.info.error as any).data?.message ||
+              message.info.error?.data?.message ||
               (typeof message.info.error === "string"
                 ? message.info.error
                 : "Ошибка API: проверьте тариф модели или ключ")}
@@ -118,8 +121,8 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
         )}
         <div className="text-[14.5px] leading-[1.55] text-foreground/95">
           {(() => {
-            const attParts = items.filter((item) => (item as any).type === "attachment");
-            const otherParts = items.filter((item) => (item as any).type !== "attachment");
+            const attParts = items.filter((item) => "type" in item && item.type === "attachment");
+            const otherParts = items.filter((item) => !("type" in item) || item.type !== "attachment");
             return (
               <>
                 {attParts.length > 0 && (
@@ -131,7 +134,7 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
                 )}
                 {otherParts.map((item, i) => {
                   const g = item as ToolGroupData;
-                  if ((g as any).kind === "group") {
+                  if ("kind" in g && g.kind === "group") {
                     return <ToolGroup key={i} tool={g.tool} parts={g.parts} />;
                   }
                   return (

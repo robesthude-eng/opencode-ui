@@ -28,7 +28,7 @@ export default function ChatView() {
   const currentID = useStore((s) => s.currentID);
   const messages = useStore((s) => (currentID ? s.messages[currentID] : undefined));
   const rawStatus = useStore((s) => (currentID ? s.status[currentID] : undefined));
-  const status = typeof rawStatus === "string" ? rawStatus : (rawStatus as any)?.type || "idle";
+  const status = typeof rawStatus === "string" ? rawStatus : (rawStatus as unknown as { type?: string })?.type || "idle";
   const error = useStore((s) => s.error);
   const send = useStore((s) => s.send);
   const bottomRef = useRef<HTMLDivElement>(null);

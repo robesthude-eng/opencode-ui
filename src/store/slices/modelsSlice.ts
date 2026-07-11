@@ -36,7 +36,7 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
           if (p.models) {
             for (const [modelID, m] of Object.entries(p.models)) {
               if (!entries.some((e) => e.modelID === modelID)) {
-                const costObj = (m as any).cost;
+                const costObj = (m as { cost?: { input?: number; output?: number } }).cost;
                 const isFree =
                   !costObj ||
                   (costObj.input === 0 && costObj.output === 0) ||
@@ -47,7 +47,7 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
                     providerID: ZEN_PROVIDER_ID,
                     providerName: "OpenCode Zen",
                     modelID,
-                    modelName: (m as any).name || modelID,
+                    modelName: (m as { name?: string }).name || modelID,
                     free: true,
                   });
                 }
@@ -79,7 +79,9 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
       );
       const defaultEntry = entries.find((e) => def[e.providerID] === e.modelID);
       const first = deepseekV4 ?? defaultEntry ?? entries[0];
-      selected = { providerID: first.providerID, modelID: first.modelID };
+      if (first) {
+        selected = { providerID: first.providerID, modelID: first.modelID };
+      }
     }
     set({ models: entries, modelsLoaded: true, selectedModel: selected });
   },

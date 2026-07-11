@@ -124,7 +124,7 @@ export default function Workspace() {
   const loadGen = useRef(0);
 
   const filterNodes = useCallback(
-    (nodes: any[]) => {
+    (nodes: { path: string; type?: string; isDirectory?: boolean }[]) => {
       if (!Array.isArray(nodes)) return [];
       const mySessionIds = new Set(useStore.getState().sessions.map((s) => s.id));
       return nodes.filter((n) => {
@@ -172,7 +172,7 @@ export default function Workspace() {
         return Array.isArray(nodes)
           ? toTree(filterNodes(nodes) as { path: string; type?: string; isDirectory?: boolean }[])
           : [];
-      } catch (e: any) {
+      } catch (e: unknown) {
         throw e instanceof Error ? e : new Error(String(e));
       }
     },
@@ -193,9 +193,9 @@ export default function Workspace() {
       const t = await loadDir(".");
       if (gen !== loadGen.current) return;
       setTree(t);
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (gen !== loadGen.current) return;
-      setError(e?.message || "Не удалось загрузить файлы");
+      setError((e as Error)?.message || "Не удалось загрузить файлы");
       setTree([]);
     } finally {
       if (gen === loadGen.current) setLoading(false);
@@ -251,9 +251,9 @@ export default function Workspace() {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = true;
-    (input as any).webkitdirectory = true;
-    (input as any).directory = true;
-    (input as any).mozdirectory = true;
+    input.setAttribute('webkitdirectory', '');
+    input.setAttribute('directory', '');
+    input.setAttribute('mozdirectory', '');
     input.style.display = "none";
     document.body.appendChild(input);
     folderInputRef.current = input;
@@ -274,7 +274,7 @@ export default function Workspace() {
       const files: { path: string; file: File }[] = [];
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        const relPath = (file as any).webkitRelativePath || file.name;
+        const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
         files.push({ path: relPath, file });
       }
       setUploading(true);
@@ -291,8 +291,8 @@ export default function Workspace() {
         setUploadMsg(`Done! ${files.length} file(s) uploaded.`);
         void refresh();
         setTimeout(() => setUploadMsg(null), 3000);
-      } catch (err: any) {
-        setUploadMsg(`Error: ${err.message}`);
+      } catch (err: unknown) {
+        setUploadMsg(`Error: ${(err as Error).message}`);
         setTimeout(() => setUploadMsg(null), 5000);
       } finally {
         setUploading(false);

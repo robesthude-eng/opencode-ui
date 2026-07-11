@@ -1,4 +1,4 @@
-import type { Message, Part } from "../api/types";
+import type { Message, Part, TextPart } from "../api/types";
 
 export function cleanSysText(t: string): string {
   if (!t || typeof t !== "string") return t || "";
@@ -8,15 +8,25 @@ export function cleanSysText(t: string): string {
     .trim();
 }
 
+/** Type guard: is this Part a TextPart (has .text string)? */
+function isTextPart(p: Part): p is TextPart {
+  return p.type === "text" && typeof (p as TextPart).text === "string";
+}
+
+/** Type guard: does this Part have an `id` field? */
+function hasId(p: Part): p is Part & { id: string } {
+  return typeof (p as { id?: unknown }).id === "string";
+}
+
 // Normalize a message from the API: ensure `id` and `role` are at the top level.
 // In opencode 1.17.x, `id` is inside `info.id` and `role` is inside `info.role`.
 export function normalizeMessage(msg: Message): Message {
-  const info = msg.info as Record<string, unknown> | undefined;
-  const id = msg.id || (info?.id as string) || "";
-  const role = msg.role || (info?.role as Message["role"]) || "assistant";
+  const info = msg.info;
+  const id = msg.id || info?.id || "";
+  const role: Message["role"] = msg.role || (info?.role as Message["role"] | undefined) || "assistant";
   const parts = (msg.parts || []).map((p) => {
-    if (role === "user" && p.type === "text" && typeof (p as any).text === "string") {
-      return { ...p, text: cleanSysText((p as any).text) };
+    if (role === "user" && isTextPart(p)) {
+      return { ...p, text: cleanSysText(p.text) };
     }
     return p;
   });
@@ -35,9 +45,11 @@ export function upsertMessage(messages: Message[], msg: Message): Message[] {
       if (localIdx !== -1) {
         const copy = messages.slice();
         const existingLocal = copy[localIdx];
-        const parts = msg.parts && msg.parts.length > 0 ? msg.parts : existingLocal.parts;
-        copy[localIdx] = { ...msg, parts };
-        return copy;
+        if (existingLocal) {
+          const parts = msg.parts && msg.parts.length > 0 ? msg.parts : existingLocal.parts;
+          copy[localIdx] = { ...msg, parts };
+          return copy;
+        }
       }
     }
     return [...messages, { ...msg, parts: msg.parts ?? [] }];
@@ -46,10 +58,11 @@ export function upsertMessage(messages: Message[], msg: Message): Message[] {
   // Preserve existing parts: an info-only update (e.g. final tokens at end of
   // turn) must NOT blank out the accumulated text/tool parts.
   const existing = copy[idx];
+  if (!existing) return [...messages, { ...msg, parts: msg.parts ?? [] }];
   const incoming = msg as Message;
   const parts = incoming.parts && incoming.parts.length > 0 ? incoming.parts : existing.parts;
   const { parts: _omit, ...rest } = msg;
-  copy[idx] = { ...existing, ...rest, parts };
+  copy[idx] = { ...existing, ...rest, parts } as Message;
   if (msg.role === "user" && !msg.id.startsWith("local_")) {
     return copy.filter((m) => m.id === msg.id || !m.id.startsWith("local_"));
   }
@@ -65,10 +78,7 @@ export function patchPart(messages: Message[], messageID: string, part: Part): M
     );
     if (localIdx !== -1) {
       const copy = messages.slice();
-      const cleanedPart =
-        part.type === "text" && typeof (part as any).text === "string"
-          ? { ...part, text: cleanSysText((part as any).text) }
-          : part;
+      const cleanedPart = isTextPart(part) ? { ...part, text: cleanSysText(part.text) } : part;
       copy[localIdx] = { ...copy[localIdx], id: targetID, parts: [cleanedPart] };
       return copy;
     }
@@ -77,31 +87,32 @@ export function patchPart(messages: Message[], messageID: string, part: Part): M
   return messages.map((m) => {
     if (m.id !== targetID) return m;
     const cleanedPart =
-      m.role === "user" && part.type === "text" && typeof (part as any).text === "string"
-        ? { ...part, text: cleanSysText((part as any).text) }
-        : part;
-    const pid = (cleanedPart as { id?: string }).id;
-    let idx = pid ? m.parts.findIndex((p) => (p as { id?: string }).id === pid) : -1;
+      m.role === "user" && isTextPart(part) ? { ...part, text: cleanSysText(part.text) } : part;
+    const pid = hasId(cleanedPart) ? cleanedPart.id : undefined;
+    let idx = pid ? m.parts.findIndex((p) => hasId(p) && p.id === pid) : -1;
     if (idx === -1) {
       idx = m.parts.findIndex(
         (p) =>
-          !(p as { id?: string }).id &&
+          !hasId(p) &&
           p.type === cleanedPart.type &&
           (m.role === "user" ||
-            (p as { text?: string }).text === (cleanedPart as { text?: string }).text),
+            (isTextPart(p) && isTextPart(cleanedPart) && p.text === cleanedPart.text)),
       );
       if (
         idx === -1 &&
         m.parts.length === 1 &&
+        m.parts[0] !== undefined &&
         m.parts[0].type === cleanedPart.type &&
-        !(m.parts[0] as { id?: string }).id
+        !hasId(m.parts[0])
       ) {
         idx = 0;
       }
     }
-    if (idx === -1) return { ...m, parts: [...m.parts, cleanedPart] };
+    if (idx === -1 || idx >= m.parts.length) return { ...m, parts: [...m.parts, cleanedPart] };
     const parts = m.parts.slice();
-    parts[idx] = { ...parts[idx], ...cleanedPart };
+    const target = parts[idx];
+    if (target === undefined) return { ...m, parts: [...m.parts, cleanedPart] };
+    parts[idx] = { ...target, ...cleanedPart };
     return { ...m, parts };
   });
 }
@@ -129,7 +140,13 @@ export function patchPartDelta(
       return { ...m, parts: [...m.parts, newPart as Part] };
     }
     const parts = m.parts.slice();
-    const target = { ...parts[idx] } as Record<string, unknown>;
+    const existingPart = parts[idx];
+    if (existingPart === undefined) {
+      const newPart: Record<string, unknown> = { id: partID, type: "text" };
+      newPart[field] = typeof delta === "string" ? delta : delta;
+      return { ...m, parts: [...m.parts, newPart as Part] };
+    }
+    const target = { ...existingPart } as Record<string, unknown>;
     const cur = target[field];
     if (typeof cur === "string" || typeof delta === "string") {
       target[field] = (typeof cur === "string" ? cur : "") + String(delta);

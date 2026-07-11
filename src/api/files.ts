@@ -12,6 +12,10 @@ export interface ProcessedFile {
   textPart?: { type: "text"; text: string };
   // Raw data URL for preview:
   dataUrl?: string;
+  // Server-assigned path after upload (set by api.uploadFile):
+  uploadedPath?: string;
+  // For zip archives: number of entries inside (set by api.uploadFile):
+  entryCount?: number;
 }
 
 const TEXT_EXTS = new Set([

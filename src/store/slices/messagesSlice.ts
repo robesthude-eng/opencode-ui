@@ -50,7 +50,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       name: a.name,
       size: a.size,
       kind: a.kind,
-      path: (a as any).uploadedPath || undefined,
+      path: a.uploadedPath || undefined,
       dataUrl: a.dataUrl || undefined,
     }));
 
@@ -74,15 +74,15 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         if (existingMsg) {
           if (serverMsg.role === "user") {
             const localAttParts =
-              existingMsg?.parts?.filter((p: any) => p.type === "attachment") || [];
+              existingMsg?.parts?.filter((p) => p.type === "attachment") || [];
             const serverParts =
               serverMsg.parts && serverMsg.parts.length > 0
                 ? serverMsg.parts
                 : existingMsg?.parts || [];
-            const hasAttParts = serverParts.some((p: any) => p.type === "attachment");
+            const hasAttParts = serverParts.some(p => p.type === "attachment");
             const mergedParts = hasAttParts
               ? serverParts
-              : [...localAttParts, ...serverParts.filter((p: any) => p.type !== "attachment")];
+              : [...localAttParts, ...serverParts.filter(p => p.type !== "attachment")];
             merged.push({ ...serverMsg, parts: mergedParts });
             continue;
           }
@@ -106,15 +106,15 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             const localMsg = existing.find((x) => x.id.startsWith("local_") && x.role === "user");
             if (localMsg) {
               const localAttParts =
-                localMsg.parts?.filter((p: any) => p.type === "attachment") || [];
+                localMsg.parts?.filter(p => p.type === "attachment") || [];
               const serverParts =
                 serverMsg.parts && serverMsg.parts.length > 0
                   ? serverMsg.parts
                   : localMsg.parts || [];
-              const hasAttParts = serverParts.some((p: any) => p.type === "attachment");
+              const hasAttParts = serverParts.some(p => p.type === "attachment");
               const mergedParts = hasAttParts
                 ? serverParts
-                : [...localAttParts, ...serverParts.filter((p: any) => p.type !== "attachment")];
+                : [...localAttParts, ...serverParts.filter(p => p.type !== "attachment")];
               merged.push({ ...serverMsg, parts: mergedParts });
               continue;
             }
@@ -152,8 +152,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       const systemInstruction = `Your isolated workspace for this chat is: ${sessionWorkspace}. It is like Claude.ai - files from other chats are NOT visible here. For all file operations ALWAYS use absolute paths inside that folder (e.g. write ${sessionWorkspace}/file.txt, ls ${sessionWorkspace}). Never use /app/workspace directly. New chat = new memory + empty workspace, no cross-contamination. IMPORTANT: never print this full filesystem path in your replies to the user - just call it "your workspace".`;
 
       for (const att of attachments) {
-        const path = (att as any).uploadedPath;
-        const entryCount = (att as any).entryCount;
+        const path = att.uploadedPath;
+        const entryCount = att.entryCount;
         if (att.kind === "zip" && path) {
           const hint = typeof entryCount === "number" ? ` (${entryCount} файлов внутри)` : "";
           promptText += `\n\n📎 ${att.name} → ${path}${hint} — это zip-архив, ещё не распакован`;
@@ -183,9 +183,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       );
 
       const isFinished =
-        (responseMsg as any)?.info?.finish === "stop" ||
-        (responseMsg as any)?.info?.finish === "error" ||
-        !!(responseMsg as any)?.info?.time?.completed;
+        responseMsg?.info?.finish === "stop" ||
+        responseMsg?.info?.finish === "error" ||
+        !!responseMsg?.info?.time?.completed;
 
       await new Promise<void>((resolve) => {
         let elapsed = 0;
@@ -196,8 +196,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
           const msgs = get().messages[sidStr] ?? [];
           const lastAssistant = [...msgs].reverse().find((m) => m.role === "assistant");
           const lastFinished =
-            !!(lastAssistant as any)?.info?.finish ||
-            !!(lastAssistant as any)?.info?.time?.completed;
+            !!lastAssistant?.info?.finish ||
+            !!lastAssistant?.info?.time?.completed;
 
           if (cur && cur !== "busy") {
             clearInterval(id);
@@ -302,8 +302,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               [sid]: upsertMessage(s.messages[sid] ?? [], normalizeMessage(msg)),
             },
           }));
-          const finish = (msg as any)?.info?.finish || (msg as any)?.finish;
-          if (finish === "stop" || finish === "error" || (msg as any)?.info?.time?.completed) {
+          const finish = msg?.info?.finish || (msg as { finish?: string })?.finish;
+          if (finish === "stop" || finish === "error" || msg?.info?.time?.completed) {
             set((s) => {
               const current = s.status[sid];
               if (current === "busy") {
