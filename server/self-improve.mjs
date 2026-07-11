@@ -180,18 +180,19 @@ export function listDistSnapshots() {
  * All arguments are hardcoded constants — no user input reaches the command.
  */
 function runBuild(cwd, callback) {
-  // Railway trial has 512MB RAM. vite production build of 2656 modules needs
-  // ~800MB and gets OOM-killed.
-  // Strategy: try vite with a MINIMAL config (no PWA, no react-compiler)
-  // to reduce memory. If that also fails, fall back to esbuild.
+  // Railway trial has 512MB RAM. vite build of 2656 modules needs ~800MB
+  // and gets OOM-killed. We try a minimal config (no PWA/react-compiler)
+  // to reduce memory. If it still fails, we return an error and keep the
+  // existing Docker-built dist intact — the user should git push for a
+  // proper rebuild (Railway's Docker builder has more RAM).
+  // DO NOT fall back to esbuild — its ESM output loads but React never
+  // mounts (blank page), which is worse than keeping the old dist.
   const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=4096" };
   execFile("npm", ["install", "--silent"], { cwd, timeout: 120000, env }, (err1, stdout1, stderr1) => {
     if (err1) {
       return callback(new Error(`npm install failed: ${stderr1 || err1.message}`));
     }
-    // Create a minimal vite config that disables PWA and react-compiler
-    // (the two biggest memory consumers). Tailwind is kept because it's
-    // needed for CSS.
+    // Create a minimal vite config (no PWA, no react-compiler) to save memory
     const minimalConfig = `
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
@@ -206,9 +207,10 @@ export default defineConfig({
     emptyOutDir: false,
     minify: false,
     sourcemap: false,
+    chunkSizeWarningLimit: 3000,
     rollupOptions: {
       output: {
-        entryFileNames: "assets/index-rebuilt.js",
+        entryFileNames: "assets/index-rebuilt-[hash].js",
         chunkFileNames: "assets/chunk-[hash].js",
         assetFileNames: "assets/[name][extname]",
       },
@@ -222,41 +224,52 @@ export default defineConfig({
     execFile(
       "npx",
       ["vite", "build", "--config", configPath],
-      { cwd, timeout: 180000, env, maxBuffer: 20 * 1024 * 1024 },
+      { cwd, timeout: 300000, env, maxBuffer: 20 * 1024 * 1024 },
       (err2, stdout2, stderr2) => {
         // Clean up temp config
         try { fs.unlinkSync(configPath); } catch {}
 
-        if (!err2) {
-          // Vite succeeded — update index.html to reference the new bundle
-          const indexHtml = path.join(BUILD_OUT_DIR, "index.html");
-          if (fs.existsSync(indexHtml)) {
-            let html = fs.readFileSync(indexHtml, "utf8");
-            const stamp = Date.now();
-            html = html.replace(
-              /(<script[^>]*src="\/assets\/index-[^"]*\.js)(\?[^"]*)?("[^>]*><\/script>)/,
-              `$1?v=${stamp}$3`,
-            );
-            // Remove PWA SW registration to prevent stale cache
-            html = html.replace(
-              /<script[^>]*id="vite-plugin-pwa:register-sw"[^>]*><\/script>/,
-              "",
-            );
-            fs.writeFileSync(indexHtml, html);
-          }
-          promoteDistSnapshot();
-          callback(null, `${stdout1 || ""}\n${stdout2 || ""}`);
-          return;
+        if (err2) {
+          // Vite failed (likely OOM). Return error — do NOT fall back to
+          // esbuild (its ESM output produces a blank page).
+          const isOOM = (stderr2 || "").includes("Killed") || err2.message.includes("Killed");
+          return callback(new Error(
+            isOOM
+              ? `vite build was killed (OOM). Railway trial (512MB RAM) cannot build ${"2656"} modules. Push to git for a Docker rebuild (Railway builder has more RAM), or upgrade to a paid plan.`
+              : `vite build failed: ${stderr2 || err2.message}`
+          ));
         }
-        // Vite failed — fall back to esbuild
-        console.warn("[Rebuild] vite build failed, falling back to esbuild:", stderr2 || err2.message);
-        runEsbuildFallback(cwd, (err3, stdout3) => {
-          if (err3) {
-            return callback(new Error(`Both vite and esbuild failed. vite: ${stderr2 || err2.message} | esbuild: ${err3.message}`));
+
+        // Vite succeeded — update index.html to reference the new bundle
+        const indexHtml = path.join(BUILD_OUT_DIR, "index.html");
+        if (fs.existsSync(indexHtml)) {
+          let html = fs.readFileSync(indexHtml, "utf8");
+          const stamp = Date.now();
+          // Replace the old script tag with one pointing to the new bundle
+          html = html.replace(
+            /<script[^>]*src="\/assets\/index-[^"]*\.js"[^>]*><\/script>/,
+            `<script type="module" crossorigin src="/assets/index-rebuilt-${stamp}.js"></script>`,
+          );
+          // Find the actual generated JS filename and update the reference
+          const assetsDir = path.join(BUILD_OUT_DIR, "assets");
+          if (fs.existsSync(assetsDir)) {
+            const newJs = fs.readdirSync(assetsDir).find(f => f.startsWith("index-rebuilt-") && f.endsWith(".js"));
+            if (newJs) {
+              html = html.replace(
+                /<script[^>]*src="\/assets\/index-rebuilt-[^"]*\.js"[^>]*><\/script>/,
+                `<script type="module" crossorigin src="/assets/${newJs}"></script>`,
+              );
+            }
           }
-          promoteDistSnapshot();
-          callback(null, `${stdout1 || ""}\n[esbuild fallback]\n${stdout3 || ""}`);
-        });
+          // Remove PWA SW registration to prevent stale cache
+          html = html.replace(
+            /<script[^>]*id="vite-plugin-pwa:register-sw"[^>]*><\/script>/,
+            "",
+          );
+          fs.writeFileSync(indexHtml, html);
+        }
+        promoteDistSnapshot();
+        callback(null, `${stdout1 || ""}\n${stdout2 || ""}`);
       },
     );
   });
