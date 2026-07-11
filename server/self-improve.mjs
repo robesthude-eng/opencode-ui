@@ -245,7 +245,7 @@ function runEsbuildFallback(cwd, callback) {
     `--entry-names=index-esbuild`,
     "--loader:.tsx=tsx",
     "--loader:.ts=ts",
-    "--loader:.css=css",
+    "--loader:.css=empty",
     "--loader:.png=file",
     "--loader:.jpg=file",
     "--loader:.svg=file",
