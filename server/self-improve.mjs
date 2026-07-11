@@ -230,16 +230,21 @@ function runEsbuildFallback(cwd, callback) {
   if (!fs.existsSync(entryPoint)) {
     return callback(new Error("src/main.tsx not found"));
   }
-  // Find existing CSS file in /app/dist/assets to preserve
+  // Find existing JS bundle in /app/dist/assets to OVERWRITE.
+  // This way index.html doesn't need to change — the existing script tag
+  // already points to the right filename.
   const assetsDir = path.join(BUILD_OUT_DIR, "assets");
-  let existingCss = null;
+  let targetJsFile = null;
   if (fs.existsSync(assetsDir)) {
     const files = fs.readdirSync(assetsDir);
-    existingCss = files.find((f) => f.endsWith(".css"));
+    // Find the main JS bundle (index-*.js, NOT index-esbuild.js or chunk-*.js)
+    targetJsFile = files.find((f) => /^index-[A-Za-z0-9_-]+\.js$/.test(f) && !f.includes("esbuild"));
   }
-
-  const outFile = path.join(assetsDir, "index-esbuild.js");
-  fs.mkdirSync(assetsDir, { recursive: true });
+  if (!targetJsFile) {
+    return callback(new Error("No existing JS bundle found in /app/dist/assets to overwrite"));
+  }
+  const outFile = path.join(assetsDir, targetJsFile);
+  console.log(`[esbuild] Overwriting ${targetJsFile} with esbuild output`);
 
   const args = [
     entryPoint,
@@ -256,8 +261,7 @@ function runEsbuildFallback(cwd, callback) {
     "--loader:.woff2=file",
     "--jsx=automatic",
     '--define:process.env.NODE_ENV="production"',
-    "--format=iife",
-    "--global-name=OpenCodeUI",
+    "--format=esm",
     "--log-level=info",
   ];
 
@@ -265,24 +269,8 @@ function runEsbuildFallback(cwd, callback) {
     if (err) {
       return callback(new Error(`esbuild failed: ${stderr || err.message}`));
     }
-    // Update index.html to reference the new JS bundle
-    const indexHtml = path.join(BUILD_OUT_DIR, "index.html");
-    if (fs.existsSync(indexHtml)) {
-      let html = fs.readFileSync(indexHtml, "utf8");
-      // Replace any script src that points to assets/index-*.js with our new bundle
-      html = html.replace(
-        /<script[^>]*src="\/assets\/index-[^"]*\.js"[^>]*><\/script>/,
-        `<script src="/assets/index-esbuild.js"></script>`,
-      );
-      fs.writeFileSync(indexHtml, html);
-    } else {
-      // Create minimal index.html
-      fs.writeFileSync(
-        indexHtml,
-        `<!DOCTYPE html><html><head><meta charset="UTF-8">${existingCss ? `<link rel="stylesheet" href="/assets/${existingCss}">` : ""}</head><body><div id="root"></div><script type="module" src="/assets/index-esbuild.js"></script></body></html>`,
-      );
-    }
-    callback(null, stdout + (existingCss ? `\n[preserved CSS: ${existingCss}]` : ""));
+    // index.html already references this filename — no need to modify it
+    callback(null, stdout + `\n[overwrote ${targetJsFile}]`);
   });
 }
 
