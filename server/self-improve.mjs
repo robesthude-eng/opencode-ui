@@ -185,15 +185,18 @@ function runBuild(cwd, callback) {
   // Strategy: try vite first; if it fails (OOM), fall back to esbuild which
   // uses ~50MB. esbuild doesn't handle Tailwind CSS or PWA, so we keep the
   // existing CSS from the last Docker build and only replace the JS bundle.
+  // IMPORTANT: do NOT use --emptyOutDir with vite — if vite OOMs after
+  // clearing /app/dist, the esbuild fallback has no CSS/index.html to preserve.
   const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=4096" };
   execFile("npm", ["install", "--silent"], { cwd, timeout: 120000, env }, (err1, stdout1, stderr1) => {
     if (err1) {
       return callback(new Error(`npm install failed: ${stderr1 || err1.message}`));
     }
     // Try vite build first (full pipeline: Tailwind + PWA + React)
+    // No --emptyOutDir: if vite fails, /app/dist still has the previous build
     execFile(
       "npx",
-      ["vite", "build", "--mode", "development", "--outDir", BUILD_OUT_DIR, "--emptyOutDir", "--minify", "false", "--sourcemap", "false"],
+      ["vite", "build", "--mode", "development", "--outDir", BUILD_OUT_DIR, "--minify", "false", "--sourcemap", "false"],
       { cwd, timeout: 120000, env, maxBuffer: 20 * 1024 * 1024 },
       (err2, stdout2, stderr2) => {
         if (!err2) {
