@@ -241,7 +241,8 @@ function runEsbuildFallback(cwd, callback) {
   const args = [
     entryPoint,
     "--bundle",
-    `--outfile=${outFile}`,
+    `--outdir=${assetsDir}`,
+    `--entry-names=index-esbuild`,
     "--loader:.tsx=tsx",
     "--loader:.ts=ts",
     "--loader:.css=css",
