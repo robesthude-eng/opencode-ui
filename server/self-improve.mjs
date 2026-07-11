@@ -183,15 +183,19 @@ function runBuild(cwd, callback) {
   // Set NODE_OPTIONS to allow more heap — Railway trial has 512MB RAM but
   // vite build with 2600+ modules needs more. This enables swap usage if
   // available and prevents early OOM kills.
-  const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=1024" };
+  const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048" };
   execFile("npm", ["install", "--silent"], { cwd, timeout: 120000, env }, (err1, stdout1, stderr1) => {
     if (err1) {
       return callback(new Error(`npm install failed: ${stderr1 || err1.message}`));
     }
+    // Use --minify false to reduce peak memory — esbuild/rollup minification
+    // of 2656 modules requires ~800MB heap, which OOMs on Railway trial (512MB).
+    // The unminified bundle is ~2x larger but still functional; users can
+    // re-deploy via git push for a production (minified) build.
     execFile(
       "npx",
-      ["vite", "build", "--outDir", BUILD_OUT_DIR],
-      { cwd, timeout: 180000, env },
+      ["vite", "build", "--outDir", BUILD_OUT_DIR, "--minify", "false", "--emptyOutDir"],
+      { cwd, timeout: 300000, env, maxBuffer: 10 * 1024 * 1024 },
       (err2, stdout2, stderr2) => {
         if (err2) {
           return callback(new Error(`vite build failed: ${stderr2 || err2.message}`));
