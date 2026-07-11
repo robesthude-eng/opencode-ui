@@ -245,6 +245,7 @@ function runEsbuildFallback(cwd, callback) {
     entryPoint,
     "--bundle",
     `--outfile=${outFile}`,
+    "--alias:@=./src",
     "--loader:.tsx=tsx",
     "--loader:.ts=ts",
     "--loader:.css=empty",
