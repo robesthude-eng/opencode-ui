@@ -230,21 +230,16 @@ function runEsbuildFallback(cwd, callback) {
   if (!fs.existsSync(entryPoint)) {
     return callback(new Error("src/main.tsx not found"));
   }
-  // Find existing JS bundle in /app/dist/assets to OVERWRITE.
-  // This way index.html doesn't need to change — the existing script tag
-  // already points to the right filename.
+  // Generate a unique filename with timestamp — this is critical because
+  // the server sets Cache-Control: max-age=31536000, immutable on .js files.
+  // If we overwrite the same filename, browsers never re-fetch it.
+  // A new filename forces the browser to load the fresh bundle.
   const assetsDir = path.join(BUILD_OUT_DIR, "assets");
-  let targetJsFile = null;
-  if (fs.existsSync(assetsDir)) {
-    const files = fs.readdirSync(assetsDir);
-    // Find the main JS bundle (index-*.js, NOT index-esbuild.js or chunk-*.js)
-    targetJsFile = files.find((f) => /^index-[A-Za-z0-9_-]+\.js$/.test(f) && !f.includes("esbuild"));
-  }
-  if (!targetJsFile) {
-    return callback(new Error("No existing JS bundle found in /app/dist/assets to overwrite"));
-  }
-  const outFile = path.join(assetsDir, targetJsFile);
-  console.log(`[esbuild] Overwriting ${targetJsFile} with esbuild output`);
+  fs.mkdirSync(assetsDir, { recursive: true });
+  const stamp = Date.now().toString(36);
+  const newJsName = `index-esbuild-${stamp}.js`;
+  const outFile = path.join(assetsDir, newJsName);
+  console.log(`[esbuild] Writing to ${newJsName}`);
 
   const args = [
     entryPoint,
@@ -262,6 +257,7 @@ function runEsbuildFallback(cwd, callback) {
     "--jsx=automatic",
     '--define:process.env.NODE_ENV="production"',
     "--format=esm",
+    "--charset=utf8",
     "--log-level=info",
   ];
 
@@ -269,8 +265,30 @@ function runEsbuildFallback(cwd, callback) {
     if (err) {
       return callback(new Error(`esbuild failed: ${stderr || err.message}`));
     }
-    // index.html already references this filename — no need to modify it
-    callback(null, stdout + `\n[overwrote ${targetJsFile}]`);
+    // Update index.html to reference the new JS bundle (new filename = cache bust)
+    const indexHtml = path.join(BUILD_OUT_DIR, "index.html");
+    if (!fs.existsSync(indexHtml)) {
+      return callback(new Error("index.html not found in /app/dist"));
+    }
+    let html = fs.readFileSync(indexHtml, "utf8");
+    // Replace the old script tag with one pointing to our new bundle
+    html = html.replace(
+      /<script[^>]*src="\/assets\/index-[^"]*\.js"[^>]*><\/script>/,
+      `<script type="module" crossorigin src="/assets/${newJsName}"></script>`,
+    );
+    fs.writeFileSync(indexHtml, html);
+    // Clean up old esbuild bundles (keep only the latest)
+    try {
+      const files = fs.readdirSync(assetsDir);
+      for (const f of files) {
+        if (f.startsWith("index-esbuild-") && f !== newJsName) {
+          fs.unlinkSync(path.join(assetsDir, f));
+        }
+      }
+    } catch (e) {
+      console.warn("[esbuild] cleanup of old bundles failed:", e.message);
+    }
+    callback(null, stdout + `\n[created ${newJsName}]`);
   });
 }
 
