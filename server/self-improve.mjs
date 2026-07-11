@@ -336,13 +336,18 @@ export function listCheckpoints(workdir, callback) {
   if (!fs.existsSync(uiDir)) {
     return callback(null, []);
   }
+  // If .git doesn't exist, return empty list instead of failing — start.sh
+  // initializes it on next boot, but we shouldn't 500 in the meantime.
+  if (!fs.existsSync(path.join(uiDir, ".git"))) {
+    return callback(null, []);
+  }
 
   execFile(
     "git",
     ["log", "-n", "15", "--format=%h|%s|%cr"],
     { cwd: uiDir, timeout: 10000 },
     (err, stdout) => {
-      if (err) return callback(err);
+      if (err) return callback(null, []);
 
       const commits = (stdout || "")
         .trim()

@@ -57,6 +57,33 @@ GUIDE
   echo "Self-improvement factory sources copied."
 fi
 
+# Initialize git repo in opencode-ui so /api/git/checkpoint and /api/git/checkpoints work.
+# Required by self-improvement: createCheckpoint does `git add . && git commit`,
+# listCheckpoints does `git log`. Without .git, both fail (500 / "noop").
+# Idempotent: skips if .git already exists.
+if [ ! -d "$WORKDIR/opencode-ui/.git" ]; then
+  echo "Initializing git repo in $WORKDIR/opencode-ui for self-improvement checkpoints…"
+  (
+    cd "$WORKDIR/opencode-ui" || exit 1
+    git init -q
+    # git requires user.email and user.name to commit; set local-only (not global)
+    git config user.email "self-improve@opencode-ui.local"
+    git config user.name "OpenCode UI Self-Improvement"
+    # Don't track node_modules / dist if they happen to be there
+    cat > .gitignore <<'GITIGNORE'
+node_modules/
+dist/
+.vite/
+*.log
+GITIGNORE
+    # Initial commit so listCheckpoints returns something and createCheckpoint
+    # has a baseline to diff against.
+    git add -A
+    git commit -q -m "Initial checkpoint (auto-created by start.sh)" --allow-empty || true
+  )
+  echo "Git repo initialized."
+fi
+
 # Configure Zen API key
 if [ -n "$OPENCODE_ZEN_API_KEY" ]; then
   echo "Configuring OpenCode Zen key…"

@@ -1,7 +1,7 @@
 # ===== Stage 1: build the React frontend =====
 FROM node:22-slim AS build
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ git \
   && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 RUN npm ci
@@ -12,7 +12,7 @@ RUN npm run build
 FROM node:22-slim AS runtime
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ git \
   && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g opencode-ai@1.17.13
