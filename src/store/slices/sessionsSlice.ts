@@ -131,6 +131,16 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
       // - ownership record
       // - OpenCode storage (messages, metadata)
       // So like Claude, everything is gone — no overlap, no leftover files
+      // If we just removed the dedicated Self-Improvement chat, clear its marker
+      // (both client-side and on the server) so it can be re-created cleanly.
+      if (get().selfImproveSessionId === id) {
+        get().setSelfImproveSessionId(null);
+        try {
+          await api.setSelfImproveSession("");
+        } catch {
+          /* best-effort */
+        }
+      }
     } catch (e) {
       // Rollback on error
       set({
@@ -170,11 +180,23 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
     const SELF_IMPROVE_TITLE = "Самоулучшение";
     const { sessions, currentID, selfImproveSessionId, setSelfImproveSessionId } = get();
 
+    // Persist the designated chat on the server so its agent is pointed at the
+    // live project source. Best-effort: a failure here only means the agent won't
+    // get project access until the next toggle.
+    const persistSiSession = async (id: string) => {
+      try {
+        await api.setSelfImproveSession(id);
+      } catch {
+        /* best-effort */
+      }
+    };
+
     const existing =
       (selfImproveSessionId && sessions.find((s) => s.id === selfImproveSessionId)) ||
       sessions.find((s) => s.title === SELF_IMPROVE_TITLE);
     if (existing) {
       setSelfImproveSessionId(existing.id);
+      void persistSiSession(existing.id);
       if (currentID !== existing.id) await get().select(existing.id);
       return existing.id;
     }
@@ -189,6 +211,7 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
         status: { ...s.status, [session.id]: "idle" as SessionStatus },
       }));
       await get().select(session.id);
+      void persistSiSession(session.id);
       return session.id;
     } catch (e) {
       set({ error: (e as Error).message });

@@ -65,6 +65,39 @@ export function isSelfImproveEnabled(workdir) {
 }
 
 /**
+ * Get the id of the dedicated Self-Improvement chat (the one whose agent should
+ * operate directly on the live project source). Returns null if not set.
+ */
+export function getSelfImproveSessionId(workdir) {
+  const f = path.join(workdir, ".self_improve_session");
+  try {
+    if (!fs.existsSync(f)) return null;
+    const raw = fs.readFileSync(f, "utf8").trim();
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw).id || null;
+    } catch {
+      return raw;
+    }
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persist the id of the dedicated Self-Improvement chat so the server knows which
+ * session's agent should be pointed at /app/workspace/opencode-ui.
+ */
+export function setSelfImproveSessionId(workdir, id) {
+  const f = path.join(workdir, ".self_improve_session");
+  try {
+    fs.writeFileSync(f, JSON.stringify({ id: id || null }), "utf8");
+  } catch (e) {
+    console.error("[Self-Improve] failed to store self-improve session id:", e.message);
+  }
+}
+
+/**
  * Toggle self-improve mode.
  * Flag-only — never chmod. In Docker, chmod -R was freezing the event loop
  * (and is not a real security boundary for root processes anyway).

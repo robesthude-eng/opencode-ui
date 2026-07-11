@@ -49,9 +49,11 @@ import {
 import { checkUserRateLimit } from "./rate-limit.mjs";
 import {
   createCheckpoint,
+  getSelfImproveSessionId,
   getUiDir,
   instantRollbackDist,
   isSelfImproveEnabled,
+  setSelfImproveSessionId,
   listCheckpoints,
   listDistSnapshots,
   logAudit,
@@ -947,8 +949,54 @@ const server = http.createServer((req, res) => {
           const { enabled } = JSON.parse(buf.toString("utf8") || "{}");
           toggleSelfImprove(WORKDIR, enabled);
           logAudit(WORKDIR, userEmail, "TOGGLE_SELF_IMPROVE", `Enabled: ${!!enabled}`);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "success", enabled: !!enabled }));
+        } catch (_e) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+      });
+    return;
+  }
+
+  // Designate which chat's agent should operate directly on the live project
+  // source (/app/workspace/opencode-ui). The client calls this right after it
+  // creates/selects the «Самоулучшение» chat so the agent can read & edit the
+  // real UI code (then the user rebuilds via the sandbox pipeline).
+  if (req.url === "/api/settings/self-improve-session" && req.method === "POST") {
+    if (!isSelfImproveEnabled(WORKDIR)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+      return;
+    }
+    if (!isRequestAdmin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Admin access required." }));
+      return;
+    }
+    readBody(req, MAX_JSON_BODY_BYTES)
+      .then((buf) => {
+        try {
+          const { id } = JSON.parse(buf.toString("utf8") || "{}");
+          if (id) {
+            if (!/^[a-zA-Z0-9_-]{1,128}$/.test(id)) {
+              res.writeHead(400, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "Invalid session id." }));
+              return;
+            }
+            setSelfImproveSessionId(WORKDIR, id);
+            logAudit(WORKDIR, userEmail, "SELF_IMPROVE_SESSION_SET", `session=${id}`);
+          } else {
+            // Empty id clears the designation (e.g. the chat was deleted).
+            setSelfImproveSessionId(WORKDIR, null);
+            logAudit(WORKDIR, userEmail, "SELF_IMPROVE_SESSION_CLEAR", "");
+          }
           res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ status: "success", enabled: !!enabled }));
+          res.end(JSON.stringify({ status: "success", id: id || null }));
         } catch (_e) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Invalid JSON" }));
@@ -1401,6 +1449,14 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  // If this session is the designated Self-Improvement chat, point its agent at the
+  // live project source so it can read/edit the real UI code. Otherwise it stays
+  // isolated in its own per-session workspace.
+  const siSessionId = getSelfImproveSessionId(WORKDIR);
+  const isSelfImproveSession =
+    isSelfImproveEnabled(WORKDIR) && !!siSessionId && sessionId === siSessionId;
+  const selfImproveDir = isSelfImproveSession ? getUiDir(WORKDIR) : null;
+
   const sessionMatch = urlPath.match(/^\/api\/session\/([^/?]+)$/);
   if (req.method === "DELETE" && sessionMatch) {
     const sid = decodeURIComponent(sessionMatch[1]);
@@ -1430,18 +1486,21 @@ const server = http.createServer((req, res) => {
     const sessionWorkspace = path.join(WORKDIR, "sessions", sid, "workspace");
     const strippedUrl = req.url.startsWith("/api") ? req.url.slice(4) : req.url;
     const sep = strippedUrl.includes("?") ? "&" : "?";
-    req.url = `${strippedUrl + sep}directory=${encodeURIComponent(sessionWorkspace)}`;
+    const deleteDir = selfImproveDir || sessionWorkspace;
+    req.url = `${strippedUrl + sep}directory=${encodeURIComponent(deleteDir)}`;
     systemProxy.web(req, res);
     return;
   }
 
   // --- Self-Improvement: serve live project source in the Workspace ---
-  // Intercept /api/file and /api/file/content ONLY when the requested path lives
-  // under the virtual "opencode-ui/" prefix. All other file requests (per-session
-  // workspaces) fall through to the normal OpenCode proxy below.
+  // Intercept /api/file and /api/file/content ONLY when Self-Improvement is
+  // enabled AND the requested path lives under the virtual "opencode-ui/" prefix.
+  // When disabled, such paths fall through to the normal per-session proxy (so a
+  // session file legitimately named "opencode-ui" is still served correctly).
   const siFileUrl = new URL(req.url, "http://localhost");
   const siFilePath = siFileUrl.searchParams.get("path") || "";
   if (
+    isSelfImproveEnabled(WORKDIR) &&
     (urlPathNoQuery === "/api/file" || urlPathNoQuery === "/api/file/content") &&
     (siFilePath === "opencode-ui" || siFilePath.startsWith("opencode-ui/"))
   ) {
@@ -1465,7 +1524,7 @@ const server = http.createServer((req, res) => {
     } catch {}
     const isEvent = req.url.includes("/event");
     const sep = req.url.includes("?") ? "&" : "?";
-    const dirParam = `directory=${encodeURIComponent(sessionWorkspace)}`;
+    const dirParam = `directory=${encodeURIComponent(selfImproveDir || sessionWorkspace)}`;
     if (isEvent) {
       req.url = req.url + sep + dirParam;
     } else {

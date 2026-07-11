@@ -106,6 +106,7 @@ export default function Workspace() {
   const setWorkspaceOpen = useStore((s) => s.setWorkspaceOpen);
   const selfImproveEnabled = useStore((s) => s.selfImproveEnabled);
   const currentID = useStore((s) => s.currentID);
+  const selfImproveSessionId = useStore((s) => s.selfImproveSessionId);
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set([""]));
   const expandedRef = useRef<Set<string>>(expanded);
@@ -133,10 +134,14 @@ export default function Workspace() {
     children: [],
     loaded: false,
   };
+  // Show the synthetic "opencode-ui" node for any session EXCEPT the dedicated
+  // Self-Improvement chat — that chat's agent already operates directly on the
+  // project source, so its own root IS the project (no duplicate node needed).
+  const showSynthetic = selfImproveEnabled && currentID !== selfImproveSessionId;
   const withSelfImproveRoot = useCallback(
     (nodes: TreeNode[]): TreeNode[] =>
-      selfImproveEnabled ? [SELF_IMPROVE_NODE, ...nodes] : nodes,
-    [selfImproveEnabled],
+      showSynthetic ? [SELF_IMPROVE_NODE, ...nodes] : nodes,
+    [showSynthetic],
   );
 
   const filterNodes = useCallback(

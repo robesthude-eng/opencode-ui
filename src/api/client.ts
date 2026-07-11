@@ -70,6 +70,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(title ? { title } : {}),
     }),
+  // Tell the server which chat is the dedicated Self-Improvement chat so its agent
+  // is pointed at the live project source (/app/workspace/opencode-ui).
+  setSelfImproveSession: (id: string) =>
+    req<{ status: string; id: string }>(`/settings/self-improve-session`, {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    }),
   getSession: (id: string) => req<SessionInfo>(`/session/${id}`),
   deleteSession: (id: string) => req<void>(`/session/${id}`, { method: "DELETE" }),
   abortSession: (id: string) => req<void>(`/session/${id}/abort`, { method: "POST" }),
