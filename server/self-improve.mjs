@@ -271,6 +271,8 @@ function runEsbuildFallback(cwd, callback) {
       return callback(new Error(`esbuild failed: ${stderr || err.message}`));
     }
     // Add cache-busting query parameter to the script tag in index.html
+    // AND remove the PWA service worker registration — the SW caches old
+    // assets and prevents the rebuilt bundle from loading.
     const indexHtml = path.join(BUILD_OUT_DIR, "index.html");
     if (fs.existsSync(indexHtml)) {
       let html = fs.readFileSync(indexHtml, "utf8");
@@ -280,9 +282,14 @@ function runEsbuildFallback(cwd, callback) {
         /(<script[^>]*src="\/assets\/index-[^"]*\.js)(\?[^"]*)?("[^>]*><\/script>)/,
         `$1?v=${stamp}$3`,
       );
+      // Remove PWA service worker registration to prevent stale cache
+      html = html.replace(
+        /<script[^>]*id="vite-plugin-pwa:register-sw"[^>]*><\/script>/,
+        "",
+      );
       fs.writeFileSync(indexHtml, html);
     }
-    callback(null, stdout + `\n[overwrote ${targetJsFile}, cache-bust?v=${Date.now()}]`);
+    callback(null, stdout + `\n[overwrote ${targetJsFile}, cache-bust?v=${Date.now()}, SW disabled]`);
   });
 }
 
