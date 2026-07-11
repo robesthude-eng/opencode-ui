@@ -49,6 +49,7 @@ import {
 import { checkUserRateLimit } from "./rate-limit.mjs";
 import {
   createCheckpoint,
+  getUiDir,
   instantRollbackDist,
   isSelfImproveEnabled,
   listCheckpoints,
@@ -300,6 +301,174 @@ function handleSessionList(_req, res, userEmail) {
       res.writeHead(502, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "OpenCode unreachable" }));
     });
+}
+
+// --- Self-Improvement Workspace: serve the live project source (opencode-ui) ---
+// When Self-Improvement is enabled, the Workspace UI requests files under the
+// virtual "opencode-ui/" prefix. We resolve those to the real UI source directory
+// (/app/workspace/opencode-ui) directly via fs — NOT through the per-session
+// OpenCode proxy — and enforce a strict allowlist to keep secrets, server code,
+// node_modules and git internals out. Requires self-improve mode + admin.
+const SELF_IMPROVE_FS_ALLOWED_FILES = new Set([
+  "index.html",
+  "package.json",
+  "vite.config.ts",
+  "tsconfig.json",
+  "tsconfig.node.json",
+  "biome.json",
+  "vitest.config.ts",
+  "SELF_IMPROVE.md",
+  "SELF_IMPROVE_GUIDE.md",
+]);
+const SELF_IMPROVE_FS_BLOCKED_SEGMENTS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "dist-ssr",
+  "coverage",
+  ".vite",
+  ".cache",
+  ".turbo",
+  ".next",
+  ".arena",
+  "__pycache__",
+  ".config_opencode",
+  ".opencode_data",
+  ".local",
+  ".config",
+  ".users.json",
+  ".sessions.json",
+  ".session_owners.json",
+  ".admin_password",
+  ".self_improve_mode",
+  "package-lock.json",
+  "opencode.db",
+  "opencode.db-wal",
+  "opencode.db-shm",
+  "backups",
+  "audit.log",
+  ".env",
+  ".railway",
+]);
+
+function selfImproveFileAllowed(relPath) {
+  if (!relPath) return true; // root listing
+  const clean = relPath.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (clean.includes("..") || clean.startsWith("/") || clean.includes("\0")) return false;
+  const segs = clean.split("/").filter(Boolean);
+  if (segs.some((seg) => SELF_IMPROVE_FS_BLOCKED_SEGMENTS.has(seg))) return false;
+  const top = segs[0];
+  if (top === "src" || top === "public") return true; // src/** and public/** at any depth
+  if (segs.length === 1 && SELF_IMPROVE_FS_ALLOWED_FILES.has(top)) return true;
+  return false;
+}
+
+function handleSelfImproveFileProxy(req, res, { isRequestAdmin }) {
+  if (!isSelfImproveEnabled(WORKDIR)) {
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    return;
+  }
+  if (!isRequestAdmin) {
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Admin access required to browse project source." }));
+    return;
+  }
+
+  const reqUrl = new URL(req.url, "http://localhost");
+  const urlPath = reqUrl.pathname;
+  const rawPath = reqUrl.searchParams.get("path") || "";
+
+  // Only the virtual opencode-ui/ prefix is ours; anything else falls through to the
+  // normal per-session proxy (handled by the caller).
+  if (rawPath !== "opencode-ui" && !rawPath.startsWith("opencode-ui/")) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid project path." }));
+    return;
+  }
+
+  let relPath = rawPath === "opencode-ui" ? "" : rawPath.slice("opencode-ui/".length);
+  relPath = relPath.replace(/\\/g, "/").replace(/^\/+/, "");
+
+  if (!selfImproveFileAllowed(relPath)) {
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Path is outside the allowed project scope." }));
+    return;
+  }
+
+  const uiDir = getUiDir(WORKDIR);
+  const resolvedUiDir = path.resolve(uiDir);
+  const absPath = path.resolve(uiDir, relPath);
+  if (absPath !== resolvedUiDir && !absPath.startsWith(resolvedUiDir + path.sep)) {
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Path escapes project directory." }));
+    return;
+  }
+
+  // --- Read file content ---
+  if (urlPath === "/api/file/content") {
+    fs.stat(absPath, (err, st) => {
+      if (err || !st.isFile()) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "File not found." }));
+        return;
+      }
+      if (st.size > 2 * 1024 * 1024) {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "File too large to display." }));
+        return;
+      }
+      fs.readFile(absPath, "utf8", (rerr, data) => {
+        if (rerr) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Failed to read file." }));
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            path: relPath ? `opencode-ui/${relPath}` : "opencode-ui",
+            content: data,
+          }),
+        );
+      });
+    });
+    return;
+  }
+
+  // --- Directory listing (/api/file) ---
+  fs.stat(absPath, (err, st) => {
+    if (err || !st.isDirectory()) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify([]));
+      return;
+    }
+    fs.readdir(absPath, { withFileTypes: true }, (rerr, entries) => {
+      if (rerr) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to list directory." }));
+        return;
+      }
+      const nodes = entries
+        .filter((e) => !SELF_IMPROVE_FS_BLOCKED_SEGMENTS.has(e.name))
+        .map((e) => {
+          const childRel = relPath ? `${relPath}/${e.name}` : e.name;
+          return {
+            path: `opencode-ui/${childRel}`,
+            name: e.name,
+            isDirectory: e.isDirectory(),
+            type: e.isDirectory() ? "directory" : "file",
+          };
+        })
+        .filter((n) => selfImproveFileAllowed(n.path.replace(/^opencode-ui\//, "")))
+        .sort((a, b) => {
+          if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name);
+          return a.isDirectory ? -1 : 1;
+        });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(nodes));
+    });
+  });
 }
 
 // Static
@@ -1263,6 +1432,20 @@ const server = http.createServer((req, res) => {
     const sep = strippedUrl.includes("?") ? "&" : "?";
     req.url = `${strippedUrl + sep}directory=${encodeURIComponent(sessionWorkspace)}`;
     systemProxy.web(req, res);
+    return;
+  }
+
+  // --- Self-Improvement: serve live project source in the Workspace ---
+  // Intercept /api/file and /api/file/content ONLY when the requested path lives
+  // under the virtual "opencode-ui/" prefix. All other file requests (per-session
+  // workspaces) fall through to the normal OpenCode proxy below.
+  const siFileUrl = new URL(req.url, "http://localhost");
+  const siFilePath = siFileUrl.searchParams.get("path") || "";
+  if (
+    (urlPathNoQuery === "/api/file" || urlPathNoQuery === "/api/file/content") &&
+    (siFilePath === "opencode-ui" || siFilePath.startsWith("opencode-ui/"))
+  ) {
+    handleSelfImproveFileProxy(req, res, { userEmail, isRequestAdmin });
     return;
   }
 

@@ -18,6 +18,8 @@ export default function SettingsPanel() {
   const removeKey = useStore((s) => s.removeKey);
   const selfImproveEnabled = useStore((s) => s.selfImproveEnabled);
   const setSelfImproveEnabled = useStore((s) => s.setSelfImproveEnabled);
+  const ensureSelfImproveSession = useStore((s) => s.ensureSelfImproveSession);
+  const setWorkspaceOpen = useStore((s) => s.setWorkspaceOpen);
   const currentUser = useStore((s) => s.currentUser);
   const isAdminUser = currentUser?.role === "admin";
 
@@ -260,6 +262,11 @@ export default function SettingsPanel() {
             : `Ошибка: ${data.error || "не удалось изменить режим"}`,
         );
         setTimeout(() => setRebuildStatus(null), 4000);
+      } else if (next) {
+        // Self-Improvement turned ON → auto-create & open the «Самоулучшение» chat
+        // so the user can immediately study the project, find bugs, add features.
+        void ensureSelfImproveSession();
+        setWorkspaceOpen(true);
       }
     } catch {
       setSelfImproveEnabled(!next);

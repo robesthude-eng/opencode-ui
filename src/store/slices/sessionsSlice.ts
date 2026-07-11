@@ -163,6 +163,39 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
     }
   },
 
+  // Auto-create (once) the dedicated «Самоулучшение» chat when Self-Improvement is
+  // enabled, and select it so the user can immediately drive the agent. Reuses an
+  // existing self-improve session (by stored id, then by title) to avoid duplicates.
+  ensureSelfImproveSession: async () => {
+    const SELF_IMPROVE_TITLE = "Самоулучшение";
+    const { sessions, currentID, selfImproveSessionId, setSelfImproveSessionId } = get();
+
+    const existing =
+      (selfImproveSessionId && sessions.find((s) => s.id === selfImproveSessionId)) ||
+      sessions.find((s) => s.title === SELF_IMPROVE_TITLE);
+    if (existing) {
+      setSelfImproveSessionId(existing.id);
+      if (currentID !== existing.id) await get().select(existing.id);
+      return existing.id;
+    }
+
+    try {
+      const session = await api.createSession(SELF_IMPROVE_TITLE);
+      setSelfImproveSessionId(session.id);
+      set((s) => ({
+        sessions: [session, ...s.sessions].sort(byUpdated),
+        currentID: session.id,
+        messages: { ...s.messages, [session.id]: s.messages[session.id] || [] },
+        status: { ...s.status, [session.id]: "idle" as SessionStatus },
+      }));
+      await get().select(session.id);
+      return session.id;
+    } catch (e) {
+      set({ error: (e as Error).message });
+      return null;
+    }
+  },
+
   setConnection: (connection) => set({ connection }),
 
   checkConnection: async () => {

@@ -46,12 +46,14 @@ export interface UiSlice {
   sidebarCollapsed: boolean;
   workspaceOpen: boolean;
   selfImproveEnabled: boolean;
+  selfImproveSessionId: string | null;
   toggleTheme: () => void;
   setSettingsOpen: (open: boolean) => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
   setWorkspaceOpen: (open: boolean) => void;
+  setSelfImproveSessionId: (id: string | null) => void;
   setSelfImproveEnabled: (enabled: boolean) => void;
 }
 
@@ -68,6 +70,7 @@ export interface SessionsSlice {
   loadSessions: () => Promise<void>;
   select: (id: string | null) => Promise<void>;
   newSession: () => Promise<void>;
+  ensureSelfImproveSession: () => Promise<string | null>;
   removeSession: (id: string) => Promise<void>;
   abort: () => Promise<void>;
   respondPermission: (permissionId: string, allow: boolean) => Promise<void>;

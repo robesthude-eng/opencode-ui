@@ -123,6 +123,22 @@ export default function Workspace() {
   const loadingDirs = useRef<Set<string>>(new Set());
   const loadGen = useRef(0);
 
+  // Synthetic root node that surfaces the live project source (opencode-ui) in the
+  // Workspace. The server resolves its contents to /app/workspace/opencode-ui via a
+  // strict allowlist (see server/index.mjs handleSelfImproveFileProxy).
+  const SELF_IMPROVE_NODE: TreeNode = {
+    name: "opencode-ui",
+    path: "opencode-ui",
+    isDir: true,
+    children: [],
+    loaded: false,
+  };
+  const withSelfImproveRoot = useCallback(
+    (nodes: TreeNode[]): TreeNode[] =>
+      selfImproveEnabled ? [SELF_IMPROVE_NODE, ...nodes] : nodes,
+    [selfImproveEnabled],
+  );
+
   const filterNodes = useCallback(
     (nodes: { path: string; type?: string; isDirectory?: boolean }[]) => {
       if (!Array.isArray(nodes)) return [];
@@ -192,15 +208,15 @@ export default function Workspace() {
     try {
       const t = await loadDir(".");
       if (gen !== loadGen.current) return;
-      setTree(t);
+      setTree(withSelfImproveRoot(t));
     } catch (e: unknown) {
       if (gen !== loadGen.current) return;
       setError((e as Error)?.message || "Не удалось загрузить файлы");
-      setTree([]);
+      setTree(withSelfImproveRoot([]));
     } finally {
       if (gen === loadGen.current) setLoading(false);
     }
-  }, [currentID, loadDir]);
+  }, [currentID, loadDir, withSelfImproveRoot]);
 
   const autoRefresh = useCallback(async () => {
     if (!currentID || currentID.startsWith("tmp_")) return;
@@ -227,11 +243,12 @@ export default function Workspace() {
           }
           return fn;
         });
-      setTree(curTree.length === 0 ? t : merge(t, curTree));
+      const freshRoot = withSelfImproveRoot(t);
+      setTree(curTree.length === 0 ? freshRoot : merge(freshRoot, curTree));
     } catch {
       // silent poll errors
     }
-  }, [currentID, loadDir]);
+  }, [currentID, loadDir, withSelfImproveRoot]);
 
   const loadGit = useCallback(async () => {
     if (!currentID || currentID.startsWith("tmp_")) {

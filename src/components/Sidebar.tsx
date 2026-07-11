@@ -68,6 +68,8 @@ export default function Sidebar() {
   const currentUser = useStore((s) => s.currentUser);
   const logout = useStore((s) => s.logout);
   const authedCount = Object.keys(useStore((s) => s.authed)).length;
+  const selfImproveEnabled = useStore((s) => s.selfImproveEnabled);
+  const selfImproveSessionId = useStore((s) => s.selfImproveSessionId);
 
   const close = () => setSidebarOpen(false);
 
@@ -124,6 +126,12 @@ export default function Sidebar() {
             )}
             {sessions.map((s) => {
               const isActive = s.id === currentID;
+              // The dedicated Self-Improvement chat keeps a stable label so the user
+              // always finds it, even if OpenCode renames the underlying session.
+              const displayTitle =
+                selfImproveEnabled && s.id === selfImproveSessionId
+                  ? "🤖 Самоулучшение"
+                  : s.title || "New chat";
               const sStatus =
                 typeof status[s.id] === "string" ? status[s.id] : (status[s.id] as { type?: string })?.type;
               const busy = sStatus === "busy";
@@ -145,7 +153,7 @@ export default function Sidebar() {
                     {busy && (
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                     )}
-                    {s.title || "New chat"}
+                    {displayTitle}
                   </span>
                   <button
                     type="button"
@@ -155,7 +163,7 @@ export default function Sidebar() {
                       removeSession(s.id);
                     }}
                     title="Delete"
-                    aria-label={`Delete chat ${s.title || "New chat"}`}
+                    aria-label={`Delete chat ${displayTitle}`}
                   >
                     <TrashIcon />
                   </button>
