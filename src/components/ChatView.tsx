@@ -59,27 +59,27 @@ export default function ChatView() {
 
   if (!currentID) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6">
+      <div className="flex-1 flex items-center justify-center p-4 md:p-6 min-h-0 overflow-y-auto">
         <div className="max-w-2xl w-full text-center">
-          <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-2xl shadow">
+          <div className="mx-auto mb-3 md:mb-4 h-12 w-12 md:h-14 md:w-14 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xl md:text-2xl shadow">
             ✦
           </div>
-          <h1 className="text-2xl md:text-3xl font-semibold mb-2">Чем могу помочь?</h1>
-          <p className="text-muted-foreground mb-8">
+          <h1 className="text-xl md:text-3xl font-semibold mb-2">Чем могу помочь?</h1>
+          <p className="text-sm md:text-base text-muted-foreground mb-4 md:mb-8">
             Твой персональный AI-ассистент для кода. Выбери пример или напиши свой запрос.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3 text-left">
             {SUGGESTIONS.map((s, i) => (
               <button
                 key={i}
-                className="group rounded-2xl border border-border bg-card p-4 hover:bg-muted/60 transition text-left"
+                className="group rounded-xl md:rounded-2xl border border-border bg-card p-3 md:p-4 hover:bg-muted/60 transition text-left"
                 onClick={() => send(s.prompt)}
               >
-                <div className="flex items-start gap-3">
-                  <span className="text-xl">{s.icon}</span>
+                <div className="flex items-start gap-2 md:gap-3">
+                  <span className="text-lg md:text-xl">{s.icon}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">{s.title}</div>
-                    <div className="text-xs text-muted-foreground truncate">
+                    <div className="font-medium text-xs md:text-sm">{s.title}</div>
+                    <div className="text-[11px] md:text-xs text-muted-foreground truncate">
                       {s.prompt.slice(0, 60)}...
                     </div>
                   </div>
@@ -113,7 +113,7 @@ export default function ChatView() {
   const renderedMessages = isWindowed ? visibleMessages.slice(-windowSize) : visibleMessages;
 
   return (
-    <div className="flex-1 relative overflow-hidden bg-background">
+    <div className="flex-1 relative overflow-hidden bg-background min-h-0">
       <div className="h-full overflow-y-auto" ref={scrollRef} onScroll={onScroll}>
         {error && (
           <div className="mx-auto max-w-3xl px-3 md:px-6 pt-3">

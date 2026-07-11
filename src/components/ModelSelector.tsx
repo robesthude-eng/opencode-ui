@@ -65,21 +65,21 @@ export default function ModelSelector() {
   return (
     <div className="relative" ref={ref}>
       <button
-        className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-sm hover:bg-muted transition shadow-sm"
+        className="flex items-center gap-2 rounded-xl border border-border bg-card px-2 md:px-3 py-1.5 text-xs md:text-sm hover:bg-muted transition shadow-sm max-w-full"
         onClick={() => setOpen((o) => !o)}
       >
-        <span className="flex items-center gap-2">
-          {current?.modelName ?? "Select model"}
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="truncate">{current?.modelName ?? "Select model"}</span>
           {current?.free && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold shrink-0">
               FREE
             </span>
           )}
         </span>
-        <ChevronDownIcon size={14} />
+        <ChevronDownIcon size={14} className="shrink-0" />
       </button>
       {open && (
-        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-[320px] max-h-[420px] overflow-y-auto rounded-2xl border border-border bg-popover shadow-xl p-2 z-50">
+        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-[300px] sm:w-[320px] max-w-[calc(100vw-1rem)] max-h-[60vh] overflow-y-auto rounded-2xl border border-border bg-popover shadow-xl p-2 z-50">
           {free.length > 0 && (
             <div className="mb-2">
               <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">

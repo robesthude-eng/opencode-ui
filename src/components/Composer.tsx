@@ -94,8 +94,8 @@ export default function Composer() {
   return (
     <div
       className={cn(
-        "border-t border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60",
-        "px-3 md:px-6 pt-3 pb-4",
+        "shrink-0 border-t border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        "px-3 md:px-6 pt-2 pb-2 md:pt-3 md:pb-4",
         dragOver && "ring-2 ring-primary ring-inset bg-primary/5",
       )}
       onDragOver={(e) => {
@@ -275,7 +275,7 @@ export default function Composer() {
             </Button>
           )}
         </div>
-        <div className="mt-1.5 px-1 text-[11px] text-muted-foreground">
+        <div className="mt-1 px-1 text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">
           Shift+Enter for new line • Drag & drop files to attach
         </div>
       </div>
