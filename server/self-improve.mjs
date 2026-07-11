@@ -180,14 +180,18 @@ export function listDistSnapshots() {
  * All arguments are hardcoded constants — no user input reaches the command.
  */
 function runBuild(cwd, callback) {
-  execFile("npm", ["install", "--silent"], { cwd, timeout: 120000 }, (err1, stdout1, stderr1) => {
+  // Set NODE_OPTIONS to allow more heap — Railway trial has 512MB RAM but
+  // vite build with 2600+ modules needs more. This enables swap usage if
+  // available and prevents early OOM kills.
+  const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=1024" };
+  execFile("npm", ["install", "--silent"], { cwd, timeout: 120000, env }, (err1, stdout1, stderr1) => {
     if (err1) {
       return callback(new Error(`npm install failed: ${stderr1 || err1.message}`));
     }
     execFile(
       "npx",
       ["vite", "build", "--outDir", BUILD_OUT_DIR],
-      { cwd, timeout: 120000 },
+      { cwd, timeout: 180000, env },
       (err2, stdout2, stderr2) => {
         if (err2) {
           return callback(new Error(`vite build failed: ${stderr2 || err2.message}`));
