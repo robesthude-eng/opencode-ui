@@ -7,7 +7,7 @@ import {
   useNavigate,
   useParams,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { EventStream } from "./api/events";
@@ -59,6 +59,10 @@ function AppShell() {
   const currentID = useStore((s) => s.currentID);
   const navigate = useNavigate();
   const params = useParams({ strict: false }) as { sessionId?: string };
+  // Ref to break the URL ↔ store sync loop: when WE call navigate(), we set
+  // this flag so the URL→store effect knows the URL change is from us and
+  // shouldn't call select() (which would re-trigger the store→URL effect).
+  const lastNavigateFromStore = useRef<string | null>(null);
 
   useEffect(() => {
     applyTheme(theme);
@@ -84,12 +88,25 @@ function AppShell() {
   }, [currentUser, loadSessions, loadModels, applyEvent, setConnection, checkConnection]);
 
   // Sync URL → store (ignore optimistic temp IDs)
+  // GUARD: if the URL changed because WE just called navigate() in the
+  // store→URL effect (lastNavigateFromStore matches params.sessionId),
+  // skip select() — the store is already the source of truth.
+  // This breaks the infinite loop:
+  //   select(NEW) → currentID=NEW → store→URL navigates to /chat/NEW
+  //   → params.sessionId=NEW, but URL was OLD just before → URL→store
+  //   would call select(OLD) → currentID=OLD → store→URL navigates to /chat/OLD
+  //   → ... ∞
   useEffect(() => {
     if (
       params.sessionId &&
       params.sessionId !== currentID &&
       !params.sessionId.startsWith("tmp_")
     ) {
+      if (lastNavigateFromStore.current === params.sessionId) {
+        // We initiated this navigation; currentID already matches our intent.
+        // Don't call select() — that would loop back.
+        return;
+      }
       void select(params.sessionId);
     }
   }, [params.sessionId, currentID, select]);
@@ -101,6 +118,7 @@ function AppShell() {
       !currentID.startsWith("tmp_") &&
       params.sessionId !== currentID
     ) {
+      lastNavigateFromStore.current = currentID;
       void navigate({
         to: "/chat/$sessionId",
         params: { sessionId: currentID },
