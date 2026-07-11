@@ -256,7 +256,8 @@ function runEsbuildFallback(cwd, callback) {
     "--loader:.woff2=file",
     "--jsx=automatic",
     '--define:process.env.NODE_ENV="production"',
-    "--format=esm",
+    "--format=iife",
+    "--global-name=OpenCodeUI",
     "--log-level=info",
   ];
 
@@ -271,7 +272,7 @@ function runEsbuildFallback(cwd, callback) {
       // Replace any script src that points to assets/index-*.js with our new bundle
       html = html.replace(
         /<script[^>]*src="\/assets\/index-[^"]*\.js"[^>]*><\/script>/,
-        `<script type="module" crossorigin src="/assets/index-esbuild.js"></script>`,
+        `<script src="/assets/index-esbuild.js"></script>`,
       );
       fs.writeFileSync(indexHtml, html);
     } else {
