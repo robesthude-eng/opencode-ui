@@ -244,8 +244,7 @@ function runEsbuildFallback(cwd, callback) {
   const args = [
     entryPoint,
     "--bundle",
-    `--outdir=${assetsDir}`,
-    `--entry-names=index-esbuild`,
+    `--outfile=${outFile}`,
     "--loader:.tsx=tsx",
     "--loader:.ts=ts",
     "--loader:.css=empty",
@@ -257,7 +256,6 @@ function runEsbuildFallback(cwd, callback) {
     "--jsx=automatic",
     '--define:process.env.NODE_ENV="production"',
     "--format=esm",
-    "--splitting",
     "--log-level=info",
   ];
 
