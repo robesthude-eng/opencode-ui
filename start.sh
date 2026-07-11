@@ -36,52 +36,63 @@ mkdir -p "$WORKDIR"
 mkdir -p "$(dirname "$AUTH_FILE")"
 mkdir -p "$CONFIG_DIR"
 
-# Copy source code into workspace on first run (for self-improvement)
-if [ ! -f "$WORKDIR/opencode-ui/package.json" ]; then
-  echo "Copying UI source code into workspace…"
-  mkdir -p "$WORKDIR/opencode-ui/src" "$WORKDIR/opencode-ui/public"
-  cp -r /app/workspace-src/src/* "$WORKDIR/opencode-ui/src/" 2>/dev/null || true
-  if [ -d /app/workspace-src/public ]; then
-    cp -r /app/workspace-src/public/* "$WORKDIR/opencode-ui/public/" 2>/dev/null || true
-  fi
-  for f in index.html package.json package-lock.json tsconfig.json tsconfig.node.json vite.config.ts vitest.config.ts biome.json SELF_IMPROVE.md SELF_IMPROVE_GUIDE.md; do
-    cp "/app/workspace-src/$f" "$WORKDIR/opencode-ui/" 2>/dev/null || true
-  done
-  if [ ! -f "$WORKDIR/opencode-ui/SELF_IMPROVE.md" ]; then
-    cat > "$WORKDIR/opencode-ui/SELF_IMPROVE.md" <<'GUIDE'
+# Copy / update source code into workspace on every start (for self-improvement).
+# We ALWAYS copy over — this ensures /app/workspace/opencode-ui/ reflects the
+# latest deploy. AI modifications between deploys are preserved in git history
+# (via /api/git/checkpoint). If .git exists, we auto-commit the deploy update.
+echo "Syncing UI source code from /app/workspace-src/ to $WORKDIR/opencode-ui/…"
+mkdir -p "$WORKDIR/opencode-ui/src" "$WORKDIR/opencode-ui/public"
+cp -rf /app/workspace-src/src/* "$WORKDIR/opencode-ui/src/" 2>/dev/null || true
+if [ -d /app/workspace-src/public ]; then
+  cp -rf /app/workspace-src/public/* "$WORKDIR/opencode-ui/public/" 2>/dev/null || true
+fi
+for f in index.html package.json package-lock.json tsconfig.json tsconfig.node.json vite.config.ts vitest.config.ts biome.json SELF_IMPROVE.md SELF_IMPROVE_GUIDE.md; do
+  cp "/app/workspace-src/$f" "$WORKDIR/opencode-ui/" 2>/dev/null || true
+done
+if [ ! -f "$WORKDIR/opencode-ui/SELF_IMPROVE.md" ]; then
+  cat > "$WORKDIR/opencode-ui/SELF_IMPROVE.md" <<'GUIDE'
 # Self-Improvement Guide
 Use POST /api/sandbox/apply (admin). Pipeline: Biome → tsc → vitest → vite build.
 Then POST /api/rebuild.
 GUIDE
-  fi
-  echo "Self-improvement factory sources copied."
 fi
+echo "Source sync done."
 
 # Initialize git repo in opencode-ui so /api/git/checkpoint and /api/git/checkpoints work.
 # Required by self-improvement: createCheckpoint does `git add . && git commit`,
 # listCheckpoints does `git log`. Without .git, both fail (500 / "noop").
-# Idempotent: skips if .git already exists.
+# Idempotent: skips init if .git already exists.
 if [ ! -d "$WORKDIR/opencode-ui/.git" ]; then
   echo "Initializing git repo in $WORKDIR/opencode-ui for self-improvement checkpoints…"
   (
     cd "$WORKDIR/opencode-ui" || exit 1
     git init -q
-    # git requires user.email and user.name to commit; set local-only (not global)
     git config user.email "self-improve@opencode-ui.local"
     git config user.name "OpenCode UI Self-Improvement"
-    # Don't track node_modules / dist if they happen to be there
     cat > .gitignore <<'GITIGNORE'
 node_modules/
 dist/
 .vite/
 *.log
 GITIGNORE
-    # Initial commit so listCheckpoints returns something and createCheckpoint
-    # has a baseline to diff against.
     git add -A
     git commit -q -m "Initial checkpoint (auto-created by start.sh)" --allow-empty || true
   )
   echo "Git repo initialized."
+else
+  # .git exists — auto-commit any source changes from the latest deploy.
+  # This preserves AI modifications in history (they were committed via
+  # /api/git/checkpoint) while ensuring the working tree reflects the new deploy.
+  (
+    cd "$WORKDIR/opencode-ui" || exit 1
+    git config user.email "self-improve@opencode-ui.local" 2>/dev/null || true
+    git config user.name "OpenCode UI Self-Improvement" 2>/dev/null || true
+    if ! git diff --quiet HEAD -- 2>/dev/null; then
+      git add -A
+      git commit -q -m "Auto-update from deploy $(date -u +%Y-%m-%dT%H:%M:%SZ)" --allow-empty || true
+      echo "Auto-committed deploy update to git."
+    fi
+  )
 fi
 
 # Configure Zen API key
