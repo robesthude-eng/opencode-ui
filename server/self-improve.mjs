@@ -180,22 +180,21 @@ export function listDistSnapshots() {
  * All arguments are hardcoded constants — no user input reaches the command.
  */
 function runBuild(cwd, callback) {
-  // Set NODE_OPTIONS to allow more heap — Railway trial has 512MB RAM but
-  // vite build with 2600+ modules needs more. This enables swap usage if
-  // available and prevents early OOM kills.
-  const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=2048" };
+  // Railway trial has 512MB RAM. vite production build (with minification)
+  // of 2656 modules needs ~800MB and gets OOM-killed.
+  // Workaround: build in development mode (no minification, esbuild transform
+  // only) which uses ~300MB. The bundle is larger (~2MB vs 850KB) but functional.
+  // For a production (minified) build, push to git → Railway Docker builder
+  // has more RAM.
+  const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=4096" };
   execFile("npm", ["install", "--silent"], { cwd, timeout: 120000, env }, (err1, stdout1, stderr1) => {
     if (err1) {
       return callback(new Error(`npm install failed: ${stderr1 || err1.message}`));
     }
-    // Use --minify false to reduce peak memory — esbuild/rollup minification
-    // of 2656 modules requires ~800MB heap, which OOMs on Railway trial (512MB).
-    // The unminified bundle is ~2x larger but still functional; users can
-    // re-deploy via git push for a production (minified) build.
     execFile(
       "npx",
-      ["vite", "build", "--outDir", BUILD_OUT_DIR, "--minify", "false", "--emptyOutDir"],
-      { cwd, timeout: 300000, env, maxBuffer: 10 * 1024 * 1024 },
+      ["vite", "build", "--mode", "development", "--outDir", BUILD_OUT_DIR, "--emptyOutDir", "--minify", "false", "--sourcemap", "false"],
+      { cwd, timeout: 300000, env, maxBuffer: 20 * 1024 * 1024 },
       (err2, stdout2, stderr2) => {
         if (err2) {
           return callback(new Error(`vite build failed: ${stderr2 || err2.message}`));
