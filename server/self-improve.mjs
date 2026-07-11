@@ -181,30 +181,74 @@ export function listDistSnapshots() {
  */
 function runBuild(cwd, callback) {
   // Railway trial has 512MB RAM. vite production build of 2656 modules needs
-  // ~800MB and gets OOM-killed even in dev mode.
-  // Strategy: try vite first; if it fails (OOM), fall back to esbuild which
-  // uses ~50MB. esbuild doesn't handle Tailwind CSS or PWA, so we keep the
-  // existing CSS from the last Docker build and only replace the JS bundle.
-  // IMPORTANT: do NOT use --emptyOutDir with vite — if vite OOMs after
-  // clearing /app/dist, the esbuild fallback has no CSS/index.html to preserve.
+  // ~800MB and gets OOM-killed.
+  // Strategy: try vite with a MINIMAL config (no PWA, no react-compiler)
+  // to reduce memory. If that also fails, fall back to esbuild.
   const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=4096" };
   execFile("npm", ["install", "--silent"], { cwd, timeout: 120000, env }, (err1, stdout1, stderr1) => {
     if (err1) {
       return callback(new Error(`npm install failed: ${stderr1 || err1.message}`));
     }
-    // Try vite build first (full pipeline: Tailwind + PWA + React)
-    // No --emptyOutDir: if vite fails, /app/dist still has the previous build
+    // Create a minimal vite config that disables PWA and react-compiler
+    // (the two biggest memory consumers). Tailwind is kept because it's
+    // needed for CSS.
+    const minimalConfig = `
+import path from "node:path";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
+  build: {
+    outDir: "${BUILD_OUT_DIR.replace(/\\/g, "/")}",
+    emptyOutDir: false,
+    minify: false,
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        entryFileNames: "assets/index-rebuilt.js",
+        chunkFileNames: "assets/chunk-[hash].js",
+        assetFileNames: "assets/[name][extname]",
+      },
+    },
+  },
+});
+`;
+    const configPath = path.join(cwd, "vite.rebuild.config.ts");
+    fs.writeFileSync(configPath, minimalConfig);
+
     execFile(
       "npx",
-      ["vite", "build", "--mode", "development", "--outDir", BUILD_OUT_DIR, "--minify", "false", "--sourcemap", "false"],
-      { cwd, timeout: 120000, env, maxBuffer: 20 * 1024 * 1024 },
+      ["vite", "build", "--config", configPath],
+      { cwd, timeout: 180000, env, maxBuffer: 20 * 1024 * 1024 },
       (err2, stdout2, stderr2) => {
+        // Clean up temp config
+        try { fs.unlinkSync(configPath); } catch {}
+
         if (!err2) {
+          // Vite succeeded — update index.html to reference the new bundle
+          const indexHtml = path.join(BUILD_OUT_DIR, "index.html");
+          if (fs.existsSync(indexHtml)) {
+            let html = fs.readFileSync(indexHtml, "utf8");
+            const stamp = Date.now();
+            html = html.replace(
+              /(<script[^>]*src="\/assets\/index-[^"]*\.js)(\?[^"]*)?("[^>]*><\/script>)/,
+              `$1?v=${stamp}$3`,
+            );
+            // Remove PWA SW registration to prevent stale cache
+            html = html.replace(
+              /<script[^>]*id="vite-plugin-pwa:register-sw"[^>]*><\/script>/,
+              "",
+            );
+            fs.writeFileSync(indexHtml, html);
+          }
           promoteDistSnapshot();
           callback(null, `${stdout1 || ""}\n${stdout2 || ""}`);
           return;
         }
-        // Vite failed (likely OOM) — fall back to esbuild
+        // Vite failed — fall back to esbuild
         console.warn("[Rebuild] vite build failed, falling back to esbuild:", stderr2 || err2.message);
         runEsbuildFallback(cwd, (err3, stdout3) => {
           if (err3) {
