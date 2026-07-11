@@ -180,29 +180,105 @@ export function listDistSnapshots() {
  * All arguments are hardcoded constants — no user input reaches the command.
  */
 function runBuild(cwd, callback) {
-  // Railway trial has 512MB RAM. vite production build (with minification)
-  // of 2656 modules needs ~800MB and gets OOM-killed.
-  // Workaround: build in development mode (no minification, esbuild transform
-  // only) which uses ~300MB. The bundle is larger (~2MB vs 850KB) but functional.
-  // For a production (minified) build, push to git → Railway Docker builder
-  // has more RAM.
+  // Railway trial has 512MB RAM. vite production build of 2656 modules needs
+  // ~800MB and gets OOM-killed even in dev mode.
+  // Strategy: try vite first; if it fails (OOM), fall back to esbuild which
+  // uses ~50MB. esbuild doesn't handle Tailwind CSS or PWA, so we keep the
+  // existing CSS from the last Docker build and only replace the JS bundle.
   const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=4096" };
   execFile("npm", ["install", "--silent"], { cwd, timeout: 120000, env }, (err1, stdout1, stderr1) => {
     if (err1) {
       return callback(new Error(`npm install failed: ${stderr1 || err1.message}`));
     }
+    // Try vite build first (full pipeline: Tailwind + PWA + React)
     execFile(
       "npx",
       ["vite", "build", "--mode", "development", "--outDir", BUILD_OUT_DIR, "--emptyOutDir", "--minify", "false", "--sourcemap", "false"],
-      { cwd, timeout: 300000, env, maxBuffer: 20 * 1024 * 1024 },
+      { cwd, timeout: 120000, env, maxBuffer: 20 * 1024 * 1024 },
       (err2, stdout2, stderr2) => {
-        if (err2) {
-          return callback(new Error(`vite build failed: ${stderr2 || err2.message}`));
+        if (!err2) {
+          promoteDistSnapshot();
+          callback(null, `${stdout1 || ""}\n${stdout2 || ""}`);
+          return;
         }
-        promoteDistSnapshot();
-        callback(null, `${stdout1 || ""}\n${stdout2 || ""}`);
+        // Vite failed (likely OOM) — fall back to esbuild
+        console.warn("[Rebuild] vite build failed, falling back to esbuild:", stderr2 || err2.message);
+        runEsbuildFallback(cwd, (err3, stdout3) => {
+          if (err3) {
+            return callback(new Error(`Both vite and esbuild failed. vite: ${stderr2 || err2.message} | esbuild: ${err3.message}`));
+          }
+          promoteDistSnapshot();
+          callback(null, `${stdout1 || ""}\n[esbuild fallback]\n${stdout3 || ""}`);
+        });
       },
     );
+  });
+}
+
+/**
+ * Fallback build using esbuild directly. Much lower memory (~50MB vs 800MB
+ * for vite). Only rebuilds the JS bundle; keeps existing CSS from the last
+ * Docker-built /app/dist. Handles .tsx, .ts, .css imports, and JSX automatic
+ * runtime. Does NOT handle Tailwind processing or PWA service worker — those
+ * remain from the previous build.
+ */
+function runEsbuildFallback(cwd, callback) {
+  const entryPoint = path.join(cwd, "src", "main.tsx");
+  if (!fs.existsSync(entryPoint)) {
+    return callback(new Error("src/main.tsx not found"));
+  }
+  // Find existing CSS file in /app/dist/assets to preserve
+  const assetsDir = path.join(BUILD_OUT_DIR, "assets");
+  let existingCss = null;
+  if (fs.existsSync(assetsDir)) {
+    const files = fs.readdirSync(assetsDir);
+    existingCss = files.find((f) => f.endsWith(".css"));
+  }
+
+  const outFile = path.join(assetsDir, "index-esbuild.js");
+  fs.mkdirSync(assetsDir, { recursive: true });
+
+  const args = [
+    entryPoint,
+    "--bundle",
+    `--outfile=${outFile}`,
+    "--loader:.tsx=tsx",
+    "--loader:.ts=ts",
+    "--loader:.css=css",
+    "--loader:.png=file",
+    "--loader:.jpg=file",
+    "--loader:.svg=file",
+    "--loader:.woff=file",
+    "--loader:.woff2=file",
+    "--jsx=automatic",
+    '--define:process.env.NODE_ENV="production"',
+    "--format=esm",
+    "--splitting",
+    "--log-level=info",
+  ];
+
+  execFile("npx", ["esbuild", ...args], { cwd, timeout: 120000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+    if (err) {
+      return callback(new Error(`esbuild failed: ${stderr || err.message}`));
+    }
+    // Update index.html to reference the new JS bundle
+    const indexHtml = path.join(BUILD_OUT_DIR, "index.html");
+    if (fs.existsSync(indexHtml)) {
+      let html = fs.readFileSync(indexHtml, "utf8");
+      // Replace any script src that points to assets/index-*.js with our new bundle
+      html = html.replace(
+        /<script[^>]*src="\/assets\/index-[^"]*\.js"[^>]*><\/script>/,
+        `<script type="module" crossorigin src="/assets/index-esbuild.js"></script>`,
+      );
+      fs.writeFileSync(indexHtml, html);
+    } else {
+      // Create minimal index.html
+      fs.writeFileSync(
+        indexHtml,
+        `<!DOCTYPE html><html><head><meta charset="UTF-8">${existingCss ? `<link rel="stylesheet" href="/assets/${existingCss}">` : ""}</head><body><div id="root"></div><script type="module" src="/assets/index-esbuild.js"></script></body></html>`,
+      );
+    }
+    callback(null, stdout + (existingCss ? `\n[preserved CSS: ${existingCss}]` : ""));
   });
 }
 
