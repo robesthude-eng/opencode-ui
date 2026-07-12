@@ -156,8 +156,35 @@ export async function syncUiSource(workdir) {
   await git(uiDir, ["add", "-A"]);
   await git(uiDir, ["commit", "-q", "-m", msg, "--allow-empty"], { allowFail: true });
 
+  // Keep the local history bounded (compact unreachable objects).
+  await new Promise((res) => pruneCheckpoints(workdir, () => res()));
+
   console.log(`[syncUiSource] source=${source} githubOk=${githubOk} dir=${uiDir}`);
   return { source, githubOk };
+}
+
+// ---------------------------------------------------------------------------
+// Bounded retention for the agent's local git history
+// ---------------------------------------------------------------------------
+// Dist snapshots (MAX_DIST_VERSIONS), SQLite backups (MAX_BACKUPS) and the
+// audit log are already capped elsewhere — but the agent's local git repo
+// (/app/workspace/opencode-ui/.git) accumulated checkpoints (and resync
+// commits) forever, so the persistent volume could slowly fill. pruneCheckpoints()
+// compacts unreachable/loose objects with `git gc` so the repo stays tiny even
+// after hundreds of small text checkpoints. Best-effort: never throws.
+export function pruneCheckpoints(workdir, callback) {
+  const uiDir = getUiDir(workdir);
+  if (!fs.existsSync(path.join(uiDir, ".git"))) return callback && callback(null);
+  execFile(
+    "git",
+    ["reflog", "expire", "--expire=now", "--all"],
+    { cwd: uiDir, timeout: 10000 },
+    () => {
+      execFile("git", ["gc", "--prune=now"], { cwd: uiDir, timeout: 30000 }, () => {
+        if (callback) callback(null);
+      });
+    },
+  );
 }
 
 /**
@@ -567,6 +594,7 @@ export function createCheckpoint(workdir, callback) {
             { cwd: uiDir, timeout: 10000 },
             (_err3, commitOut) => {
               console.log(`[Checkpoint] Created: ${commitOut?.trim()}`);
+              pruneCheckpoints(workdir); // best-effort: keep history bounded
               callback(null, {
                 status: "success",
                 message: "Checkpoint created!",
