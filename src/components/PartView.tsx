@@ -80,6 +80,24 @@ const KIND_ICONS: Record<string, ReactNode> = {
 
 const STEP_TYPES = new Set(["step-start", "step-finish", "step-reasoning"]);
 
+// Coerce any part payload to a string before handing it to react-markdown.
+// OpenCode can stream tool-call/unknown parts whose `text` (or part payload)
+// resolves to an object ({messageID, callID, …}); feeding an object to
+// react-markdown makes React throw "Element type is invalid" (error #31) and
+// white-screens the chat. Serializing keeps the content visible & safe.
+const asText = (v: unknown): string => {
+  if (typeof v === "string") return v;
+  if (v == null) return "";
+  if (typeof v === "object") {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+  return String(v);
+};
+
 const markdownPlugins = [remarkGfm];
 const rehypePlugins = [rehypeHighlight];
 
@@ -90,7 +108,9 @@ const OptimizedPartView = ({
   part: Part;
   isLastStreaming?: boolean;
 }) => {
-  const p = part as { type?: string; text?: string };
+  // Guard against malformed/garbage parts so one bad event can't crash the chat.
+  if (!part || typeof part !== "object") return null;
+  const p = part as { type?: string; text?: unknown };
   if (HIDDEN_TYPES.has(p.type ?? "")) return null;
 
   const renderMarkdown = (text: string) => (
@@ -104,10 +124,11 @@ const OptimizedPartView = ({
   );
 
   if (STEP_TYPES.has(p.type ?? "")) {
-    if (!p.text) return null;
+    const t = asText(p.text);
+    if (!t) return null;
     return (
       <div className="text-sm text-muted-foreground">
-        {renderMarkdown(p.text)}
+        {renderMarkdown(t)}
         {isLastStreaming && <span className="streaming-cursor" />}
       </div>
     );
@@ -144,7 +165,7 @@ const OptimizedPartView = ({
       if (!p.text) return null;
       return (
         <div className="break-words text-[14.5px] leading-[1.55] [&_p]:my-1.5 [&_pre]:my-2 [&_ul]:my-1.5 [&_ol]:my-1.5">
-          {renderMarkdown(p.text)}
+          {renderMarkdown(asText(p.text))}
           {isLastStreaming && <span className="streaming-cursor" />}
         </div>
       );
@@ -158,7 +179,7 @@ const OptimizedPartView = ({
             <ChevronDown className="h-3.5 w-3.5 opacity-60 transition group-open:rotate-180" />
           </summary>
           <div className="pl-0.5 pb-1 text-[13px] leading-relaxed text-muted-foreground prose prose-invert prose-sm max-w-none prose-p:my-1.5">
-            {renderMarkdown(p.text)}
+            {renderMarkdown(asText(p.text))}
             {isLastStreaming && <span className="streaming-cursor" />}
           </div>
         </details>
@@ -169,7 +190,7 @@ const OptimizedPartView = ({
       if (!p.text) return null;
       return (
         <div className="break-words text-[14.5px] leading-[1.55] [&_p]:my-1.5 [&_pre]:my-2">
-          {renderMarkdown(p.text)}
+          {renderMarkdown(asText(p.text))}
           {isLastStreaming && <span className="streaming-cursor" />}
         </div>
       );

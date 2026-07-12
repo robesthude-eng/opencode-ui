@@ -9,14 +9,16 @@ function getMessageText(message: Message): string {
   if (!message.parts) return "";
   return message.parts
     .map((p) => {
-      if ((p.type === "text" || p.type === "reasoning") && "text" in p) return p.text || "";
+      if ((p.type === "text" || p.type === "reasoning") && "text" in p)
+        return typeof p.text === "string" ? p.text : "";
       if (p.type === "tool") {
         const toolP = p as ToolPart;
         const state = typeof toolP.state === "object" ? toolP.state : undefined;
         const stateOut = state?.output;
         const out: unknown = typeof stateOut === "string" ? stateOut : (stateOut as ToolOutput | undefined) ?? toolP.output;
         if (typeof out === "string") return out;
-        if (out && typeof out === "object" && "text" in out && out.text) return out.text;
+        if (out && typeof out === "object" && "text" in out && typeof out.text === "string")
+          return out.text;
       }
       return "";
     })
