@@ -7,7 +7,8 @@
  * writes, not a defense against prompt injection.
  */
 
-import { execFile, promisify } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
