@@ -114,7 +114,7 @@ export async function syncUiSource(workdir) {
 
   // 1) Preserve any in-progress agent work in local history (recoverable).
   await git(uiDir, ["add", "-A"]);
-  await git(uiDir, ["commit", "-q", "-m", "pre-resync checkpoint", "--allow-empty"], { allowFail: true });
+  await new Promise((res) => commitBounded(uiDir, "pre-resync checkpoint", () => res()));
 
   // 2) Ensure an `origin` remote pointing at the PUBLIC repo URL (no token!).
   const hasOrigin = (await git(uiDir, ["remote", "get-url", "origin"], { allowFail: true })).ok;
@@ -154,7 +154,7 @@ export async function syncUiSource(workdir) {
       ? "resync → /app/workspace-src (image fallback)"
       : "resync attempted (no source available)";
   await git(uiDir, ["add", "-A"]);
-  await git(uiDir, ["commit", "-q", "-m", msg, "--allow-empty"], { allowFail: true });
+  await new Promise((res) => commitBounded(uiDir, msg, () => res()));
 
   // Keep the local history bounded (compact unreachable objects).
   await new Promise((res) => pruneCheckpoints(workdir, () => res()));
@@ -185,6 +185,34 @@ export function pruneCheckpoints(workdir, callback) {
       });
     },
   );
+}
+
+// Hard cap on the number of commits in the agent's local git history.
+// Once reached, new checkpoints amend the latest commit instead of adding a
+// new one, so the chain length stays bounded (pruneCheckpoints() already keeps
+// the on-disk size small). Override with SELF_IMPROVE_MAX_CHECKPOINTS.
+const MAX_CHECKPOINTS = Number(process.env.SELF_IMPROVE_MAX_CHECKPOINTS) || 100;
+
+/**
+ * Create a commit, capping the history length. When there are already
+ * MAX_CHECKPOINTS commits, amend the latest instead of adding a new one.
+ * Callback-style; best-effort (falls back to an empty commit if amend fails).
+ */
+function commitBounded(uiDir, message, callback) {
+  execFile("git", ["rev-list", "--count", "HEAD"], { cwd: uiDir, timeout: 10000 }, (eCount, countOut) => {
+    const count = parseInt((countOut || "0").trim(), 10) || 0;
+    if (count >= MAX_CHECKPOINTS) {
+      execFile("git", ["commit", "--amend", "-m", message], { cwd: uiDir, timeout: 15000 }, (err) => {
+        if (err) {
+          // Amend can fail on an unchanged tree — fall back to an empty commit.
+          return execFile("git", ["commit", "-m", message, "--allow-empty"], { cwd: uiDir, timeout: 15000 }, () => callback(null));
+        }
+        callback(null);
+      });
+    } else {
+      execFile("git", ["commit", "-m", message], { cwd: uiDir, timeout: 15000 }, (err) => callback(err));
+    }
+  });
 }
 
 /**
@@ -582,8 +610,10 @@ export function createCheckpoint(workdir, callback) {
 
     execFile("git", ["add", "."], { cwd: uiDir, timeout: 10000 }, (err1) => {
       if (err1) return callback(new Error("git add failed"));
-
-      execFile("git", ["commit", "-m", msg], { cwd: uiDir, timeout: 15000 }, (err2) => {
+      // Hard cap on checkpoint count: once we have MAX_CHECKPOINTS commits,
+      // fold new changes into the latest commit (amend) instead of adding a
+      // new one. Bounds history length without fragile history rewriting.
+      commitBounded(uiDir, msg, (err2) => {
         if (err2) {
           console.error("[Checkpoint] Failed:", err2.message);
           callback(err2);
