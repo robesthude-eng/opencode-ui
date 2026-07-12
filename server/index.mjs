@@ -64,6 +64,7 @@ import {
   resetUi,
   rollbackToCommit,
   toggleSelfImprove,
+  syncUiSource,
   tryAcquireBuildLock,
 } from "./self-improve.mjs";
 import { captureServerException, initSentryServer } from "./sentry.mjs";
@@ -930,6 +931,7 @@ const server = http.createServer((req, res) => {
   // OPENCODE_ADMIN_EMAILS), or the single operator in password-only mode, may.
   const SELF_IMPROVE_ROUTES = new Set([
     "/api/settings/self-improve",
+    "/api/self-improve/resync",
     "/api/rebuild",
     "/api/reset-ui",
     "/api/git/checkpoint",
@@ -944,13 +946,26 @@ const server = http.createServer((req, res) => {
 
   if (req.url === "/api/settings/self-improve" && req.method === "POST") {
     readBody(req, MAX_JSON_BODY_BYTES)
-      .then((buf) => {
+      .then(async (buf) => {
         try {
           const { enabled } = JSON.parse(buf.toString("utf8") || "{}");
+          const wasEnabled = isSelfImproveEnabled(WORKDIR);
           toggleSelfImprove(WORKDIR, enabled);
           logAudit(WORKDIR, userEmail, "TOGGLE_SELF_IMPROVE", `Enabled: ${!!enabled}`);
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "success", enabled: !!enabled }));
+          // On enabling, pull the REAL latest source into the agent's workspace
+          // so it never starts from a stale/drifted copy (GitHub origin/main,
+          // /app/workspace-src as fallback). Never blocks the toggle on failure.
+          let sync = null;
+          if (enabled && !wasEnabled) {
+            try {
+              sync = await syncUiSource(WORKDIR);
+            } catch (se) {
+              logger.error("[self-improve] resync on enable failed:", se?.message || se);
+              sync = { source: "error", githubOk: false };
+            }
+          }
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "success", enabled: !!enabled, sync }));
         } catch (_e) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Invalid JSON" }));
@@ -1008,6 +1023,36 @@ const server = http.createServer((req, res) => {
       });
     return;
   }
+
+  // Force a fresh pull of the real source into the agent's workspace.
+  // Handy when files changed on GitHub after the container started, or to
+  // recover from a drifted workspace without toggling the mode off/on.
+  if (req.url === "/api/self-improve/resync" && req.method === "POST") {
+    readBody(req, MAX_JSON_BODY_BYTES)
+      .then(async () => {
+        if (!isSelfImproveEnabled(WORKDIR)) {
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+          return;
+        }
+        try {
+          const result = await syncUiSource(WORKDIR);
+          logAudit(WORKDIR, userEmail, "SELF_IMPROVE_RESYNC", `source=${result.source}`);
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true, ...result }));
+        } catch (se) {
+          logger.error("[self-improve] resync failed:", se?.message || se);
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "resync failed", detail: se?.message || String(se) }));
+        }
+      })
+      .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+      });
+    return;
+  }
+
   if (req.url === "/api/rebuild" && req.method === "POST") {
     if (!isSelfImproveEnabled(WORKDIR)) {
       res.writeHead(403, { "Content-Type": "application/json" });

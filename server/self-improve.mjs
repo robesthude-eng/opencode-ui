@@ -7,7 +7,7 @@
  * writes, not a defense against prompt injection.
  */
 
-import { execFile } from "node:child_process";
+import { execFile, promisify } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,6 +50,113 @@ export function getUiDir(workdir) {
   if (fs.existsSync(p)) return p;
   if (fs.existsSync(path.join(__dirname, "..", "package.json"))) return path.join(__dirname, "..");
   return p;
+}
+
+// ---------------------------------------------------------------------------
+// Live source sync for the Self-Improvement agent
+// ---------------------------------------------------------------------------
+// The agent's workspace (/app/workspace/opencode-ui, on the persistent volume)
+// can drift from the real project: the image snapshot (/app/workspace-src) is
+// only refreshed at container start, and human pushes after a deploy aren't
+// reflected until the next restart. syncUiSource() fixes this by pulling the
+// REAL latest from GitHub (origin/main) on demand — e.g. when Self-Improvement
+// is toggled ON, or via POST /api/self-improve/resync.
+
+const GITHUB_REPO = process.env.GITHUB_REPO || "https://github.com/robesthude-eng/opencode-ui.git";
+// Image snapshot used as a fallback when GitHub is unreachable. Mirrors the
+// file list copied by start.sh.
+const SRC_SNAPSHOT = "/app/workspace-src";
+const ROOT_FILES = [
+  "index.html", "package.json", "package-lock.json",
+  "tsconfig.json", "tsconfig.node.json", "vite.config.ts",
+  "vitest.config.ts", "biome.json", "SELF_IMPROVE.md", "SELF_IMPROVE_GUIDE.md",
+];
+
+const execFileP = promisify(execFile);
+
+/**
+ * Run a git command inside the UI workspace. Resolves with { ok, stdout, stderr }.
+ * When allowFail is true, failures are returned instead of thrown.
+ */
+async function git(workdir, args, { allowFail = false } = {}) {
+  try {
+    const { stdout, stderr } = await execFileP("git", args, { cwd: workdir });
+    return { ok: true, stdout: (stdout || "").trim(), stderr: (stderr || "").trim() };
+  } catch (e) {
+    if (allowFail) return { ok: false, error: e.message, stderr: (e.stderr || "").trim() };
+    throw e;
+  }
+}
+
+/**
+ * Pull the freshest real source into the agent's workspace.
+ *
+ * Priority:
+ *   1. GitHub `origin/main` — git fetch (+ checkout). Reflects ANY human push,
+ *      even after the container started. GITHUB_PAT (if set) is injected per
+ *      command via `git -c url…insteadOf` and is NEVER written to .git/config
+ *      or any file.
+ *   2. Image snapshot /app/workspace-src — used when GitHub is unreachable
+ *      (offline, or a private repo without GITHUB_PAT).
+ *
+ * The agent's in-progress work is checkpointed to the LOCAL git history first,
+ * so nothing is ever lost; then the working tree is overlaid with fresh source.
+ *
+ * @returns {{ source: "github"|"image"|"none", githubOk: boolean }}
+ */
+export async function syncUiSource(workdir) {
+  const uiDir = getUiDir(workdir);
+  if (!fs.existsSync(uiDir)) {
+    console.warn("[syncUiSource] workspace missing:", uiDir);
+    return { source: "none", githubOk: false };
+  }
+
+  // 1) Preserve any in-progress agent work in local history (recoverable).
+  await git(uiDir, ["add", "-A"]);
+  await git(uiDir, ["commit", "-q", "-m", "pre-resync checkpoint", "--allow-empty"], { allowFail: true });
+
+  // 2) Ensure an `origin` remote pointing at the PUBLIC repo URL (no token!).
+  const hasOrigin = (await git(uiDir, ["remote", "get-url", "origin"], { allowFail: true })).ok;
+  if (!hasOrigin) {
+    await git(uiDir, ["remote", "add", "origin", GITHUB_REPO], { allowFail: true });
+  }
+
+  // 3) Try to fetch the real latest from GitHub.
+  let githubOk = false;
+  const pat = process.env.GITHUB_PAT;
+  const fetchArgs = pat
+    ? ["-c", `url."https://${pat}@github.com/".insteadOf="https://github.com/"`, "fetch", "--depth=1", "origin", "main"]
+    : ["fetch", "--depth=1", "origin", "main"];
+  const fr = await git(uiDir, fetchArgs, { allowFail: true });
+  if (fr.ok) {
+    const co = await git(uiDir, ["checkout", "-f", "origin/main", "--", "."], { allowFail: true });
+    githubOk = co.ok;
+  }
+
+  // 4) Fallback: clean copy from the image snapshot (also drops removed files).
+  if (!githubOk && fs.existsSync(SRC_SNAPSHOT)) {
+    fs.rmSync(path.join(uiDir, "src"), { recursive: true, force: true });
+    fs.cpSync(path.join(SRC_SNAPSHOT, "src"), path.join(uiDir, "src"), { recursive: true });
+    if (fs.existsSync(path.join(SRC_SNAPSHOT, "public")))
+      fs.cpSync(path.join(SRC_SNAPSHOT, "public"), path.join(uiDir, "public"), { recursive: true });
+    for (const f of ROOT_FILES) {
+      const s = path.join(SRC_SNAPSHOT, f);
+      if (fs.existsSync(s)) fs.copyFileSync(s, path.join(uiDir, f));
+    }
+  }
+
+  // 5) Record what we synced to.
+  const source = githubOk ? "github" : fs.existsSync(SRC_SNAPSHOT) ? "image" : "none";
+  const msg = githubOk
+    ? "resync → origin/main (GitHub, freshest)"
+    : source === "image"
+      ? "resync → /app/workspace-src (image fallback)"
+      : "resync attempted (no source available)";
+  await git(uiDir, ["add", "-A"]);
+  await git(uiDir, ["commit", "-q", "-m", msg, "--allow-empty"], { allowFail: true });
+
+  console.log(`[syncUiSource] source=${source} githubOk=${githubOk} dir=${uiDir}`);
+  return { source, githubOk };
 }
 
 /**

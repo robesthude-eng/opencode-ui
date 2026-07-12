@@ -95,6 +95,12 @@ else
   )
 fi
 
+# Configure origin remote (PUBLIC URL only — never embed a token here).
+# The runtime sync (syncUiSource) injects GITHUB_PAT per-command if set.
+if [ -d "$WORKDIR/opencode-ui/.git" ] && ! git -C "$WORKDIR/opencode-ui" remote get-url origin >/dev/null 2>&1; then
+  git -C "$WORKDIR/opencode-ui" remote add origin "https://github.com/robesthude-eng/opencode-ui.git"
+fi
+
 # Configure Zen API key
 if [ -n "$OPENCODE_ZEN_API_KEY" ]; then
   echo "Configuring OpenCode Zen key…"
