@@ -13,7 +13,6 @@ import {
   NewChatIcon,
   SettingsIcon,
   SunIcon,
-  TrashIcon,
 } from "./icons";
 
 function SidebarUserEmail({ email }: { email: string }) {
@@ -133,7 +132,9 @@ export default function Sidebar() {
                   ? "🤖 Самоулучшение"
                   : s.title || "New chat";
               const sStatus =
-                typeof status[s.id] === "string" ? status[s.id] : (status[s.id] as { type?: string })?.type;
+                typeof status[s.id] === "string"
+                  ? status[s.id]
+                  : (status[s.id] as { type?: string })?.type;
               const busy = sStatus === "busy";
               return (
                 <div
@@ -228,7 +229,8 @@ export default function Sidebar() {
                       border: "none",
                       cursor: "pointer",
                       padding: 0,
-                      transition: "background 160ms ease, color 160ms ease, opacity 160ms ease, transform 100ms ease",
+                      transition:
+                        "background 160ms ease, color 160ms ease, opacity 160ms ease, transform 100ms ease",
                     }}
                     onPointerEnter={(e) => {
                       e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
@@ -256,7 +258,17 @@ export default function Sidebar() {
                       e.currentTarget.style.opacity = "0.45";
                     }}
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
                       <path d="M3 6h18" />
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
                       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />

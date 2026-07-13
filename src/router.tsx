@@ -72,7 +72,9 @@ function AppShell() {
   // Prevents localStorage drift (server was reset, admin toggled from another tab, etc.)
   useEffect(() => {
     const sync = useStore.getState().syncSelfImproveFromServer;
-    if (typeof sync === "function") { void sync(); }
+    if (typeof sync === "function") {
+      void sync();
+    }
   }, []);
 
   useEffect(() => {
@@ -82,17 +84,35 @@ function AppShell() {
     loadModels();
     const stream = new EventStream();
     const off = stream.on((e) => applyEvent(e));
-    let poll: ReturnType<typeof setInterval> | null = setInterval(() => setConnection(stream.status), 400);
-    let healthPoll: ReturnType<typeof setInterval> | null = setInterval(() => checkConnection(), 15000);
-    let modelsPoll: ReturnType<typeof setInterval> | null = setInterval(() => loadModels(true), 60000);
+    let poll: ReturnType<typeof setInterval> | null = setInterval(
+      () => setConnection(stream.status),
+      400,
+    );
+    let healthPoll: ReturnType<typeof setInterval> | null = setInterval(
+      () => checkConnection(),
+      15000,
+    );
+    let modelsPoll: ReturnType<typeof setInterval> | null = setInterval(
+      () => loadModels(true),
+      60000,
+    );
 
     // Pause polling when tab is hidden (mobile background, browser tab switch).
     // Saves battery and prevents unnecessary network requests.
     const onVisibility = () => {
       if (document.hidden) {
-        if (poll) { clearInterval(poll); poll = null; }
-        if (healthPoll) { clearInterval(healthPoll); healthPoll = null; }
-        if (modelsPoll) { clearInterval(modelsPoll); modelsPoll = null; }
+        if (poll) {
+          clearInterval(poll);
+          poll = null;
+        }
+        if (healthPoll) {
+          clearInterval(healthPoll);
+          healthPoll = null;
+        }
+        if (modelsPoll) {
+          clearInterval(modelsPoll);
+          modelsPoll = null;
+        }
       } else {
         if (!poll) poll = setInterval(() => setConnection(stream.status), 400);
         if (!healthPoll) healthPoll = setInterval(() => checkConnection(), 15000);
@@ -138,11 +158,7 @@ function AppShell() {
 
   // Sync store → URL when chat selected without route param (skip temp IDs)
   useEffect(() => {
-    if (
-      currentID &&
-      !currentID.startsWith("tmp_") &&
-      params.sessionId !== currentID
-    ) {
+    if (currentID && !currentID.startsWith("tmp_") && params.sessionId !== currentID) {
       lastNavigateFromStore.current = currentID;
       void navigate({
         to: "/chat/$sessionId",

@@ -2,14 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api } from "../api/client";
-import { ACCEPTED_EXTENSIONS, formatSize, processFile } from "../api/files";
+import { processFile } from "../api/files";
 import { useStore } from "../store/useStore";
 import { CloseIcon, PaperclipIcon, SendIcon, StopIcon } from "./icons";
 
 export default function Composer() {
   const currentID = useStore((s) => s.currentID);
   const rawStatus = useStore((s) => (currentID ? s.status[currentID] : undefined));
-  const status = typeof rawStatus === "string" ? rawStatus : (rawStatus as unknown as { type?: string })?.type || "idle";
+  const status =
+    typeof rawStatus === "string"
+      ? rawStatus
+      : (rawStatus as unknown as { type?: string })?.type || "idle";
   const send = useStore((s) => s.send);
   const abort = useStore((s) => s.abort);
   const attachments = useStore((s) => s.attachments);
@@ -19,7 +22,7 @@ export default function Composer() {
   const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [_uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [_uploadedPaths, setUploadedPaths] = useState<Record<string, string>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -100,11 +103,11 @@ export default function Composer() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 flex justify-center pointer-events-none px-3 pb-6">
-      <div 
+      <div
         className={cn(
           "pointer-events-auto w-full max-w-3xl transition-all duration-200",
           "bg-card/95 backdrop-blur-md shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5)] rounded-3xl p-2 ring-1 ring-white/10",
-          dragOver && "ring-2 ring-primary bg-primary/5"
+          dragOver && "ring-2 ring-primary bg-primary/5",
         )}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
@@ -115,14 +118,14 @@ export default function Composer() {
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 px-2 pb-2">
               {attachments.map((att, i) => (
-                <div 
-                  key={i} 
+                <div
+                  key={i}
                   className="flex items-center gap-2 rounded-full bg-muted border border-border px-2 py-1 text-xs text-muted-foreground"
                 >
                   <span className="truncate max-w-[120px]">{att.name}</span>
-                  <button 
-                    type="button" 
-                    className="hover:text-destructive" 
+                  <button
+                    type="button"
+                    className="hover:text-destructive"
                     onClick={() => removeAttachment(att.name)}
                   >
                     <CloseIcon size={12} />
@@ -186,7 +189,9 @@ export default function Composer() {
                   size="icon"
                   className={cn(
                     "h-9 w-9 shrink-0 rounded-full transition-all",
-                    canSend ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                    canSend
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground",
                   )}
                   onClick={submit}
                   disabled={!canSend}

@@ -11,10 +11,9 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
   selfImproveEnabled:
     typeof window !== "undefined" && localStorage.getItem("opencode_self_improve") === "true",
   // ID of the dedicated «Самоулучшение» chat created when Self-Improvement is enabled.
-  selfImproveSessionId:
-    (typeof window !== "undefined"
-      ? localStorage.getItem("opencode_self_improve_session")
-      : null) as string | null,
+  selfImproveSessionId: (typeof window !== "undefined"
+    ? localStorage.getItem("opencode_self_improve_session")
+    : null) as string | null,
 
   toggleTheme: () => {
     const next: Theme = get().theme === "dark" ? "light" : "dark";
@@ -57,7 +56,8 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
         else localStorage.removeItem("opencode_self_improve_session");
       }
       set({ selfImproveEnabled: enabled, selfImproveSessionId: sessionId });
-    } catch (_e) { /* silent */ }
+    } catch (_e) {
+      /* silent */
+    }
   },
-
 });

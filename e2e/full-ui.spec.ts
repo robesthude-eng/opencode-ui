@@ -21,10 +21,10 @@
  */
 import { expect, test } from "@playwright/test";
 
-const BASE = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000";
+const _BASE = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000";
 // Pre-seeded admin user (see /home/z/my-project/scripts/reset-and-seed.sh)
 const ADMIN = { email: "admin@local.test", password: "testpass123" };
-const USER2 = { email: `user+${Date.now()}@local.test`, password: "userpass123" };
+const _USER2 = { email: `user+${Date.now()}@local.test`, password: "userpass123" };
 
 async function register(page, creds) {
   await page.goto("/");
@@ -81,7 +81,9 @@ test.describe("1. Auth UI", () => {
     await page.locator('input[id="password"]').fill("wrong-password");
     await page.getByRole("button", { name: "Войти" }).click();
     // Should show error message, NOT redirect
-    await expect(page.locator("text=/неверн|invalid|ошибк|Invalid email/i").first()).toBeVisible({ timeout: 3000 });
+    await expect(page.locator("text=/неверн|invalid|ошибк|Invalid email/i").first()).toBeVisible({
+      timeout: 3000,
+    });
   });
 
   test("1.5 register with mismatched passwords shows error", async ({ page }) => {
@@ -93,7 +95,9 @@ test.describe("1. Auth UI", () => {
     await page.waitForSelector('input[id="confirm"]', { timeout: 2000 });
     await page.locator('input[id="confirm"]').fill("different-password");
     await page.getByRole("button", { name: "Зарегистрироваться" }).click();
-    await expect(page.locator("text=/не совпадают|do not match/i").first()).toBeVisible({ timeout: 3000 });
+    await expect(page.locator("text=/не совпадают|do not match/i").first()).toBeVisible({
+      timeout: 3000,
+    });
   });
 
   test("1.6 switching between login/register tabs", async ({ page }) => {
@@ -126,7 +130,9 @@ test.describe("2. Sidebar", () => {
 
   test("2.2 Settings button opens panel", async ({ page }) => {
     await page.getByRole("button", { name: /Settings/i }).click();
-    await expect(page.locator("text=/Self-Improvement|self-improve|Self-improve/i").first()).toBeVisible({ timeout: 3000 });
+    await expect(
+      page.locator("text=/Self-Improvement|self-improve|Self-improve/i").first(),
+    ).toBeVisible({ timeout: 3000 });
   });
 
   test("2.3 Theme toggle (dark/light)", async ({ page }) => {
@@ -189,7 +195,9 @@ test.describe("2. Sidebar", () => {
       await hideBtn.click();
       await page.waitForTimeout(300);
       // A "show sidebar" button should appear
-      await expect(page.locator('button[title="Show chats"]').first()).toBeVisible({ timeout: 2000 });
+      await expect(page.locator('button[title="Show chats"]').first()).toBeVisible({
+        timeout: 2000,
+      });
       // Click to show again
       await page.locator('button[title="Show chats"]').first().click();
       await page.waitForTimeout(300);
@@ -198,9 +206,11 @@ test.describe("2. Sidebar", () => {
 
   test("2.9 Chat list shows empty state", async ({ page }) => {
     // Since OpenCode is not running, we have no chats
-    await expect(page.locator("text=/No conversations yet|Нет чатов|новых чатов/i")).toBeVisible({ timeout: 3000 }).catch(() => {
-      // Or it might already have a tmp_ session from previous test
-    });
+    await expect(page.locator("text=/No conversations yet|Нет чатов|новых чатов/i"))
+      .toBeVisible({ timeout: 3000 })
+      .catch(() => {
+        // Or it might already have a tmp_ session from previous test
+      });
   });
 });
 
@@ -254,7 +264,9 @@ test.describe("4. ChatView empty state", () => {
   test("4.1 Welcome screen with suggestions", async ({ page }) => {
     await expect(page.locator("text=/Чем могу помочь|How can I help/i")).toBeVisible();
     // 4 suggestion cards
-    const suggestions = page.locator('button:has-text("Написать код"), button:has-text("Объяснить код"), button:has-text("Создать файл"), button:has-text("Отладить")');
+    const suggestions = page.locator(
+      'button:has-text("Написать код"), button:has-text("Объяснить код"), button:has-text("Создать файл"), button:has-text("Отладить")',
+    );
     expect(await suggestions.count()).toBeGreaterThanOrEqual(4);
   });
 
@@ -362,7 +374,7 @@ test.describe("6. Workspace panel", () => {
   test("6.3 Close button hides panel", async ({ page }) => {
     // Find close button INSIDE the workspace panel (the sidebar's mobile close button has md:hidden)
     // Workspace panel header text: 'Workspace' — the close button is in the same header
-    const wsHeader = page.locator('header', { hasText: 'Workspace' }).first();
+    const wsHeader = page.locator("header", { hasText: "Workspace" }).first();
     const closeBtn = wsHeader.locator('button[title="Close"]');
     await expect(closeBtn).toBeVisible({ timeout: 2000 });
     await closeBtn.click();
@@ -386,7 +398,9 @@ test.describe("6. Workspace panel", () => {
 
   test("6.6 Empty state message when no chat selected", async ({ page }) => {
     // Should show "Выберите или создайте чат" since no chat is selected
-    await expect(page.locator("text=/Выберите или создайте чат|Загрузка файлов/i").first()).toBeVisible({ timeout: 3000 });
+    await expect(
+      page.locator("text=/Выберите или создайте чат|Загрузка файлов/i").first(),
+    ).toBeVisible({ timeout: 3000 });
   });
 });
 
@@ -402,7 +416,13 @@ test.describe("7. Settings panel", () => {
 
   test("7.1 Settings panel opens", async ({ page }) => {
     // The panel should be visible — check for tab labels
-    await expect(page.locator("text=/Self-Improvement|self-improve|Самоулучшение|Провайдеры|About|О приложении/i").first()).toBeVisible({ timeout: 3000 });
+    await expect(
+      page
+        .locator(
+          "text=/Self-Improvement|self-improve|Самоулучшение|Провайдеры|About|О приложении/i",
+        )
+        .first(),
+    ).toBeVisible({ timeout: 3000 });
   });
 
   test("7.2 Self-Improve tab — toggle switch visible to admin", async ({ page }) => {
@@ -418,7 +438,9 @@ test.describe("7. Settings panel", () => {
 
   test("7.3 Self-Improve tab — rebuild button visible to admin", async ({ page }) => {
     // Rebuild button — visible but disabled when self-improve is OFF
-    const rebuildBtn = page.locator('button:has-text("Rebuild"), button:has-text("Пересобрать")').first();
+    const rebuildBtn = page
+      .locator('button:has-text("Rebuild"), button:has-text("Пересобрать")')
+      .first();
     if (await rebuildBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       // Don't click — would actually rebuild. Just verify it's there
     }
@@ -439,7 +461,9 @@ test.describe("7. Settings panel", () => {
 
   test("7.6 Switch to Providers tab", async ({ page }) => {
     // Find and click Providers tab
-    const tab = page.locator('button[role="tab"]:has-text("Providers"), button:has-text("Провайдеры")').first();
+    const tab = page
+      .locator('button[role="tab"]:has-text("Providers"), button:has-text("Провайдеры")')
+      .first();
     if (await tab.isVisible({ timeout: 1000 }).catch(() => false)) {
       await tab.click();
       await page.waitForTimeout(500);
@@ -448,18 +472,24 @@ test.describe("7. Settings panel", () => {
   });
 
   test("7.7 Switch to About tab", async ({ page }) => {
-    const tab = page.locator('button[role="tab"]:has-text("About"), button:has-text("О приложении")').first();
+    const tab = page
+      .locator('button[role="tab"]:has-text("About"), button:has-text("О приложении")')
+      .first();
     if (await tab.isVisible({ timeout: 1000 }).catch(() => false)) {
       await tab.click();
       await page.waitForTimeout(500);
       // Should see version info
-      await expect(page.locator("text=/0\\.3\\.1|version|OpenCode/i").first()).toBeVisible({ timeout: 2000 });
+      await expect(page.locator("text=/0\\.3\\.1|version|OpenCode/i").first()).toBeVisible({
+        timeout: 2000,
+      });
     }
   });
 
   test("7.8 Close settings panel", async ({ page }) => {
     // Find close button (X)
-    const closeBtn = page.locator('button[title="Close"], button:has-text("Close"), [aria-label="Close"]').first();
+    const closeBtn = page
+      .locator('button[title="Close"], button:has-text("Close"), [aria-label="Close"]')
+      .first();
     if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       await closeBtn.click();
       await page.waitForTimeout(300);
@@ -481,7 +511,13 @@ test.describe("8. Settings — non-admin restrictions", () => {
 
   test("8.1 Non-admin sees settings panel without admin controls", async ({ page }) => {
     // The settings panel opens (the panel itself is shared)
-    await expect(page.locator("text=/Self-Improvement|self-improve|Самоулучшение|Провайдеры|About|О приложении/i").first()).toBeVisible({ timeout: 3000 });
+    await expect(
+      page
+        .locator(
+          "text=/Self-Improvement|self-improve|Самоулучшение|Провайдеры|About|О приложении/i",
+        )
+        .first(),
+    ).toBeVisible({ timeout: 3000 });
     // The toggle may be disabled for non-admins
     const toggle = page.locator('button[role="switch"]').first();
     if (await toggle.isVisible({ timeout: 1000 }).catch(() => false)) {
@@ -489,7 +525,9 @@ test.describe("8. Settings — non-admin restrictions", () => {
     }
   });
 
-  test("8.2 Non-admin cannot trigger rebuild/reset (buttons disabled or hidden)", async ({ page }) => {
+  test("8.2 Non-admin cannot trigger rebuild/reset (buttons disabled or hidden)", async ({
+    page,
+  }) => {
     // These should be hidden for non-admins OR disabled
     const rebuild = page.locator('button:has-text("Rebuild")').first();
     if (await rebuild.isVisible({ timeout: 1000 }).catch(() => false)) {
@@ -511,7 +549,9 @@ test.describe("9. Connection banner", () => {
 
   test("9.1 Connection banner appears because OpenCode is down", async ({ page }) => {
     // The amber banner should appear: "Can't connect to the OpenCode server"
-    await expect(page.locator("text=/Can't connect to the OpenCode|opencode serve/i")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("text=/Can't connect to the OpenCode|opencode serve/i")).toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test("9.2 Retry button in banner", async ({ page }) => {
@@ -521,7 +561,9 @@ test.describe("9. Connection banner", () => {
     await retryBtn.click();
     await page.waitForTimeout(500);
     // Banner should still be visible
-    await expect(page.locator("text=/Can't connect to the OpenCode|opencode serve/i")).toBeVisible();
+    await expect(
+      page.locator("text=/Can't connect to the OpenCode|opencode serve/i"),
+    ).toBeVisible();
   });
 });
 
@@ -554,7 +596,7 @@ test.describe("10. Mobile responsive", () => {
     await page.waitForTimeout(500);
     // The sidebar backdrop is a fixed div — use evaluate to click it (since sidebar may intercept)
     await page.evaluate(() => {
-      const backdrops = document.querySelectorAll('.fixed.inset-0.z-40');
+      const backdrops = document.querySelectorAll(".fixed.inset-0.z-40");
       if (backdrops.length > 0) {
         (backdrops[0] as HTMLElement).click();
       }
@@ -587,14 +629,18 @@ test.describe("11. Network resilience", () => {
     await login(page, ADMIN);
     await page.waitForTimeout(2000);
     // Filter out expected errors (502s)
-    expect(errors.filter(e => !e.includes("502"))).toEqual([]);
+    expect(errors.filter((e) => !e.includes("502"))).toEqual([]);
   });
 
-  test("11.3 REGRESSION: New chat during AI generation does NOT hang the page (loop bug)", async ({ page }) => {
+  test("11.3 REGRESSION: New chat during AI generation does NOT hang the page (loop bug)", async ({
+    page,
+  }) => {
     await login(page, ADMIN);
     // Create an empty session by clicking New chat
     await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim().startsWith('New chat'));
+      const btn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent.trim().startsWith("New chat"),
+      );
       if (btn) (btn as HTMLElement).click();
     });
     await page.waitForTimeout(2000);
@@ -603,11 +649,14 @@ test.describe("11. Network resilience", () => {
     // but status will briefly become busy) OR by directly setting status via store
     await page.evaluate(() => {
       // Type and send
-      const ta = document.querySelector('textarea') as HTMLTextAreaElement;
+      const ta = document.querySelector("textarea") as HTMLTextAreaElement;
       if (ta) {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')!.set!;
-        setter.call(ta, 'test');
-        ta.dispatchEvent(new Event('input', { bubbles: true }));
+        const setter = Object.getOwnPropertyDescriptor(
+          window.HTMLTextAreaElement.prototype,
+          "value",
+        )!.set!;
+        setter.call(ta, "test");
+        ta.dispatchEvent(new Event("input", { bubbles: true }));
       }
     });
     await page.waitForTimeout(300);
@@ -619,7 +668,9 @@ test.describe("11. Network resilience", () => {
 
     // Click New chat — this used to hang the page in an infinite URL↔store sync loop
     await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim().startsWith('New chat'));
+      const btn = Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent.trim().startsWith("New chat"),
+      );
       if (btn) (btn as HTMLElement).click();
     });
 
@@ -627,12 +678,12 @@ test.describe("11. Network resilience", () => {
     const result = await Promise.race([
       page.evaluate(() => ({ url: location.href, bodyLen: document.body.innerText.length })),
       new Promise<{ error: string }>((_, rej) =>
-        setTimeout(() => rej(new Error('PAGE HUNG — regression!')), 5000),
+        setTimeout(() => rej(new Error("PAGE HUNG — regression!")), 5000),
       ),
     ]).catch((e) => ({ error: e.message }));
 
-    expect(result).not.toHaveProperty('error');
-    if ('bodyLen' in result) {
+    expect(result).not.toHaveProperty("error");
+    if ("bodyLen" in result) {
       expect(result.bodyLen).toBeGreaterThan(0);
     }
   });

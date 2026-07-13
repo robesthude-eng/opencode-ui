@@ -1,4 +1,11 @@
-import { ChevronDown, FileArchive, FileText, Image as ImageIcon, Paperclip, ChevronRight } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  FileArchive,
+  FileText,
+  Image as ImageIcon,
+  Paperclip,
+} from "lucide-react";
 import React, {
   type ComponentPropsWithoutRef,
   memo,
@@ -44,8 +51,12 @@ const SAFE_MD_COMPONENTS = {
       <div className="group/code relative my-3 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <div className="flex items-center justify-between bg-muted/50 px-3 py-1.5 border-b border-border">
           <div className="flex items-center gap-2">
-             <span className="text-muted-foreground"><FileText className="h-3.5 w-3.5" /></span>
-             <span className="text-[11px] font-mono text-muted-foreground truncate max-w-[200px]">code_block</span>
+            <span className="text-muted-foreground">
+              <FileText className="h-3.5 w-3.5" />
+            </span>
+            <span className="text-[11px] font-mono text-muted-foreground truncate max-w-[200px]">
+              code_block
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 px-1.5 py-0.5 rounded bg-background/50 border border-border">
@@ -170,7 +181,10 @@ function ReasoningCard({ text, streaming }: { text: string; streaming?: boolean 
       </button>
       {/* Раскрытый reasoning-текст */}
       {expanded && (
-        <div className="mt-1.5 ml-6 rounded-lg border border-border px-3 py-2 text-[12.5px] leading-relaxed text-muted-foreground/90 prose prose-sm max-w-none prose-p:my-1.5 [&_*]:text-muted-foreground/90" style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 4%)" }}>
+        <div
+          className="mt-1.5 ml-6 rounded-lg border border-border px-3 py-2 text-[12.5px] leading-relaxed text-muted-foreground/90 prose prose-sm max-w-none prose-p:my-1.5 [&_*]:text-muted-foreground/90"
+          style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 4%)" }}
+        >
           <ReactMarkdown
             remarkPlugins={markdownPlugins}
             rehypePlugins={rehypePlugins}

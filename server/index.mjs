@@ -13,7 +13,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import { createRequire } from "node:module";
+
 const require = createRequire(import.meta.url);
+
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import AdmZip from "adm-zip";
@@ -55,7 +57,6 @@ import {
   getUiDir,
   instantRollbackDist,
   isSelfImproveEnabled,
-  setSelfImproveSessionId,
   listCheckpoints,
   listDistSnapshots,
   logAudit,
@@ -65,8 +66,9 @@ import {
   releaseBuildLock,
   resetUi,
   rollbackToCommit,
-  toggleSelfImprove,
+  setSelfImproveSessionId,
   syncUiSource,
+  toggleSelfImprove,
   tryAcquireBuildLock,
 } from "./self-improve.mjs";
 import { captureServerException, initSentryServer } from "./sentry.mjs";
@@ -209,7 +211,9 @@ function createProxy(targetBase) {
 
       if (proxyRes.statusCode === 404 && sessionMsgMatch) {
         const staleSid = sessionMsgMatch[1];
-        console.warn(`[Proxy] OpenCode returned 404 for stale session ${staleSid} — cleaning up and responding 410 Gone`);
+        console.warn(
+          `[Proxy] OpenCode returned 404 for stale session ${staleSid} — cleaning up and responding 410 Gone`,
+        );
         // Consume upstream body to free socket
         proxyRes.resume();
         try {
@@ -228,18 +232,23 @@ function createProxy(targetBase) {
           // Remove on-disk workspace folder for that stale session
           const stalePath = path.join(WORKDIR, "sessions", staleSid);
           if (fs.existsSync(stalePath)) {
-            try { fs.rmSync(stalePath, { recursive: true, force: true }); } catch (e) {}
+            try {
+              fs.rmSync(stalePath, { recursive: true, force: true });
+            } catch (_e) {}
           }
         } catch (e) {
           console.error("[Proxy] stale-session cleanup failed:", e.message);
         }
         if (!res.headersSent) {
           res.writeHead(410, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({
-            error: "session_gone",
-            sessionId: staleSid,
-            message: "This session no longer exists on the backend and has been cleaned up. Please create a new one."
-          }));
+          res.end(
+            JSON.stringify({
+              error: "session_gone",
+              sessionId: staleSid,
+              message:
+                "This session no longer exists on the backend and has been cleaned up. Please create a new one.",
+            }),
+          );
         }
         return;
       }
@@ -973,7 +982,9 @@ const server = http.createServer((req, res) => {
         return `[${e.timestamp}] [User: ${e.user}] [Action: ${e.action}] ${e.details || ""}`;
       });
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(formatted.length > 0 ? formatted : ["[System] No audit logs recorded yet."]));
+      res.end(
+        JSON.stringify(formatted.length > 0 ? formatted : ["[System] No audit logs recorded yet."]),
+      );
     } catch (e) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to read audit logs", detail: e.message }));
@@ -1008,11 +1019,13 @@ const server = http.createServer((req, res) => {
     const enabled = isSelfImproveEnabled(WORKDIR);
     const sessionId = getSelfImproveSessionId(WORKDIR);
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      enabled,
-      sessionId,
-      canWrite: !!isRequestAdmin,
-    }));
+    res.end(
+      JSON.stringify({
+        enabled,
+        sessionId,
+        canWrite: !!isRequestAdmin,
+      }),
+    );
     return;
   }
 
@@ -1104,10 +1117,13 @@ const server = http.createServer((req, res) => {
     // что и rebuild/rollback, чтобы не было гонок git-операций
     if (!tryAcquireBuildLock()) {
       res.writeHead(423, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        error: "resync_locked",
-        message: "Another build/resync/rollback is currently running. Please wait a moment and try again.",
-      }));
+      res.end(
+        JSON.stringify({
+          error: "resync_locked",
+          message:
+            "Another build/resync/rollback is currently running. Please wait a moment and try again.",
+        }),
+      );
       return;
     }
     readBody(req, MAX_JSON_BODY_BYTES)
@@ -1145,7 +1161,11 @@ const server = http.createServer((req, res) => {
     if (!checkRateLimit(res)) return;
     if (!tryAcquireBuildLock()) {
       res.writeHead(409, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress. Wait for it to finish." }));
+      res.end(
+        JSON.stringify({
+          error: "Another build/reset/rollback is already in progress. Wait for it to finish.",
+        }),
+      );
       return;
     }
     logAudit(WORKDIR, userEmail, "REBUILD_UI_START", "Starting UI build process");
@@ -1172,7 +1192,11 @@ const server = http.createServer((req, res) => {
     if (!checkRateLimit(res)) return;
     if (!tryAcquireBuildLock()) {
       res.writeHead(409, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress. Wait for it to finish." }));
+      res.end(
+        JSON.stringify({
+          error: "Another build/reset/rollback is already in progress. Wait for it to finish.",
+        }),
+      );
       return;
     }
     logAudit(WORKDIR, userEmail, "RESET_UI_START", "Starting UI factory reset");
@@ -1313,12 +1337,17 @@ const server = http.createServer((req, res) => {
         } catch (e) {
           const msg = String(e?.message || e);
           // "Only one snapshot exists — nothing to roll back to" — не 500, а 400 (user-error)
-          const isUserError = /only one snapshot|no (older )?(dist )?snapshot|invalid index|out of range|nothing to roll/i.test(msg);
+          const isUserError =
+            /only one snapshot|no (older )?(dist )?snapshot|invalid index|out of range|nothing to roll/i.test(
+              msg,
+            );
           res.writeHead(isUserError ? 400 : 500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({
-            error: isUserError ? "Nothing to roll back to" : "Instant rollback failed",
-            detail: msg,
-          }));
+          res.end(
+            JSON.stringify({
+              error: isUserError ? "Nothing to roll back to" : "Instant rollback failed",
+              detail: msg,
+            }),
+          );
         }
       })
       .catch(() => {
@@ -1336,7 +1365,11 @@ const server = http.createServer((req, res) => {
     if (!checkRateLimit(res)) return;
     if (!tryAcquireBuildLock()) {
       res.writeHead(409, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress. Wait for it to finish." }));
+      res.end(
+        JSON.stringify({
+          error: "Another build/reset/rollback is already in progress. Wait for it to finish.",
+        }),
+      );
       return;
     }
     readBody(req, MAX_JSON_BODY_BYTES)
@@ -1524,7 +1557,11 @@ const server = http.createServer((req, res) => {
       // Better: create session, then IMMEDIATELY move OpenCode to the isolated dir via
       // an internal PATCH. OpenCode API doesn't expose that, so we pre-generate an
       // isolation directory keyed on user + timestamp, and pass it as ?directory=.
-      const preIsolationDir = path.join(WORKDIR, "sessions", "_new-" + Date.now() + "-" + Math.random().toString(36).slice(2,10));
+      const preIsolationDir = path.join(
+        WORKDIR,
+        "sessions",
+        "_new-" + Date.now() + "-" + Math.random().toString(36).slice(2, 10),
+      );
       try {
         fs.mkdirSync(preIsolationDir, { recursive: true });
         fs.mkdirSync(path.join(preIsolationDir, "uploads"), { recursive: true });
@@ -1565,9 +1602,7 @@ const server = http.createServer((req, res) => {
                   fs.mkdirSync(sessionWorkspace, { recursive: true });
                   fs.mkdirSync(path.join(sessionWorkspace, "uploads"), { recursive: true });
                 }
-                console.log(
-                  `[New Chat] Isolated workspace for ${sid}: ${sessionWorkspace}`,
-                );
+                console.log(`[New Chat] Isolated workspace for ${sid}: ${sessionWorkspace}`);
               } catch (e) {
                 console.error(`[New Chat] Failed to setup workspace for ${sid}:`, e.message);
               }

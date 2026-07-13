@@ -344,7 +344,15 @@ export default function SettingsPanel() {
       loadHealth();
       loadDbBackups();
     }
-  }, [open, loadAuth, isAdminUser]);
+  }, [
+    open,
+    loadAuth,
+    loadDbBackups,
+    loadHealth,
+    loadAuditLogs,
+    loadDistSnapshots,
+    loadCheckpoints,
+  ]);
 
   // Keep health + logs fresh while admin is on self-improve tab (staggered, not 4 parallel)
   useEffect(() => {
@@ -359,7 +367,16 @@ export default function SettingsPanel() {
       else void loadDbBackups();
     }, 10000);
     return () => clearInterval(id);
-  }, [open, activeTab, isAdminUser, toggleBusy]);
+  }, [
+    open,
+    activeTab,
+    isAdminUser,
+    toggleBusy,
+    loadDbBackups,
+    loadDistSnapshots,
+    loadHealth,
+    loadAuditLogs,
+  ]);
 
   if (!open) return null;
 

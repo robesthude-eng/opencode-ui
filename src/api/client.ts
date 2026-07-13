@@ -70,8 +70,12 @@ export interface PromptModel {
 // UX-fix: локальный чёрный список sessionID, для которых сервер уже вернул 410.
 // Дальнейшие запросы к таким ID мы обрываем на клиенте, не тратя сеть.
 const __deadSessions = new Set<string>();
-function markSessionDead(sid: string) { if (sid) __deadSessions.add(sid); }
-export function isSessionDead(sid: string): boolean { return __deadSessions.has(sid); }
+function _markSessionDead(sid: string) {
+  if (sid) __deadSessions.add(sid);
+}
+export function isSessionDead(sid: string): boolean {
+  return __deadSessions.has(sid);
+}
 
 export class SessionGoneError extends Error {
   sessionId: string;

@@ -139,9 +139,8 @@ export default function Workspace() {
   // project source, so its own root IS the project (no duplicate node needed).
   const showSynthetic = selfImproveEnabled && currentID !== selfImproveSessionId;
   const withSelfImproveRoot = useCallback(
-    (nodes: TreeNode[]): TreeNode[] =>
-      showSynthetic ? [SELF_IMPROVE_NODE, ...nodes] : nodes,
-    [showSynthetic],
+    (nodes: TreeNode[]): TreeNode[] => (showSynthetic ? [SELF_IMPROVE_NODE, ...nodes] : nodes),
+    [showSynthetic, SELF_IMPROVE_NODE],
   );
 
   const filterNodes = useCallback(
@@ -273,9 +272,9 @@ export default function Workspace() {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = true;
-    input.setAttribute('webkitdirectory', '');
-    input.setAttribute('directory', '');
-    input.setAttribute('mozdirectory', '');
+    input.setAttribute("webkitdirectory", "");
+    input.setAttribute("directory", "");
+    input.setAttribute("mozdirectory", "");
     input.style.display = "none";
     document.body.appendChild(input);
     folderInputRef.current = input;
@@ -296,7 +295,8 @@ export default function Workspace() {
       const files: { path: string; file: File }[] = [];
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
-        const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+        const relPath =
+          (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
         files.push({ path: relPath, file });
       }
       setUploading(true);
@@ -337,13 +337,13 @@ export default function Workspace() {
       void loadGit();
     }, 8000);
     return () => clearInterval(poll);
-  }, [workspaceOpen, currentID, selfImproveEnabled, refresh, loadGit, autoRefresh]);
+  }, [workspaceOpen, currentID, refresh, loadGit, autoRefresh]);
 
   useEffect(() => {
     setExpanded(new Set([""]));
     setActiveFile(null);
     setTree([]);
-  }, [selfImproveEnabled, currentID]);
+  }, []);
 
   const toggleDir = async (node: TreeNode) => {
     const next = new Set(expanded);

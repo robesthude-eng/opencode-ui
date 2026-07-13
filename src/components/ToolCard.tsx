@@ -3,9 +3,9 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { api } from "../api/client";
 import type { ToolPart, ToolState } from "../api/types";
 import { useStore } from "../store/useStore";
-import { api } from "../api/client";
 import { toolIcon } from "../utils/toolUtils";
 
 function fmt(value: unknown): string {
@@ -101,7 +101,7 @@ function friendlyToolLabel(tool?: string): string {
   return "used " + tool.charAt(0).toUpperCase() + tool.slice(1);
 }
 
-const stateDot: Record<string, string> = {
+const _stateDot: Record<string, string> = {
   running: "bg-amber-400 animate-pulse",
   pending: "bg-amber-400 animate-pulse",
   completed: "bg-emerald-400",
@@ -228,7 +228,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [answered],
+    [answered, submitAnswer],
   );
 
   const handleCustomSubmit = useCallback(
@@ -244,7 +244,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [answered, customText],
+    [answered, customText, submitAnswer],
   );
 
   if (questions.length === 0) return <DefaultToolCard part={part} />;
@@ -335,14 +335,23 @@ function CodeBlock({ label, text }: { label: string; text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1400);
-    }).catch(() => {});
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1400);
+      })
+      .catch(() => {});
   };
   return (
-    <div className="rounded-lg border border-border overflow-hidden" style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 4%)" }}>
-      <div className="flex items-center justify-between px-2.5 py-1 border-b border-border/70" style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 8%)" }}>
+    <div
+      className="rounded-lg border border-border overflow-hidden"
+      style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 4%)" }}
+    >
+      <div
+        className="flex items-center justify-between px-2.5 py-1 border-b border-border/70"
+        style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 8%)" }}
+      >
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
           {label}
         </span>
@@ -386,12 +395,15 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
         className={cn(
           "group/tool flex w-full items-center gap-2 px-2 py-1.5 text-left rounded-lg transition",
           hasBody && "hover:bg-accent/30 cursor-pointer",
-          !hasBody && "cursor-default"
+          !hasBody && "cursor-default",
         )}
         onClick={hasBody ? () => setManuallyToggled((e) => (e === null ? false : !e)) : undefined}
       >
         {/* Иконка tool'а в маленькой квадратной рамке */}
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border text-muted-foreground" style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 6%)" }}>
+        <span
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border text-muted-foreground"
+          style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 6%)" }}
+        >
           {toolIcon(toolName) || <Terminal className="h-3 w-3" />}
         </span>
         {/* Название */}
@@ -403,13 +415,9 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
         {!running && !errored && (
           <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" strokeWidth={2.5} />
         )}
-        {errored && (
-          <span className="text-[11px] font-medium text-red-400">error</span>
-        )}
+        {errored && <span className="text-[11px] font-medium text-red-400">error</span>}
         {/* Duration */}
-        {duration && (
-          <span className="text-[11.5px] text-muted-foreground/70">{duration}</span>
-        )}
+        {duration && <span className="text-[11.5px] text-muted-foreground/70">{duration}</span>}
         {/* Summary inline (обрезается) */}
         {summary && (
           <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground/70">
@@ -432,12 +440,8 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
       {/* Раскрытые секции в стиле Arena: COMMAND / STDOUT etc */}
       {hasBody && expanded && (
         <div className="mt-1.5 ml-6 space-y-1.5">
-          {input && (
-            <CodeBlock label={isBash ? "COMMAND" : "INPUT"} text={input} />
-          )}
-          {output && (
-            <CodeBlock label={isBash ? "STDOUT" : "OUTPUT"} text={output} />
-          )}
+          {input && <CodeBlock label={isBash ? "COMMAND" : "INPUT"} text={input} />}
+          {output && <CodeBlock label={isBash ? "STDOUT" : "OUTPUT"} text={output} />}
         </div>
       )}
     </div>

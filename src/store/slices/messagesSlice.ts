@@ -18,9 +18,8 @@ const __locallyBusy = new Set<string>();
 // (событие session.idle). Ключ — sessionID.
 const __idleResolvers = new Map<string, () => void>();
 // Максимальное время ожидания настоящего idle, страховка на случай пропажи SSE.
-const REAL_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // legacy, unused after hybrid fix
+const _REAL_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // legacy, unused after hybrid fix
 const SEND_HARD_TIMEOUT_MS = 90 * 1000; // 90 сек без завершения = принудительно закрываем turn
-
 
 export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
   messages: {},
@@ -87,16 +86,15 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         const existingMsg = existing.find((x) => x.id === serverMsg.id);
         if (existingMsg) {
           if (serverMsg.role === "user") {
-            const localAttParts =
-              existingMsg?.parts?.filter((p) => p.type === "attachment") || [];
+            const localAttParts = existingMsg?.parts?.filter((p) => p.type === "attachment") || [];
             const serverParts =
               serverMsg.parts && serverMsg.parts.length > 0
                 ? serverMsg.parts
                 : existingMsg?.parts || [];
-            const hasAttParts = serverParts.some(p => p.type === "attachment");
+            const hasAttParts = serverParts.some((p) => p.type === "attachment");
             const mergedParts = hasAttParts
               ? serverParts
-              : [...localAttParts, ...serverParts.filter(p => p.type !== "attachment")];
+              : [...localAttParts, ...serverParts.filter((p) => p.type !== "attachment")];
             merged.push({ ...serverMsg, parts: mergedParts });
             continue;
           }
@@ -119,16 +117,15 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
           if (serverMsg.role === "user") {
             const localMsg = existing.find((x) => x.id.startsWith("local_") && x.role === "user");
             if (localMsg) {
-              const localAttParts =
-                localMsg.parts?.filter(p => p.type === "attachment") || [];
+              const localAttParts = localMsg.parts?.filter((p) => p.type === "attachment") || [];
               const serverParts =
                 serverMsg.parts && serverMsg.parts.length > 0
                   ? serverMsg.parts
                   : localMsg.parts || [];
-              const hasAttParts = serverParts.some(p => p.type === "attachment");
+              const hasAttParts = serverParts.some((p) => p.type === "attachment");
               const mergedParts = hasAttParts
                 ? serverParts
-                : [...localAttParts, ...serverParts.filter(p => p.type !== "attachment")];
+                : [...localAttParts, ...serverParts.filter((p) => p.type !== "attachment")];
               merged.push({ ...serverMsg, parts: mergedParts });
               continue;
             }
@@ -220,7 +217,10 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         // не теряем его — цепочкой вызываем оба
         const prevResolver = __idleResolvers.get(sidStr);
         __idleResolvers.set(sidStr, () => {
-          if (prevResolver) try { prevResolver(); } catch {}
+          if (prevResolver)
+            try {
+              prevResolver();
+            } catch {}
           done("sse:session.idle");
         });
 
@@ -233,7 +233,10 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         let stableCount = 0;
         let lastSignature = "";
         const httpPoller = setInterval(async () => {
-          if (settled) { clearInterval(httpPoller); return; }
+          if (settled) {
+            clearInterval(httpPoller);
+            return;
+          }
           try {
             const msgs = await api.listMessages(sidStr);
             // импортируем нормализацию через use — обновим стор чтоб UI подтянул
@@ -269,7 +272,10 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               clearInterval(httpPoller);
               clearTimeout(timeoutId);
               __idleResolvers.delete(sidStr);
-              if (!settled) { settled = true; reject(pollErr); }
+              if (!settled) {
+                settled = true;
+                reject(pollErr);
+              }
               return;
             }
             // иначе — сеть моргает, продолжаем
@@ -286,19 +292,24 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         }, SEND_HARD_TIMEOUT_MS);
 
         // --- Ошибка HTTP-запроса prompt (сеть, 5xx) — сразу завершаем с reject ---
-        promptPromise.then((responseMsg) => {
-          if (responseMsg?.info?.finish === "error") {
+        promptPromise
+          .then((responseMsg) => {
+            if (responseMsg?.info?.finish === "error") {
+              clearInterval(httpPoller);
+              clearTimeout(timeoutId);
+              __idleResolvers.delete(sidStr);
+              done("prompt:finish-error");
+            }
+          })
+          .catch((e) => {
             clearInterval(httpPoller);
             clearTimeout(timeoutId);
             __idleResolvers.delete(sidStr);
-            done("prompt:finish-error");
-          }
-        }).catch((e) => {
-          clearInterval(httpPoller);
-          clearTimeout(timeoutId);
-          __idleResolvers.delete(sidStr);
-          if (!settled) { settled = true; reject(e); }
-        });
+            if (!settled) {
+              settled = true;
+              reject(e);
+            }
+          });
       }).finally(() => {
         pollingActive = false;
         clearInterval(pollInterval);
@@ -325,7 +336,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             void get().send(text);
           }
         } catch (recErr) {
-          set((s) => ({ error: (recErr as Error).message }));
+          set((_s) => ({ error: (recErr as Error).message }));
         }
         return;
       }

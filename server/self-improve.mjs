@@ -8,10 +8,10 @@
  */
 
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,9 +68,16 @@ const GITHUB_REPO = process.env.GITHUB_REPO || "https://github.com/robesthude-en
 // file list copied by start.sh.
 const SRC_SNAPSHOT = "/app/workspace-src";
 const ROOT_FILES = [
-  "index.html", "package.json", "package-lock.json",
-  "tsconfig.json", "tsconfig.node.json", "vite.config.ts",
-  "vitest.config.ts", "biome.json", "SELF_IMPROVE.md", "SELF_IMPROVE_GUIDE.md",
+  "index.html",
+  "package.json",
+  "package-lock.json",
+  "tsconfig.json",
+  "tsconfig.node.json",
+  "vite.config.ts",
+  "vitest.config.ts",
+  "biome.json",
+  "SELF_IMPROVE.md",
+  "SELF_IMPROVE_GUIDE.md",
 ];
 
 const execFileP = promisify(execFile);
@@ -126,7 +133,14 @@ export async function syncUiSource(workdir) {
   let githubOk = false;
   const pat = process.env.GITHUB_PAT;
   const fetchArgs = pat
-    ? ["-c", `url."https://${pat}@github.com/".insteadOf="https://github.com/"`, "fetch", "--depth=1", "origin", "main"]
+    ? [
+        "-c",
+        `url."https://${pat}@github.com/".insteadOf="https://github.com/"`,
+        "fetch",
+        "--depth=1",
+        "origin",
+        "main",
+      ]
     : ["fetch", "--depth=1", "origin", "main"];
   const fr = await git(uiDir, fetchArgs, { allowFail: true });
   if (fr.ok) {
@@ -174,7 +188,7 @@ export async function syncUiSource(workdir) {
 // after hundreds of small text checkpoints. Best-effort: never throws.
 export function pruneCheckpoints(workdir, callback) {
   const uiDir = getUiDir(workdir);
-  if (!fs.existsSync(path.join(uiDir, ".git"))) return callback && callback(null);
+  if (!fs.existsSync(path.join(uiDir, ".git"))) return callback?.(null);
   execFile(
     "git",
     ["reflog", "expire", "--expire=now", "--all"],
@@ -199,20 +213,37 @@ const MAX_CHECKPOINTS = Number(process.env.SELF_IMPROVE_MAX_CHECKPOINTS) || 100;
  * Callback-style; best-effort (falls back to an empty commit if amend fails).
  */
 function commitBounded(uiDir, message, callback) {
-  execFile("git", ["rev-list", "--count", "HEAD"], { cwd: uiDir, timeout: 10000 }, (eCount, countOut) => {
-    const count = parseInt((countOut || "0").trim(), 10) || 0;
-    if (count >= MAX_CHECKPOINTS) {
-      execFile("git", ["commit", "--amend", "-m", message], { cwd: uiDir, timeout: 15000 }, (err) => {
-        if (err) {
-          // Amend can fail on an unchanged tree — fall back to an empty commit.
-          return execFile("git", ["commit", "-m", message, "--allow-empty"], { cwd: uiDir, timeout: 15000 }, () => callback(null));
-        }
-        callback(null);
-      });
-    } else {
-      execFile("git", ["commit", "-m", message], { cwd: uiDir, timeout: 15000 }, (err) => callback(err));
-    }
-  });
+  execFile(
+    "git",
+    ["rev-list", "--count", "HEAD"],
+    { cwd: uiDir, timeout: 10000 },
+    (_eCount, countOut) => {
+      const count = parseInt((countOut || "0").trim(), 10) || 0;
+      if (count >= MAX_CHECKPOINTS) {
+        execFile(
+          "git",
+          ["commit", "--amend", "-m", message],
+          { cwd: uiDir, timeout: 15000 },
+          (err) => {
+            if (err) {
+              // Amend can fail on an unchanged tree — fall back to an empty commit.
+              return execFile(
+                "git",
+                ["commit", "-m", message, "--allow-empty"],
+                { cwd: uiDir, timeout: 15000 },
+                () => callback(null),
+              );
+            }
+            callback(null);
+          },
+        );
+      } else {
+        execFile("git", ["commit", "-m", message], { cwd: uiDir, timeout: 15000 }, (err) =>
+          callback(err),
+        );
+      }
+    },
+  );
 }
 
 /**
@@ -415,12 +446,16 @@ function runBuild(cwd, callback) {
   // DO NOT fall back to esbuild — its ESM output loads but React never
   // mounts (blank page), which is worse than keeping the old dist.
   const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=4096" };
-  execFile("npm", ["install", "--silent"], { cwd, timeout: 120000, env }, (err1, stdout1, stderr1) => {
-    if (err1) {
-      return callback(new Error(`npm install failed: ${stderr1 || err1.message}`));
-    }
-    // Create a minimal vite config (no PWA, no react-compiler) to save memory
-    const minimalConfig = `
+  execFile(
+    "npm",
+    ["install", "--silent"],
+    { cwd, timeout: 120000, env },
+    (err1, stdout1, stderr1) => {
+      if (err1) {
+        return callback(new Error(`npm install failed: ${stderr1 || err1.message}`));
+      }
+      // Create a minimal vite config (no PWA, no react-compiler) to save memory
+      const minimalConfig = `
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -445,65 +480,68 @@ export default defineConfig({
   },
 });
 `;
-    const configPath = path.join(cwd, "vite.rebuild.config.ts");
-    fs.writeFileSync(configPath, minimalConfig);
+      const configPath = path.join(cwd, "vite.rebuild.config.ts");
+      fs.writeFileSync(configPath, minimalConfig);
 
-    execFile(
-      "npx",
-      ["vite", "build", "--config", configPath],
-      { cwd, timeout: 300000, env, maxBuffer: 20 * 1024 * 1024 },
-      (err2, stdout2, stderr2) => {
-        // Clean up temp config
-        try { fs.unlinkSync(configPath); } catch {}
+      execFile(
+        "npx",
+        ["vite", "build", "--config", configPath],
+        { cwd, timeout: 300000, env, maxBuffer: 20 * 1024 * 1024 },
+        (err2, stdout2, stderr2) => {
+          // Clean up temp config
+          try {
+            fs.unlinkSync(configPath);
+          } catch {}
 
-        if (err2) {
-          // Vite failed (likely OOM). Return error — do NOT fall back to
-          // esbuild (its ESM output produces a blank page).
-          const isOOM = (stderr2 || "").includes("Killed") || err2.message.includes("Killed");
-          return callback(new Error(
-            isOOM
-              ? `vite build was killed (OOM). Railway trial (512MB RAM) cannot build ${"2656"} modules. Push to git for a Docker rebuild (Railway builder has more RAM), or upgrade to a paid plan.`
-              : `vite build failed: ${stderr2 || err2.message}`
-          ));
-        }
-
-        // Vite succeeded — update index.html to reference the new bundle
-        const indexHtml = path.join(BUILD_OUT_DIR, "index.html");
-        if (fs.existsSync(indexHtml)) {
-          let html = fs.readFileSync(indexHtml, "utf8");
-          const stamp = Date.now();
-          // Replace the old script tag with one pointing to the new bundle
-          html = html.replace(
-            /<script[^>]*src="\/assets\/index-[^"]*\.js"[^>]*><\/script>/,
-            `<script type="module" crossorigin src="/assets/index-rebuilt-${stamp}.js"></script>`,
-          );
-          // Find the actual generated JS filename and update the reference
-          // Sort by mtime descending to get the LATEST build, not a stale one
-          const assetsDir = path.join(BUILD_OUT_DIR, "assets");
-          if (fs.existsSync(assetsDir)) {
-            const newJs = fs.readdirSync(assetsDir)
-              .filter(f => f.startsWith("index-rebuilt-") && f.endsWith(".js"))
-              .map(f => ({ f, m: fs.statSync(path.join(assetsDir, f)).mtimeMs }))
-              .sort((a, b) => b.m - a.m)[0]?.f;
-            if (newJs) {
-              html = html.replace(
-                /<script[^>]*src="\/assets\/index-rebuilt-[^"]*\.js"[^>]*><\/script>/,
-                `<script type="module" crossorigin src="/assets/${newJs}"></script>`,
-              );
-            }
+          if (err2) {
+            // Vite failed (likely OOM). Return error — do NOT fall back to
+            // esbuild (its ESM output produces a blank page).
+            const isOOM = (stderr2 || "").includes("Killed") || err2.message.includes("Killed");
+            return callback(
+              new Error(
+                isOOM
+                  ? `vite build was killed (OOM). Railway trial (512MB RAM) cannot build ${"2656"} modules. Push to git for a Docker rebuild (Railway builder has more RAM), or upgrade to a paid plan.`
+                  : `vite build failed: ${stderr2 || err2.message}`,
+              ),
+            );
           }
-          // Remove PWA SW registration to prevent stale cache
-          html = html.replace(
-            /<script[^>]*id="vite-plugin-pwa:register-sw"[^>]*><\/script>/,
-            "",
-          );
-          fs.writeFileSync(indexHtml, html);
-        }
-        promoteDistSnapshot();
-        callback(null, `${stdout1 || ""}\n${stdout2 || ""}`);
-      },
-    );
-  });
+
+          // Vite succeeded — update index.html to reference the new bundle
+          const indexHtml = path.join(BUILD_OUT_DIR, "index.html");
+          if (fs.existsSync(indexHtml)) {
+            let html = fs.readFileSync(indexHtml, "utf8");
+            const stamp = Date.now();
+            // Replace the old script tag with one pointing to the new bundle
+            html = html.replace(
+              /<script[^>]*src="\/assets\/index-[^"]*\.js"[^>]*><\/script>/,
+              `<script type="module" crossorigin src="/assets/index-rebuilt-${stamp}.js"></script>`,
+            );
+            // Find the actual generated JS filename and update the reference
+            // Sort by mtime descending to get the LATEST build, not a stale one
+            const assetsDir = path.join(BUILD_OUT_DIR, "assets");
+            if (fs.existsSync(assetsDir)) {
+              const newJs = fs
+                .readdirSync(assetsDir)
+                .filter((f) => f.startsWith("index-rebuilt-") && f.endsWith(".js"))
+                .map((f) => ({ f, m: fs.statSync(path.join(assetsDir, f)).mtimeMs }))
+                .sort((a, b) => b.m - a.m)[0]?.f;
+              if (newJs) {
+                html = html.replace(
+                  /<script[^>]*src="\/assets\/index-rebuilt-[^"]*\.js"[^>]*><\/script>/,
+                  `<script type="module" crossorigin src="/assets/${newJs}"></script>`,
+                );
+              }
+            }
+            // Remove PWA SW registration to prevent stale cache
+            html = html.replace(/<script[^>]*id="vite-plugin-pwa:register-sw"[^>]*><\/script>/, "");
+            fs.writeFileSync(indexHtml, html);
+          }
+          promoteDistSnapshot();
+          callback(null, `${stdout1 || ""}\n${stdout2 || ""}`);
+        },
+      );
+    },
+  );
 }
 
 /**
@@ -713,7 +751,7 @@ export function rollbackToCommit(workdir, hash, callback) {
  * Keeps at most 1 rotated file (2MB total max).
  */
 const AUDIT_MAX_BYTES = 1024 * 1024; // 1MB
-const AUDIT_MAX_FILES = 1; // keep audit.log + audit.log.1
+const _AUDIT_MAX_FILES = 1; // keep audit.log + audit.log.1
 
 export function logAudit(workdir, userEmail, action, details = "") {
   try {
@@ -734,7 +772,11 @@ export function logAudit(workdir, userEmail, action, details = "") {
       if (stats.size > AUDIT_MAX_BYTES) {
         const rotatedFile = `${logFile}.1`;
         // Remove old rotated file if exists
-        try { fs.unlinkSync(rotatedFile); } catch { /* ignore */ }
+        try {
+          fs.unlinkSync(rotatedFile);
+        } catch {
+          /* ignore */
+        }
         fs.renameSync(logFile, rotatedFile);
       }
     } catch {

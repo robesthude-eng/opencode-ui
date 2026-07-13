@@ -17,7 +17,11 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
     readBody(req, MAX_JSON_BODY_BYTES)
       .then((buf) => {
         try {
-          const { files, dryRun = true, skipTests = false } = JSON.parse(buf.toString("utf8") || "{}");
+          const {
+            files,
+            dryRun = true,
+            skipTests = false,
+          } = JSON.parse(buf.toString("utf8") || "{}");
           if (!Array.isArray(files) || files.length === 0) {
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Missing or invalid 'files' array in payload." }));
@@ -62,21 +66,29 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
             }
           }
 
-          runSandboxCheck(WORKDIR, files, dryRun, userEmail, (err, result) => {
-            if (err) {
-              res.writeHead(500, { "Content-Type": "application/json" });
-              res.end(
-                JSON.stringify({
-                  status: "error",
-                  error: "Internal sandbox error",
-                  detail: err.message,
-                }),
-              );
-            } else {
-              res.writeHead(200, { "Content-Type": "application/json" });
-              res.end(JSON.stringify(result));
-            }
-          }, 2, { skipTests });
+          runSandboxCheck(
+            WORKDIR,
+            files,
+            dryRun,
+            userEmail,
+            (err, result) => {
+              if (err) {
+                res.writeHead(500, { "Content-Type": "application/json" });
+                res.end(
+                  JSON.stringify({
+                    status: "error",
+                    error: "Internal sandbox error",
+                    detail: err.message,
+                  }),
+                );
+              } else {
+                res.writeHead(200, { "Content-Type": "application/json" });
+                res.end(JSON.stringify(result));
+              }
+            },
+            2,
+            { skipTests },
+          );
         } catch (_e) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Invalid JSON payload" }));
@@ -93,16 +105,14 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
   res.end(JSON.stringify({ error: "Sandbox endpoint not found." }));
 }
 
-
 // UX-fix: tsc-b может выводить ошибки в stdout ИЛИ stderr — склеиваем обоих
 // и убираем шум (progress lines, empty lines), оставляя только настоящие diagnostics.
 function parseTscOutput(err, stdout, stderr) {
-  const combined = [stdout, stderr, err?.message || ""]
-    .filter(Boolean)
-    .join("\n")
-    .trim();
+  const combined = [stdout, stderr, err?.message || ""].filter(Boolean).join("\n").trim();
   if (!combined) {
-    return ["No output from tsc. Check that files are inside src/ and match tsconfig.json include glob."];
+    return [
+      "No output from tsc. Check that files are inside src/ and match tsconfig.json include glob.",
+    ];
   }
   // строки, похожие на настоящие TS-диагностики: содержат ".ts(line,col): error TSxxxx"
   const diagLines = combined.split("\n").filter((l) => /\.tsx?\(\d+,\d+\)|error TS\d+/.test(l));
@@ -111,7 +121,15 @@ function parseTscOutput(err, stdout, stderr) {
   return combined.split("\n").filter(Boolean).slice(0, 10);
 }
 
-function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLeft = 2, options = {}) {
+function runSandboxCheck(
+  workdir,
+  files,
+  dryRun,
+  userEmail,
+  callback,
+  attemptsLeft = 2,
+  options = {},
+) {
   const activeUiDir = path.join(workdir, "opencode-ui");
   const sandboxDir = "/tmp/opencode-ui-sandbox";
 
@@ -137,7 +155,9 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
     if (fs.existsSync(activeNodeModules)) source = activeNodeModules;
     else if (fs.existsSync(globalNodeModules)) source = globalNodeModules;
     if (source) {
-      try { fs.unlinkSync(sandboxNodeModules); } catch {}
+      try {
+        fs.unlinkSync(sandboxNodeModules);
+      } catch {}
       fs.symlinkSync(source, sandboxNodeModules);
       console.log(`[Sandbox] node_modules → ${source}`);
     } else {
@@ -212,14 +232,17 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
                         status: "compilation_failed",
                         message:
                           "TypeScript compilation failed. Autonomous auto-correction failed to generate a fix.",
-                        errors: compileErrors.length > 0
-                          ? compileErrors
-                          : [
-                              "TypeScript compiler produced no readable diagnostics.",
-                              "Common causes: file lives outside src/ (tsc config doesn't include it),",
-                              "invalid file extension, missing type declarations, or a broken tsconfig.",
-                              acErr?.message ? `Auto-correction stderr: ${acErr.message}` : "Auto-correction returned no output.",
-                            ],
+                        errors:
+                          compileErrors.length > 0
+                            ? compileErrors
+                            : [
+                                "TypeScript compiler produced no readable diagnostics.",
+                                "Common causes: file lives outside src/ (tsc config doesn't include it),",
+                                "invalid file extension, missing type declarations, or a broken tsconfig.",
+                                acErr?.message
+                                  ? `Auto-correction stderr: ${acErr.message}`
+                                  : "Auto-correction returned no output.",
+                              ],
                       });
                     }
 
@@ -241,7 +264,7 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
                         callback(null, retryResult);
                       },
                       attemptsLeft - 1,
-                      options
+                      options,
                     );
                   });
                 })

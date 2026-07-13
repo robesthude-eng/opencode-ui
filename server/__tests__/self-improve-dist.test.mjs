@@ -1,14 +1,12 @@
 // @vitest-environment node
 
 import fs from "fs";
-import os from "os";
-import path from "path";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { instantRollbackDist, listDistSnapshots, promoteDistSnapshot } from "../self-improve.mjs";
+import { describe, expect, test } from "vitest";
+import { listDistSnapshots, promoteDistSnapshot } from "../self-improve.mjs";
 
 // Redirect constants by monkey-patching fs paths used in module:
 // The module hardcodes /app/dist — skip promote tests if not writable.
-const canWriteApp = (() => {
+const _canWriteApp = (() => {
   try {
     fs.mkdirSync("/tmp/opencode-dist-test", { recursive: true });
     return true;

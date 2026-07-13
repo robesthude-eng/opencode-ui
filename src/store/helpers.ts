@@ -23,7 +23,8 @@ function hasId(p: Part): p is Part & { id: string } {
 export function normalizeMessage(msg: Message): Message {
   const info = msg.info;
   const id = msg.id || info?.id || "";
-  const role: Message["role"] = msg.role || (info?.role as Message["role"] | undefined) || "assistant";
+  const role: Message["role"] =
+    msg.role || (info?.role as Message["role"] | undefined) || "assistant";
   const parts = (msg.parts || []).map((p) => {
     if (role === "user" && isTextPart(p)) {
       return { ...p, text: cleanSysText(p.text) };

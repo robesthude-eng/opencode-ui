@@ -32,7 +32,9 @@ export function verifyPassword(password, storedHash) {
       const testBuf = Buffer.from(testHash, "hex");
       if (originalBuf.length !== testBuf.length) return false;
       return crypto.timingSafeEqual(originalBuf, testBuf);
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   };
   try {
     if (storedHash.startsWith("v2:")) {
@@ -48,12 +50,19 @@ export function verifyPassword(password, storedHash) {
       return tryVerify(pepperPassword(password), salt, originalHash);
     }
     return false;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 function getConfiguredAdminEmails() {
   const raw = process.env.OPENCODE_ADMIN_EMAILS || "";
-  return new Set(raw.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean));
+  return new Set(
+    raw
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  );
 }
 
 export function isAdmin(email, usersFile) {
@@ -82,19 +91,29 @@ export function parseCookies(req) {
 export function extractToken(req) {
   const cookies = parseCookies(req);
   if (cookies[SESSION_COOKIE]) return cookies[SESSION_COOKIE];
-  let token = (req.headers?.["x-auth-token"] || req.headers?.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  let token = (req.headers?.["x-auth-token"] || req.headers?.authorization || "")
+    .replace(/^Bearer\s+/i, "")
+    .trim();
   if (token) return token;
   if (req.url?.includes("token=")) {
     try {
       token = new URL(req.url, "http://localhost").searchParams.get("token") || "";
-    } catch { token = ""; }
+    } catch {
+      token = "";
+    }
   }
   return token || "";
 }
 
 export function buildSessionCookie(token, maxAgeMs) {
   const maxAge = Math.max(0, Math.floor((maxAgeMs || 7 * 24 * 60 * 60 * 1000) / 1000));
-  const parts = [`${SESSION_COOKIE}=${encodeURIComponent(token)}`, "Path=/", "HttpOnly", "SameSite=Lax", `Max-Age=${maxAge}`];
+  const parts = [
+    `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${maxAge}`,
+  ];
   return parts.join("; ");
 }
 
@@ -195,7 +214,11 @@ export function checkAuthRateLimit(req, res) {
   if (record.count >= AUTH_MAX_ATTEMPTS) {
     const waitMin = Math.ceil((AUTH_WINDOW_MS - (now - record.startTime)) / 60000);
     res.writeHead(429, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: `Слишком много попыток входа. Пожалуйста, подождите ${waitMin} мин.` }));
+    res.end(
+      JSON.stringify({
+        error: `Слишком много попыток входа. Пожалуйста, подождите ${waitMin} мин.`,
+      }),
+    );
     return false;
   }
   record.count++;

@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { Message, Part, ToolOutput, ToolPart } from "../api/types";
 import CopyButton from "./CopyButton";
@@ -65,19 +65,22 @@ function groupParts(parts: Part[]): RenderItem[] {
   return result;
 }
 
-function MessageItem({ 
-  messages, 
-  isWorking 
-}: { 
-  messages: Message | Message[]; 
-  isWorking?: boolean 
+function MessageItem({
+  messages,
+  isWorking,
+}: {
+  messages: Message | Message[];
+  isWorking?: boolean;
 }) {
   const msgArray = Array.isArray(messages) ? messages : [messages];
   const firstMsg = msgArray[0];
   const role = firstMsg.role || (firstMsg.info?.role as string | undefined) || "assistant";
   const isUser = role === "user";
-  
-  const combinedText = msgArray.map(m => getMessageText(m)).filter(Boolean).join("\n\n");
+
+  const combinedText = msgArray
+    .map((m) => getMessageText(m))
+    .filter(Boolean)
+    .join("\n\n");
 
   if (isUser) {
     return (
@@ -108,7 +111,10 @@ function MessageItem({
         {msgArray.map((message, msgIdx) => {
           const items = groupParts(message.parts || []);
           return (
-            <div key={message.id || msgIdx} className="text-[14.5px] leading-relaxed text-foreground/95">
+            <div
+              key={message.id || msgIdx}
+              className="text-[14.5px] leading-relaxed text-foreground/95"
+            >
               {message.info?.error && (
                 <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400 mb-2">
                   {message.info.error.message ||
@@ -119,7 +125,9 @@ function MessageItem({
                 </div>
               )}
               {(() => {
-                const attParts = items.filter((item) => "type" in item && item.type === "attachment");
+                const attParts = items.filter(
+                  (item) => "type" in item && item.type === "attachment",
+                );
                 const otherParts = items.filter(
                   (item) => !("type" in item) || item.type !== "attachment",
                 );
@@ -141,7 +149,11 @@ function MessageItem({
                         <PartView
                           key={i}
                           part={item as Part}
-                          isLastStreaming={isWorking && msgIdx === msgArray.length - 1 && i === otherParts.length - 1}
+                          isLastStreaming={
+                            isWorking &&
+                            msgIdx === msgArray.length - 1 &&
+                            i === otherParts.length - 1
+                          }
                         />
                       );
                     })}
@@ -152,7 +164,7 @@ function MessageItem({
           );
         })}
       </div>
-      
+
       {/* Arena-style Footer: Avatar and Copy Button */}
       <div className="flex items-center gap-1.5 mt-0.5 pl-1">
         <div

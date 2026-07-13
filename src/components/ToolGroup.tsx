@@ -1,6 +1,5 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { memo, useState } from "react";
-import { cn } from "@/lib/utils";
 import type { ToolPart } from "../api/types";
 import { toolIcon } from "../utils/toolUtils";
 import ToolCard from "./ToolCard";
@@ -49,7 +48,10 @@ const ToolGroup = ({ tool, parts }: { tool: string; parts: ToolPart[] }) => {
             <ChevronRight className="h-3.5 w-3.5" />
           )}
         </span>
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border text-muted-foreground" style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 6%)" }}>
+        <span
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border text-muted-foreground"
+          style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 6%)" }}
+        >
           {toolIcon(toolName)}
         </span>
         <span className="text-[13px] font-medium text-foreground/85">
