@@ -1,51 +1,97 @@
 # Руководство по безопасному самоулучшению (Self-Improvement Guide)
 
-Привет, Агент! Ты в режиме самоулучшения. Задача — развивать, чинить и оптимизировать веб-интерфейс (React 19 + Vite 7 + TypeScript + Tailwind 4).
+Привет, Агент! Ты в режиме самоулучшения. Задача — развивать, чинить и
+оптимизировать веб-интерфейс (React 19 + Vite 7 + TypeScript + Tailwind 4).
 
-Для защиты стабильности сервера используется **изолированная песочница** с авто-исправлением.
+## 🛡 Правила безопасности
 
----
+**НЕЛЬЗЯ:**
+* Писать напрямую в `src/**`, `public/**` через `write`/`edit` (даже если у тебя есть tool).
+  Все изменения — **только** через sandbox → PR pipeline (см. ниже).
+* Редактировать: `package.json`, `package-lock.json`, `server/**`,
+  `vite.config.ts`, `tsconfig*`, `Dockerfile`, `.github/**`, `.env`, `docker-compose.yml`,
+  `biome.json`, `vitest.config.ts`, `start.sh`. Whitelist: только `src/**`, `public/**`
+  и документация верхнего уровня (`README.md`, `SELF_IMPROVE*.md`).
 
-## 🚫 ЧТО ДЕЛАТЬ НЕЛЬЗЯ
+## ⚙️ Правильный workflow
 
-* **НЕ пиши файлы напрямую в `src/`**, если не уверен на 100% — сломанный импорт ломает UI для всех.
-* **НЕ редактируй через sandbox:** `package.json`, `package-lock.json`, `server/**`, `vite.config.ts`, `tsconfig*`, `Dockerfile`, `.github/**`. Разрешено **только `src/**`**.
+### Быстрый вариант — одна команда через PR (РЕКОМЕНДУЕТСЯ)
 
----
+```
+POST /api/self-improve/create-pr
+Cookie: opencode_session=<твоя сессия>
+Origin: http://localhost:3000
+Content-Type: application/json
 
-## ⚙️ КАК ДЕЙСТВОВАТЬ ПРАВИЛЬНО
+{
+  "title": "feat: краткое описание изменений",
+  "body":  "детальное описание, что и зачем меняется",
+  "files": [
+    { "path": "src/components/Sidebar.tsx", "content": "<полное новое содержимое>" },
+    { "path": "src/index.css", "content": "<...>" }
+  ],
+  "autoMerge": true
+}
+```
 
-Всегда используй `POST /api/sandbox/apply` (cookie-сессия / admin).
+Что произойдёт **автоматически**:
 
-**Тело JSON:**
-* `files`: `[{ path: "src/...", content: "..." }]`
-* `dryRun`: `true` (проверка) / `false` (деплой в репозиторий UI + git checkpoint)
+1. **Сервер создаёт ветку** `si/<timestamp>` от актуального `origin/main`
+2. **Пишет файлы** и коммитит с автором `self-improve@opencode-ui.local`
+3. **Пушит** ветку на GitHub
+4. **Открывает Pull Request** через GitHub API
+5. **Если `autoMerge:true`** — включает auto-merge (когда CI зелёный, PR смержится сам)
+6. **GitHub Actions CI** запускает: `biome check → tsc -b → vitest → vite build`
+7. При зелёном CI **PR автоматически мержится** в main
+8. **Deploy workflow** SSH на VDS, `git pull + docker compose up -d --build`
+9. Через ~4-5 минут новая версия UI live
 
-### Pipeline песочницы (жёсткие gates)
+**Ответ endpoint:**
+```json
+{
+  "status": "success",
+  "number": 42,
+  "url": "https://github.com/robesthude-eng/opencode-ui/pull/42",
+  "branch": "si/2026-07-13-140255",
+  "filesWritten": ["src/components/Sidebar.tsx"],
+  "autoMerge": { "enabled": true, "requested": true }
+}
+```
 
-1. **Biome** (`biome check --write`) — format  
-2. **tsc -b** — типы  
-3. **vitest run** — тесты  
-4. **vite build** — production bundle  
+### Медленный вариант — только dryRun через sandbox (без PR)
 
-Деплой только если всё зелёное. При fail tsc — до **2** попыток auto-correct через локальную модель.
+Если хочешь **сначала проверить**, что код валиден, до создания PR:
 
-После успешного `dryRun: false` вызови `POST /api/rebuild`, чтобы обновить `/app/dist` (и снять dist-snapshot для мгновенного отката).
+```
+POST /api/sandbox/apply
+{ "files": [...], "dryRun": true, "skipTests": true }
+```
 
-### AST-правки
+Sandbox запускает **Biome → tsc → vitest → vite build**. Если всё зелёное —
+можешь смело делать `create-pr`. Если что-то упало — узнай причину из
+`errors` в ответе и исправь.
 
-`POST /api/sandbox/ast-modify` — `addImport`, `addRoute` (осторожно с server paths: они блокируются sandbox allowlist).
+## 🧯 Что делать, если сломалось
 
----
+1. **UI недоступен** → скажи админу открыть Settings → Саморазвитие →
+   «Мгновенный откат» (rollback dist snapshot за 1 секунду)
+2. **Плохой PR смержился** → создай reverse-PR:
+   `POST /create-pr` с содержимым файлов до правки, title "revert: ..."
+3. **CI постоянно падает** — не создавай новый PR. Прочитай `errors`,
+   найди корень проблемы, отвечай пользователю с объяснением.
 
-## 🧯 Если UI сломался (для человека-админа)
+## 📋 Стек (актуально)
 
-1. **Мгновенный откат UI** (Settings → Саморазвитие) — предыдущая сборка  
-2. Git rollback по чекпоинту  
-3. Factory reset  
+React 19 · Vite 7 · Tailwind 4 · shadcn · TanStack Router · Zustand ·
+better-sqlite3 · pino · Biome · Vitest · Node 22
 
----
+## 🏗 Архитектура (что где)
 
-## Стек (актуально)
-
-React 19 · Vite 7 · Tailwind 4 · shadcn · TanStack Router · Zustand · better-sqlite3 · pino · Biome · Vitest
+- `src/components/` — React UI (Sidebar, ChatView, Composer, Settings, ...)
+- `src/components/ui/` — shadcn/Radix primitives
+- `src/store/useStore.ts` — Zustand (+ persist для prefs)
+- `src/api/client.ts` — API client (HttpOnly cookie auth, `credentials: "include"`)
+- `src/index.css` — Tailwind 4 tokens
+- `src/router.tsx` — TanStack Router
+- `server/` — auth, proxy, sandbox, backups (**не редактируется через sandbox**)
+- `public/` — статические файлы (favicon, manifest, unregister-sw.html)
