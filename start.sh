@@ -3,6 +3,9 @@ set -e
 
 echo "=== OpenCode UI (cloud) starting ==="
 
+# Increase Node.js memory limit for both UI server and OpenCode backend
+export NODE_OPTIONS="--max-old-space-size=4096"
+
 WORKDIR="${OPENCODE_WORKDIR:-/app/workspace}"
 mkdir -p "$WORKDIR/.opencode_data"
 mkdir -p "$WORKDIR/.config_opencode"
@@ -10,16 +13,13 @@ mkdir -p "$HOME/.local/share"
 mkdir -p "$HOME/.config"
 
 # Cleanup dead files from old buggy deployments that polluted workspace with server files
-# Like Claude.ai, workspace should be clean - only sessions, opencode-ui, and essential config
 echo "Cleaning up dead files from workspace (like Claude.ai clean workspace)..."
 rm -rf "$WORKDIR/.config_opencode_parent" "$WORKDIR/.data_opencode_parent" 2>/dev/null || true
 rm -f "$WORKDIR/server.mjs" "$WORKDIR/Dockerfile" "$WORKDIR/package.json" "$WORKDIR/package-lock.json" "$WORKDIR/index.html" "$WORKDIR/railway.json" "$WORKDIR/preview.html" "$WORKDIR/vite.config.ts" "$WORKDIR/vite.config.js" "$WORKDIR/tsconfig.json" "$WORKDIR/tsconfig.node.json" "$WORKDIR/vite.config.d.ts" "$WORKDIR/start.sh" 2>/dev/null || true
 rm -rf "$WORKDIR/src" "$WORKDIR/.git" 2>/dev/null || true
 rm -f "$WORKDIR/.dockerignore" "$WORKDIR/.env.example" "$WORKDIR/.gitignore" 2>/dev/null || true
-# Clean test files created by AI in global workspace (should be in session workspaces, not global)
 rm -f "$WORKDIR"/hello.txt "$WORKDIR"/secret*.txt "$WORKDIR"/isolated*.txt "$WORKDIR"/inst*.txt "$WORKDIR"/patched*.txt "$WORKDIR"/about_cat.md "$WORKDIR"/project_isolated.txt "$WORKDIR"/*.md "$WORKDIR"/test*.txt "$WORKDIR"/isolation*.txt "$WORKDIR"/__tests__ 2>/dev/null || true
 rm -rf "$WORKDIR"/__tests__ 2>/dev/null || true
-# Keep only essential: .opencode_data, .config_opencode, sessions, opencode-ui, .users.json, .sessions.json, etc.
 echo "Workspace cleanup done. Current workspace files:"
 ls -la "$WORKDIR" | head -n 40
 
@@ -36,10 +36,6 @@ mkdir -p "$WORKDIR"
 mkdir -p "$(dirname "$AUTH_FILE")"
 mkdir -p "$CONFIG_DIR"
 
-# Copy / update source code into workspace on every start (for self-improvement).
-# We ALWAYS copy over — this ensures /app/workspace/opencode-ui/ reflects the
-# latest deploy. AI modifications between deploys are preserved in git history
-# (via /api/git/checkpoint). If .git exists, we auto-commit the deploy update.
 echo "Syncing UI source code from /app/workspace-src/ to $WORKDIR/opencode-ui/…"
 mkdir -p "$WORKDIR/opencode-ui/src" "$WORKDIR/opencode-ui/public"
 cp -rf /app/workspace-src/src/* "$WORKDIR/opencode-ui/src/" 2>/dev/null || true
@@ -58,10 +54,6 @@ GUIDE
 fi
 echo "Source sync done."
 
-# Initialize git repo in opencode-ui so /api/git/checkpoint and /api/git/checkpoints work.
-# Required by self-improvement: createCheckpoint does `git add . && git commit`,
-# listCheckpoints does `git log`. Without .git, both fail (500 / "noop").
-# Idempotent: skips init if .git already exists.
 if [ ! -d "$WORKDIR/opencode-ui/.git" ]; then
   echo "Initializing git repo in $WORKDIR/opencode-ui for self-improvement checkpoints…"
   (
@@ -80,9 +72,6 @@ GITIGNORE
   )
   echo "Git repo initialized."
 else
-  # .git exists — auto-commit any source changes from the latest deploy.
-  # This preserves AI modifications in history (they were committed via
-  # /api/git/checkpoint) while ensuring the working tree reflects the new deploy.
   (
     cd "$WORKDIR/opencode-ui" || exit 1
     git config user.email "self-improve@opencode-ui.local" 2>/dev/null || true
@@ -95,13 +84,10 @@ else
   )
 fi
 
-# Configure origin remote (PUBLIC URL only — never embed a token here).
-# The runtime sync (syncUiSource) injects GITHUB_PAT per-command if set.
 if [ -d "$WORKDIR/opencode-ui/.git" ] && ! git -C "$WORKDIR/opencode-ui" remote get-url origin >/dev/null 2>&1; then
   git -C "$WORKDIR/opencode-ui" remote add origin "https://github.com/robesthude-eng/opencode-ui.git"
 fi
 
-# Configure Zen API key
 if [ -n "$OPENCODE_ZEN_API_KEY" ]; then
   echo "Configuring OpenCode Zen key…"
   cat > "$AUTH_FILE" <<EOF
@@ -116,7 +102,6 @@ else
   echo "WARNING: OPENCODE_ZEN_API_KEY not set — no models will be available."
 fi
 
-# Configure model
 cat > "$CONFIG_FILE" <<EOF
 {
   "\$schema": "https://opencode.ai/config.json",
@@ -145,14 +130,12 @@ EOF
 echo "Workdir: $WORKDIR"
 echo "Model: ${OPENCODE_MODEL:-opencode/deepseek-v4-flash-free}"
 
-# Start UI server
 echo "Starting UI server on port 3000…"
 cd /app
 node server.mjs &
 UI_PID=$!
 sleep 1
 
-# Start OpenCode system instance
 echo "Starting opencode serve on loopback 127.0.0.1:${OC_SYSTEM_PORT:-4096}…"
 cd "$WORKDIR"
 (

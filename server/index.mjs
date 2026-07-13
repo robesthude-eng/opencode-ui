@@ -12,6 +12,8 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import AdmZip from "adm-zip";
@@ -179,6 +181,13 @@ function createProxy(targetBase) {
     delete options.headers.connection;
     delete options.headers.upgrade;
 
+    // Detect session-scoped mutating requests so we can gracefully handle 404
+    // when the frontend still holds a session ID that OpenCode no longer knows about
+    // (typical after DB reset / container rebuild). Instead of a mute 404, we clean
+    // stale ownership + on-disk workspace and reply 410 Gone with a machine-readable
+    // JSON so the client can auto-recover (create fresh session and retry).
+    const sessionMsgMatch = req.url.match(/\/session\/(ses_[A-Za-z0-9]+)\/(message|abort)/);
+
     const proxyReq = http.request(options, (proxyRes) => {
       const headers = { ...proxyRes.headers };
       // SSE fix: disable buffering proxies
@@ -190,6 +199,43 @@ function createProxy(targetBase) {
 
       if (proxyRes.statusCode === 401) {
         console.log(`[PROXY ERROR] Backend returned 401 for ${req.url}`);
+      }
+
+      if (proxyRes.statusCode === 404 && sessionMsgMatch) {
+        const staleSid = sessionMsgMatch[1];
+        console.warn(`[Proxy] OpenCode returned 404 for stale session ${staleSid} — cleaning up and responding 410 Gone`);
+        // Consume upstream body to free socket
+        proxyRes.resume();
+        try {
+          // Remove ownership record so it stops appearing in listings
+          const dbPath = path.join(WORKDIR, "opencode.db");
+          if (fs.existsSync(dbPath)) {
+            try {
+              const Database = require("better-sqlite3");
+              const db = new Database(dbPath);
+              db.prepare("DELETE FROM session_owners WHERE session_id = ?").run(staleSid);
+              db.close();
+            } catch (e) {
+              console.error("[Proxy] failed to clean session_owners:", e.message);
+            }
+          }
+          // Remove on-disk workspace folder for that stale session
+          const stalePath = path.join(WORKDIR, "sessions", staleSid);
+          if (fs.existsSync(stalePath)) {
+            try { fs.rmSync(stalePath, { recursive: true, force: true }); } catch (e) {}
+          }
+        } catch (e) {
+          console.error("[Proxy] stale-session cleanup failed:", e.message);
+        }
+        if (!res.headersSent) {
+          res.writeHead(410, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            error: "session_gone",
+            sessionId: staleSid,
+            message: "This session no longer exists on the backend and has been cleaned up. Please create a new one."
+          }));
+        }
+        return;
       }
 
       res.writeHead(proxyRes.statusCode || 502, headers);
@@ -746,11 +792,18 @@ const server = http.createServer((req, res) => {
   }
   // CSRF: cookie-authenticated mutating requests must match Origin/Referer
   if (!checkCsrf(req, res)) return;
-  const userEmail = getUserEmail(req, SESSIONS_FILE, SESSION_TTL_MS);
+  // UX-fix: в password-mode (AUTH_PASSWORD + нет юзеров в БД) getUserEmail() всегда null,
+  // потому что basic-auth не создаёт сессию в БД. Это ломает endpoints, которые требуют
+  // userEmail (audit-logs, sandbox-apply, self-improve-toggle). Подставляем виртуальный
+  // "admin@password-mode" — этого юзера считаем полноправным admin.
+  let userEmail = getUserEmail(req, SESSIONS_FILE, SESSION_TTL_MS);
+  if (!userEmail && passwordModeAdmin) {
+    userEmail = "admin@password-mode";
+  }
 
   // Per-user rate limit on heavy endpoints
   const heavy =
-    /\/message$|\/sandbox\/|\/rebuild$|\/reset-ui$|\/git\/rollback$|\/workspace\/upload/.test(
+    /\/message$|\/question\/[^/]+\/(reply|reject)$|\/sandbox\/|\/rebuild$|\/reset-ui$|\/git\/rollback$|\/workspace\/upload/.test(
       urlPath,
     );
   if (heavy && req.method !== "GET" && req.method !== "HEAD") {
@@ -943,6 +996,20 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // GET current self-improve state (client uses this to sync with server on load,
+  // so localStorage cannot drift out of sync with actual server state).
+  if (req.url === "/api/settings/self-improve" && req.method === "GET") {
+    const enabled = isSelfImproveEnabled(WORKDIR);
+    const sessionId = getSelfImproveSessionId(WORKDIR);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      enabled,
+      sessionId,
+      canWrite: !!isRequestAdmin,
+    }));
+    return;
+  }
+
   if (req.url === "/api/settings/self-improve" && req.method === "POST") {
     readBody(req, MAX_JSON_BODY_BYTES)
       .then(async (buf) => {
@@ -1027,6 +1094,16 @@ const server = http.createServer((req, res) => {
   // Handy when files changed on GitHub after the container started, or to
   // recover from a drifted workspace without toggling the mode off/on.
   if (req.url === "/api/self-improve/resync" && req.method === "POST") {
+    // UX-fix: защита от параллельных resync — используем тот же build-lock,
+    // что и rebuild/rollback, чтобы не было гонок git-операций
+    if (!tryAcquireBuildLock()) {
+      res.writeHead(423, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        error: "resync_locked",
+        message: "Another build/resync/rollback is currently running. Please wait a moment and try again.",
+      }));
+      return;
+    }
     readBody(req, MAX_JSON_BODY_BYTES)
       .then(async () => {
         if (!isSelfImproveEnabled(WORKDIR)) {
@@ -1037,6 +1114,7 @@ const server = http.createServer((req, res) => {
         try {
           const result = await syncUiSource(WORKDIR);
           logAudit(WORKDIR, userEmail, "SELF_IMPROVE_RESYNC", `source=${result.source}`);
+          releaseBuildLock();
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: true, ...result }));
         } catch (se) {
@@ -1227,8 +1305,14 @@ const server = http.createServer((req, res) => {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ status: "success", ...result }));
         } catch (e) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Instant rollback failed", detail: e.message }));
+          const msg = String(e?.message || e);
+          // "Only one snapshot exists — nothing to roll back to" — не 500, а 400 (user-error)
+          const isUserError = /only one snapshot|no (older )?(dist )?snapshot|invalid index|out of range|nothing to roll/i.test(msg);
+          res.writeHead(isUserError ? 400 : 500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            error: isUserError ? "Nothing to roll back to" : "Instant rollback failed",
+            detail: msg,
+          }));
         }
       })
       .catch(() => {

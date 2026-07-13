@@ -17,7 +17,7 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
     readBody(req, MAX_JSON_BODY_BYTES)
       .then((buf) => {
         try {
-          const { files, dryRun = true } = JSON.parse(buf.toString("utf8") || "{}");
+          const { files, dryRun = true, skipTests = false } = JSON.parse(buf.toString("utf8") || "{}");
           if (!Array.isArray(files) || files.length === 0) {
             res.writeHead(400, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Missing or invalid 'files' array in payload." }));
@@ -76,7 +76,7 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
               res.writeHead(200, { "Content-Type": "application/json" });
               res.end(JSON.stringify(result));
             }
-          });
+          }, 2, { skipTests });
         } catch (_e) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Invalid JSON payload" }));
@@ -93,7 +93,25 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
   res.end(JSON.stringify({ error: "Sandbox endpoint not found." }));
 }
 
-function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLeft = 2) {
+
+// UX-fix: tsc-b может выводить ошибки в stdout ИЛИ stderr — склеиваем обоих
+// и убираем шум (progress lines, empty lines), оставляя только настоящие diagnostics.
+function parseTscOutput(err, stdout, stderr) {
+  const combined = [stdout, stderr, err?.message || ""]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  if (!combined) {
+    return ["No output from tsc. Check that files are inside src/ and match tsconfig.json include glob."];
+  }
+  // строки, похожие на настоящие TS-диагностики: содержат ".ts(line,col): error TSxxxx"
+  const diagLines = combined.split("\n").filter((l) => /\.tsx?\(\d+,\d+\)|error TS\d+/.test(l));
+  if (diagLines.length > 0) return diagLines.slice(0, 20);
+  // fallback: любые непустые строки, но не более 10
+  return combined.split("\n").filter(Boolean).slice(0, 10);
+}
+
+function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLeft = 2, options = {}) {
   const activeUiDir = path.join(workdir, "opencode-ui");
   const sandboxDir = "/tmp/opencode-ui-sandbox";
 
@@ -110,9 +128,20 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
 
   try {
     const activeNodeModules = path.join(activeUiDir, "node_modules");
+    const globalNodeModules = "/app/node_modules";
     const sandboxNodeModules = path.join(sandboxDir, "node_modules");
-    if (fs.existsSync(activeNodeModules)) {
-      fs.symlinkSync(activeNodeModules, sandboxNodeModules);
+    // Prefer sandbox-local node_modules if npm-installed inside workspace,
+    // otherwise fall back to /app/node_modules where the container has full deps
+    // (self-improve sandbox requires tsc/vitest/biome to be reachable).
+    let source = null;
+    if (fs.existsSync(activeNodeModules)) source = activeNodeModules;
+    else if (fs.existsSync(globalNodeModules)) source = globalNodeModules;
+    if (source) {
+      try { fs.unlinkSync(sandboxNodeModules); } catch {}
+      fs.symlinkSync(source, sandboxNodeModules);
+      console.log(`[Sandbox] node_modules → ${source}`);
+    } else {
+      console.warn("[Sandbox] no node_modules found — tsc/vitest/biome will fail");
     }
   } catch (e) {
     return callback(new Error(`Failed to symlink node_modules: ${e.message}`));
@@ -164,7 +193,7 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
         { cwd: sandboxDir, timeout: 30000 },
         (err, stdout, stderr) => {
           if (err) {
-            const compileErrors = (stdout || stderr || "").trim().split("\n").filter(Boolean);
+            const compileErrors = parseTscOutput(err, stdout, stderr);
             console.log("[Sandbox] Compilation check failed.");
 
             if (attemptsLeft > 0) {
@@ -183,7 +212,14 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
                         status: "compilation_failed",
                         message:
                           "TypeScript compilation failed. Autonomous auto-correction failed to generate a fix.",
-                        errors: compileErrors,
+                        errors: compileErrors.length > 0
+                          ? compileErrors
+                          : [
+                              "TypeScript compiler produced no readable diagnostics.",
+                              "Common causes: file lives outside src/ (tsc config doesn't include it),",
+                              "invalid file extension, missing type declarations, or a broken tsconfig.",
+                              acErr?.message ? `Auto-correction stderr: ${acErr.message}` : "Auto-correction returned no output.",
+                            ],
                       });
                     }
 
@@ -205,6 +241,7 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
                         callback(null, retryResult);
                       },
                       attemptsLeft - 1,
+                      options
                     );
                   });
                 })
@@ -232,6 +269,17 @@ function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLe
           console.log("[Sandbox] Compilation check succeeded!");
 
           // Step 5.5: Run vitest - fail deploy if tests break
+          // UX-fix: admin may explicitly skip tests via {skipTests: true}
+          if (options.skipTests) {
+            console.log("[Sandbox] Skipping vitest (skipTests=true requested).");
+            return callback(null, {
+              status: "success",
+              message: "TypeScript compiled. Tests skipped by user request. Ready to deploy.",
+              warning: "Tests were not run — deploy at your own risk.",
+              filesToApply: files,
+              dryRun,
+            });
+          }
           console.log("[Sandbox] Running vitest...");
           execFile(
             "npx",
