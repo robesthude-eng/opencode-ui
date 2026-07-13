@@ -1915,32 +1915,28 @@ const server = http.createServer((req, res) => {
 
     // Post-cleanup: OpenCode при proxy DELETE может пере-создать пустую
     // директорию для realPath валидации. Ждём ответ проксирования и уносим
-    // остаточную скорлупу + делаем VACUUM OpenCode-БД чтобы физически
-    // стереть строки, а не оставлять их в WAL.
+    // остаточную скорлупу вторым fs.rmSync через res.on("close") hook.
+    //
+    // ⚠️  ВАЖНО: НЕ делаем VACUUM/checkpoint на .opencode_data/opencode.db
+    // из этого процесса! OpenCode держит эту БД открытой в другом процессе
+    // (opencode serve на 4096). Открытие того же файла нашим better-sqlite3
+    // как второго writer'а через WAL → повреждает WAL и убивает БД
+    // ("database disk image is malformed"). OpenCode сам сделает checkpoint
+    // при следующем commit'е — этого достаточно. Удалённые строки не будут
+    // видны никаким API, а физическое место sqlite переиспользует само.
     const sessionWorkspace = path.join(WORKDIR, "sessions", sid, "workspace");
     const strippedUrl = req.url.startsWith("/api") ? req.url.slice(4) : req.url;
     const sep = strippedUrl.includes("?") ? "&" : "?";
     const deleteDir = selfImproveDir || sessionWorkspace;
     req.url = `${strippedUrl + sep}directory=${encodeURIComponent(deleteDir)}`;
 
-    // hook на завершение ответа — гарантированно чистим то что OpenCode оставил
+    // hook на завершение ответа — гарантированно уносим пустую скорлупу
+    // которую OpenCode пере-создаёт для realPath валидации
     res.on("close", () => {
       setTimeout(() => {
-        removeAll();
-        // VACUUM + WAL checkpoint на OpenCode-БД
         try {
-          const ocDb = path.join(WORKDIR, ".opencode_data", "opencode.db");
-          if (fs.existsSync(ocDb)) {
-            const Database = require("better-sqlite3");
-            const oc = new Database(ocDb);
-            oc.pragma("wal_checkpoint(TRUNCATE)");
-            oc.exec("VACUUM");
-            oc.close();
-            console.log(`[Full-Purge] VACUUM done for OpenCode DB after ${sid}`);
-          }
-        } catch (e) {
-          console.error("[Full-Purge] VACUUM failed:", e.message);
-        }
+          removeAll();
+        } catch (_e) {}
       }, 500);
     });
 
