@@ -1,4 +1,4 @@
-import { ChevronDown, FileArchive, FileText, Image as ImageIcon, Paperclip } from "lucide-react";
+import { ChevronDown, FileArchive, FileText, Image as ImageIcon, Paperclip, ChevronRight } from "lucide-react";
 import React, {
   type ComponentPropsWithoutRef,
   memo,
@@ -41,12 +41,21 @@ const SAFE_MD_COMPONENTS = {
       // fallback
     }
     return (
-      <div className="group/code relative my-2 overflow-hidden rounded-lg bg-muted/60">
-        <div className="absolute right-2 top-2 z-10 opacity-60 transition group-hover/code:opacity-100 [@media(hover:none)]:opacity-100">
-          <CopyButton text={codeText || String(children)} title="Copy code" className="h-6 w-6" />
+      <div className="group/code relative my-3 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="flex items-center justify-between bg-muted/50 px-3 py-1.5 border-b border-border">
+          <div className="flex items-center gap-2">
+             <span className="text-muted-foreground"><FileText className="h-3.5 w-3.5" /></span>
+             <span className="text-[11px] font-mono text-muted-foreground truncate max-w-[200px]">code_block</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 px-1.5 py-0.5 rounded bg-background/50 border border-border">
+              plaintext
+            </span>
+            <CopyButton text={codeText || String(children)} title="Copy code" className="h-6 w-6" />
+          </div>
         </div>
         <pre
-          className="overflow-x-auto p-3 font-mono text-[12.5px] leading-relaxed text-foreground/90"
+          className="overflow-x-auto p-3 font-mono text-[13px] leading-relaxed text-foreground/90 bg-background/40"
           {...props}
         >
           {children}
@@ -86,11 +95,6 @@ const KIND_ICONS: Record<string, ReactNode> = {
 
 const STEP_TYPES = new Set(["step-start", "step-finish", "step-reasoning"]);
 
-// Coerce any part payload to a string before handing it to react-markdown.
-// OpenCode can stream tool-call/unknown parts whose `text` (or part payload)
-// resolves to an object ({messageID, callID, …}); feeding an object to
-// react-markdown makes React throw "Element type is invalid" (error #31) and
-// white-screens the chat. Serializing keeps the content visible & safe.
 const asText = (v: unknown): string => {
   if (typeof v === "string") return v;
   if (v == null) return "";
@@ -107,22 +111,18 @@ const asText = (v: unknown): string => {
 const markdownPlugins = [remarkGfm];
 const rehypePlugins = [rehypeHighlight];
 
-/** "Thought for Ns" — ticks live while streaming, freezes once the reasoning part finishes. */
 function useThinkingDuration(streaming?: boolean): string {
   const [startedAt] = useState(() => Date.now());
-  const [frozenAt, setFrozenAt] = useState<number | null>(null);
   const [, setTick] = useState(0);
 
   useEffect(() => {
     if (streaming) {
-      setFrozenAt(null);
       const id = setInterval(() => setTick((t) => t + 1), 500);
       return () => clearInterval(id);
     }
-    setFrozenAt((prev) => prev ?? Date.now());
   }, [streaming]);
 
-  const end = streaming ? Date.now() : (frozenAt ?? Date.now());
+  const end = streaming ? Date.now() : Date.now();
   const secs = Math.max(0, Math.round((end - startedAt) / 1000));
   return secs <= 1 ? "1 секунду" : `${secs} секунд`;
 }
@@ -133,34 +133,44 @@ function ReasoningCard({ text, streaming }: { text: string; streaming?: boolean 
   const duration = useThinkingDuration(streaming);
 
   return (
-    <div className="not-prose my-1 overflow-hidden rounded-xl border border-border bg-card">
+    <div className="not-prose my-1">
+      {/* Ghost-строка заголовка reasoning */}
       <button
         type="button"
-        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-accent/40 transition"
+        className="group/reason flex w-full items-center gap-2 px-2 py-1.5 text-left rounded-lg hover:bg-accent/30 transition cursor-pointer"
         onClick={() => setManuallyToggled((e) => (e === null ? false : !e))}
       >
+        {/* Иконка "✦" в маленькой квадратной рамке (как у Arena) */}
         <span
           className={cn(
-            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[9px] text-white",
-            streaming && "animate-pulse",
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted-foreground",
+            streaming && "animate-pulse text-violet-400",
           )}
+          style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 6%)" }}
         >
           ✦
         </span>
-        <span className="text-[12.5px] font-medium text-foreground/90">
-          {streaming ? "Размышляет…" : `Думал ${duration}`}
+        <span className="text-[13px] font-medium text-foreground/85">
+          {streaming ? "Размышляет" : "Думал"}
         </span>
+        {streaming && (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
+        )}
+        {!streaming && duration && (
+          <span className="text-[11.5px] text-muted-foreground/70">{duration}</span>
+        )}
         <span className="flex-1" />
-        <span className="text-muted-foreground/80">
+        <span className="text-muted-foreground/50 shrink-0">
           {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 transition-transform" />
+            <ChevronDown className="h-3.5 w-3.5" />
           ) : (
-            <ChevronDown className="h-3.5 w-3.5 -rotate-90 transition-transform" />
+            <ChevronRight className="h-3.5 w-3.5" />
           )}
         </span>
       </button>
+      {/* Раскрытый reasoning-текст */}
       {expanded && (
-        <div className="border-t border-border px-3 py-2 text-[13px] leading-relaxed text-muted-foreground prose prose-sm max-w-none prose-p:my-1.5 [&_*]:text-muted-foreground">
+        <div className="mt-1.5 ml-6 rounded-lg border border-border px-3 py-2 text-[12.5px] leading-relaxed text-muted-foreground/90 prose prose-sm max-w-none prose-p:my-1.5 [&_*]:text-muted-foreground/90" style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 4%)" }}>
           <ReactMarkdown
             remarkPlugins={markdownPlugins}
             rehypePlugins={rehypePlugins}
@@ -182,7 +192,6 @@ const OptimizedPartView = ({
   part: Part;
   isLastStreaming?: boolean;
 }) => {
-  // Guard against malformed/garbage parts so one bad event can't crash the chat.
   if (!part || typeof part !== "object") return null;
   const p = part as { type?: string; text?: unknown };
   if (HIDDEN_TYPES.has(p.type ?? "")) return null;
@@ -201,7 +210,7 @@ const OptimizedPartView = ({
     const t = asText(p.text);
     if (!t) return null;
     return (
-      <div className="text-sm text-muted-foreground">
+      <div className="text-sm text-muted-foreground opacity-80">
         {renderMarkdown(t)}
         {isLastStreaming && <span className="streaming-cursor" />}
       </div>
@@ -238,7 +247,7 @@ const OptimizedPartView = ({
     case "text":
       if (!p.text) return null;
       return (
-        <div className="break-words text-[14.5px] leading-[1.55] [&_p]:my-1.5 [&_pre]:my-2 [&_ul]:my-1.5 [&_ol]:my-1.5">
+        <div className="break-words text-[14.5px] leading-relaxed [&_p]:my-1.5 [&_pre]:my-2">
           {renderMarkdown(asText(p.text))}
           {isLastStreaming && <span className="streaming-cursor" />}
         </div>
@@ -251,7 +260,7 @@ const OptimizedPartView = ({
     default:
       if (!p.text) return null;
       return (
-        <div className="break-words text-[14.5px] leading-[1.55] [&_p]:my-1.5 [&_pre]:my-2">
+        <div className="break-words text-[14.5px] leading-relaxed [&_p]:my-1.5 [&_pre]:my-2">
           {renderMarkdown(asText(p.text))}
           {isLastStreaming && <span className="streaming-cursor" />}
         </div>

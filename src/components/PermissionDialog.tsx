@@ -31,10 +31,10 @@ export default function PermissionDialog() {
       <DialogContent className="max-w-md gap-0 p-0 sm:rounded-2xl">
         <DialogHeader className="px-5 py-4 border-b border-border">
           <div className="flex items-center justify-between gap-3">
-            <DialogTitle>Permission requested</DialogTitle>
+            <DialogTitle>Запрос разрешения</DialogTitle>
             {queueLen > 1 && (
               <Badge variant="secondary" className="shrink-0">
-                1 of {queueLen}
+                1 из {queueLen}
               </Badge>
             )}
           </div>
@@ -43,7 +43,7 @@ export default function PermissionDialog() {
         {req && (
           <div className="space-y-4 px-5 py-4">
             <p className="text-sm text-muted-foreground">
-              OpenCode wants to run a tool. Approve to let it proceed.
+              Ассистент хочет запустить инструмент. Разрешите продолжить.
             </p>
 
             <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
@@ -58,9 +58,9 @@ export default function PermissionDialog() {
 
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="ghost" onClick={() => respond(req.id, false)}>
-                Deny
+                Отклонить
               </Button>
-              <Button onClick={() => respond(req.id, true)}>Allow</Button>
+              <Button onClick={() => respond(req.id, true)}>Разрешить</Button>
             </div>
           </div>
         )}

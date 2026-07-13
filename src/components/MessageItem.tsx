@@ -77,12 +77,11 @@ function MessageItem({
   const role = firstMsg.role || (firstMsg.info?.role as string | undefined) || "assistant";
   const isUser = role === "user";
   
-  // Combine all text for the copy button
   const combinedText = msgArray.map(m => getMessageText(m)).filter(Boolean).join("\n\n");
 
   if (isUser) {
     return (
-      <div className="flex flex-col items-end px-3 md:px-6 py-2 gap-1">
+      <div className="flex flex-col items-end px-3 md:px-6 py-1 gap-0.5">
         {msgArray.map((message, idx) => {
           const msgText = getMessageText(message);
           return (
@@ -91,7 +90,7 @@ function MessageItem({
                 <div className="whitespace-pre-wrap break-words">{msgText || "…"}</div>
               </div>
               {idx === msgArray.length - 1 && combinedText && (
-                <div className="flex justify-end mt-1 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+                <div className="flex justify-end mt-0.5 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
                   <CopyButton text={combinedText} title="Copy" className="h-7 w-7" />
                 </div>
               )}
@@ -102,14 +101,14 @@ function MessageItem({
     );
   }
 
-  // Assistant: content then avatar+copy below
+  // Assistant: FLAT design, no bubble, footer for controls
   return (
-    <div className="flex flex-col px-3 md:px-6 py-3 gap-1.5">
-      <div className="min-w-0 max-w-[min(100%,720px)] space-y-1.5">
+    <div className="flex flex-col px-3 md:px-6 py-1.5 gap-0.5">
+      <div className="min-w-0 max-w-[min(100%,800px)] space-y-1">
         {msgArray.map((message, msgIdx) => {
           const items = groupParts(message.parts || []);
           return (
-            <div key={message.id || msgIdx} className="text-[14.5px] leading-[1.55] text-foreground/95">
+            <div key={message.id || msgIdx} className="text-[14.5px] leading-relaxed text-foreground/95">
               {message.info?.error && (
                 <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400 mb-2">
                   {message.info.error.message ||
@@ -154,11 +153,11 @@ function MessageItem({
         })}
       </div>
       
-      {/* Footer: Avatar and Copy Button */}
-      <div className="flex items-center gap-2.5 mt-1">
+      {/* Arena-style Footer: Avatar and Copy Button */}
+      <div className="flex items-center gap-1.5 mt-0.5 pl-1">
         <div
           className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
             "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[10px] text-white shadow-sm",
             isWorking && "animate-pulse",
           )}

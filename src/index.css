@@ -4,21 +4,21 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --color-background: #0b0b0f;
+  --color-background: #0f0f12;
   --color-foreground: #e6e6e6;
-  --color-card: #14141c;
+  --color-card: #16161d;
   --color-card-foreground: #e6e6e6;
-  --color-popover: #14141c;
+  --color-popover: #16161d;
   --color-popover-foreground: #e6e6e6;
-  --color-border: #26263a;
-  --color-input: #26263a;
+  --color-border: #23232e;
+  --color-input: #23232e;
   --color-primary: #7c5cff;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #1a1a24;
+  --color-secondary: #1c1c24;
   --color-secondary-foreground: #e6e6e6;
-  --color-muted: #1a1a24;
-  --color-muted-foreground: #8a8a9e;
-  --color-accent: #1a1a24;
+  --color-muted: #1c1c24;
+  --color-muted-foreground: #8e8e9e;
+  --color-accent: #1c1c24;
   --color-accent-foreground: #e6e6e6;
   --color-destructive: #ef4444;
   --color-destructive-foreground: #ffffff;
@@ -26,7 +26,7 @@
   --color-success: #4ade80;
   --color-warning: #fbbf24;
   --color-info: #60a5fa;
-  --radius: 0.75rem;
+  --radius: 1rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -56,12 +56,11 @@
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
     font-size: 14.5px;
-    line-height: 1.55;
+    line-height: 1.6;
     letter-spacing: -0.01em;
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Safer mobile keyboard / notch */
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
   }
@@ -69,8 +68,6 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  /* Touch devices: ensure icon buttons meet 44px minimum (Apple HIG).
-     Desktop keeps 36px for compact density. */
   @media (hover: none) and (pointer: coarse) {
     button.h-9.w-9,
     button[class*="h-9"][class*="w-9"] {
@@ -79,7 +76,6 @@
     }
   }
 
-  /* Light theme tokens (set via [data-theme="light"] on <html>) */
   [data-theme="light"] {
     --color-background: #ffffff;
     --color-foreground: #1a1a1a;
@@ -105,9 +101,6 @@
     --color-info: #2563eb;
   }
 
-  /* highlight.js ships one hardcoded palette (github-dark). Re-map the same
-     class names to a light-friendly palette when the light theme is active,
-     otherwise code blocks stay dark-on-dark or dark-on-light. */
   [data-theme="light"] .hljs {
     color: #24292e;
     background: transparent;
@@ -160,7 +153,6 @@
     font-weight: 700;
   }
 
-  /* Scrollbars */
   ::-webkit-scrollbar {
     width: 9px;
     height: 9px;
@@ -177,7 +169,6 @@
   }
 }
 
-/* Streaming caret used in PartView */
 @keyframes blink-caret {
   0%,
   49% {
@@ -198,7 +189,6 @@
   animation: blink-caret 1s step-end infinite;
 }
 
-/* Live pulse for workspace auto-refresh */
 @keyframes live-pulse {
   0%,
   100% {

@@ -132,7 +132,7 @@ export default function ChatView() {
 
   return (
     <div className="flex-1 relative overflow-hidden bg-background min-h-0">
-      <div className="h-full overflow-y-auto" ref={scrollRef} onScroll={onScroll}>
+      <div className="h-full overflow-y-auto pb-[180px]" ref={scrollRef} onScroll={onScroll}>
         {error && (
           <div className="mx-auto max-w-3xl px-3 md:px-6 pt-3">
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">

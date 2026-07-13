@@ -89,195 +89,120 @@ export default function Composer() {
     handleFiles(e.dataTransfer.files);
   };
 
-  const canSend = (text.trim() || attachments.length > 0) && !busy;
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const onDragLeave = () => setDragOver(false);
+
+  const canSend = text.trim().length > 0 || attachments.length > 0;
 
   return (
-    <div
-      className={cn(
-        "shrink-0 border-t border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60",
-        "px-3 md:px-6 pt-2 pb-2 md:pt-3 md:pb-4 safe-bottom",
-        dragOver && "ring-2 ring-primary ring-inset bg-primary/5",
-      )}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragOver(true);
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={onDrop}
-    >
-      <div className="mx-auto max-w-3xl">
-        {dragOver && (
-          <div className="mb-2 rounded-xl border border-dashed border-primary/60 bg-primary/5 px-3 py-2 text-sm text-primary text-center">
-            📎 Drop files to attach
-          </div>
+    <div className="fixed bottom-0 left-0 right-0 z-40 flex justify-center pointer-events-none px-3 pb-6">
+      <div 
+        className={cn(
+          "pointer-events-auto w-full max-w-3xl transition-all duration-200",
+          "bg-card/95 backdrop-blur-md shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5)] rounded-3xl p-2 ring-1 ring-white/10",
+          dragOver && "ring-2 ring-primary bg-primary/5"
         )}
-
-        {(attachments.length > 0 || Object.keys(uploadProgress).length > 0 || uploadError) && (
-          <div className="mb-2 space-y-2">
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {attachments.map((a) => (
-                  <div
-                    key={a.name}
-                    title={`${a.name} (${formatSize(a.size)})`}
-                    className="flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs shadow-sm"
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
+        <div className="flex flex-col gap-1">
+          {/* Attachments row */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-2 pb-2">
+              {attachments.map((att, i) => (
+                <div 
+                  key={i} 
+                  className="flex items-center gap-2 rounded-full bg-muted border border-border px-2 py-1 text-xs text-muted-foreground"
+                >
+                  <span className="truncate max-w-[120px]">{att.name}</span>
+                  <button 
+                    type="button" 
+                    className="hover:text-destructive" 
+                    onClick={() => removeAttachment(att.name)}
                   >
-                    <div className="relative">
-                      {a.kind === "image" && a.dataUrl ? (
-                        <img
-                          src={a.dataUrl}
-                          alt={a.name}
-                          className="h-6 w-6 rounded-md object-cover"
-                        />
-                      ) : (
-                        <span className="text-[13px]">
-                          {a.kind === "zip"
-                            ? "🗜️"
-                            : a.kind === "image"
-                              ? "🖼️"
-                              : a.kind === "pdf"
-                                ? "📄"
-                                : "📎"}
-                        </span>
-                      )}
-                      {a.uploadedPath && (
-                        <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[9px] text-white">
-                          ✓
-                        </span>
-                      )}
-                    </div>
-                    <span className="max-w-[140px] truncate font-medium">{a.name}</span>
-                    <span className="text-muted-foreground">{formatSize(a.size)}</span>
-                    <button
-                      className="rounded-full p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground transition"
-                      onClick={() => {
-                        removeAttachment(a.name);
-                        setUploadedPaths((p) => {
-                          const n = { ...p };
-                          delete n[a.name];
-                          return n;
-                        });
-                      }}
-                      aria-label="Remove"
-                    >
-                      <CloseIcon size={12} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {Object.keys(uploadProgress).length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(uploadProgress).map(([name, pct]) => (
-                  <div
-                    key={name}
-                    className="flex items-center gap-2 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs"
-                  >
-                    <svg className="h-6 w-6 -rotate-90" viewBox="0 0 36 36">
-                      <circle
-                        cx="18"
-                        cy="18"
-                        r="15"
-                        fill="none"
-                        stroke="currentColor"
-                        className="text-muted"
-                        strokeWidth="3"
-                      />
-                      <circle
-                        cx="18"
-                        cy="18"
-                        r="15"
-                        fill="none"
-                        stroke="currentColor"
-                        className="text-primary"
-                        strokeWidth="3"
-                        strokeDasharray={`${(pct / 100) * 94.2} 94.2`}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <span className="max-w-[140px] truncate">{name}</span>
-                    <span className="text-muted-foreground">{pct}%</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {uploadError && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
-                {uploadError}
-              </div>
-            )}
-          </div>
-        )}
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={ACCEPTED_EXTENSIONS}
-          className="hidden"
-          onChange={(e) => {
-            handleFiles(e.target.files);
-            e.currentTarget.value = "";
-          }}
-        />
-
-        <div className="flex items-end gap-2 rounded-2xl border border-border bg-card shadow-sm px-2 py-2 focus-within:ring-2 focus-within:ring-primary/40">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="shrink-0 rounded-xl"
-            onClick={() => fileInputRef.current?.click()}
-            title="Attach files"
-          >
-            <PaperclipIcon />
-          </Button>
-
-          <textarea
-            ref={textareaRef}
-            value={text}
-            rows={1}
-            placeholder={currentID ? "Message…" : "Start a new chat to begin"}
-            className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground text-sm py-2 px-1 resize-none max-h-[200px] min-h-[36px]"
-            onChange={(e) => {
-              setText(e.target.value);
-              grow(e.target);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-          />
-
-          {busy ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="icon"
-              className="shrink-0 rounded-xl"
-              onClick={() => abort()}
-              title="Stop"
-            >
-              <StopIcon />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="icon"
-              className="shrink-0 rounded-xl"
-              onClick={submit}
-              disabled={!canSend}
-              title="Send"
-            >
-              <SendIcon />
-            </Button>
+                    <CloseIcon size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
+
+          {/* Input area */}
+          <div className="flex items-end gap-2 px-2 py-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach file"
+            >
+              <PaperclipIcon size={18} />
+            </Button>
+            <input
+              type="file"
+              multiple
+              ref={fileInputRef}
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files)}
+            />
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              placeholder="Что хотите сделать?"
+              className="flex-1 min-h-[40px] max-h-[200px] bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 text-foreground placeholder:text-muted-foreground resize-none py-2 text-[15px] leading-relaxed"
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                grow(e.target);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+            />
+            <div className="flex items-center gap-1 pb-1">
+              {busy ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 rounded-full"
+                  onClick={() => abort()}
+                  title="Stop"
+                >
+                  <StopIcon size={18} />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="icon"
+                  className={cn(
+                    "h-9 w-9 shrink-0 rounded-full transition-all",
+                    canSend ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  )}
+                  onClick={submit}
+                  disabled={!canSend}
+                  title="Send"
+                >
+                  <SendIcon size={18} />
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="mt-1 px-1 text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">
-          Shift+Enter for new line • Drag & drop files to attach
-        </div>
+        {uploadError && (
+          <div className="absolute -top-8 left-0 right-0 text-center text-xs text-red-400 animate-in fade-in slide-in-from-bottom-1">
+            {uploadError}
+          </div>
+        )}
       </div>
     </div>
   );

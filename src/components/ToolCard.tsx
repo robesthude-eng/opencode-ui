@@ -1,10 +1,11 @@
-import { ArrowRight, Check, ChevronDown, ChevronRight, Terminal } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronRight, Copy, Terminal } from "lucide-react";
 import { memo, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { ToolPart, ToolState } from "../api/types";
 import { useStore } from "../store/useStore";
+import { api } from "../api/client";
 import { toolIcon } from "../utils/toolUtils";
 
 function fmt(value: unknown): string {
@@ -84,15 +85,20 @@ function getSummary(part: ToolPart): string {
 }
 
 function friendlyToolLabel(tool?: string): string {
-  const t = (tool || "tool").toLowerCase();
-  if (t === "bash" || t === "shell" || t === "cmd") return "Ran command";
-  if (t === "edit" || t === "applypatch" || t === "write") return "Edited file";
+  const t = (tool || "").toLowerCase();
+  if (t === "bash" || t === "shell" || t === "cmd") return "used Bash";
   if (t === "read") return "Read file";
-  if (t === "glob" || t === "grep" || t === "list" || t === "ls") return "Searched";
-  if (t === "webfetch" || t === "websearch" || t === "fetch" || t === "search") return "Web";
-  if (t === "task") return "Task";
+  if (t === "write") return "Wrote file";
+  if (t === "edit" || t === "applypatch") return "Edited file";
+  if (t === "glob") return "Searched files";
+  if (t === "grep") return "Searched text";
+  if (t === "ls" || t === "list") return "Listed directory";
+  if (t === "webfetch" || t === "fetch") return "Fetched URL";
+  if (t === "task") return "Ran subtask";
+  if (t === "todowrite" || t === "todo") return "Updated todos";
   if (t === "question") return "Question";
-  return tool || "Tool";
+  if (!tool) return "Tool";
+  return "used " + tool.charAt(0).toUpperCase() + tool.slice(1);
 }
 
 const stateDot: Record<string, string> = {
@@ -161,30 +167,84 @@ function QuestionCard({ part }: { part: ToolPart }) {
   const state = getState(part);
   const questions = parseQuestions(input);
   const send = useStore((s) => s.send);
+  const currentID = useStore((s) => s.currentID);
   const [customText, setCustomText] = useState<Record<number, string>>({});
   const [answered, setAnswered] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState<Record<number, number | null>>({});
   const isWaiting = state === "running";
 
+  // UX-fix: правильный способ ответить на интерактивный tool "question" —
+  // это POST /api/session/:sid/question/:que_id/reply, а не новый /message.
+  // Иначе LLM получает два user-message подряд без tool_result и весь turn виснет.
+  // Пытаемся найти requestID (que_...) в структуре part'а: OpenCode кладёт его либо
+  // в part.state.callID, либо в part.callID, либо в part.request.id.
+  async function submitAnswer(labels: string[]) {
+    const sid = currentID;
+    const answerText = labels.join(", ");
+
+    // Стратегия 1: пробуем v2 QuestionAPI (только если сервер реально создал pending question)
+    if (sid) {
+      try {
+        const list = await api.listPendingQuestions(sid);
+        const pending = list?.data?.[0];
+        if (pending?.id && /^que/.test(pending.id)) {
+          console.info("[QuestionCard] reply via /question/reply:", pending.id, labels);
+          await api.replyQuestion(sid, pending.id, [labels]);
+          return; // сервер сам продолжит turn через SSE
+        }
+      } catch (e) {
+        console.warn("[QuestionCard] v2 question API not available:", e);
+      }
+    }
+
+    // Стратегия 2 (main path): tool question — legacy, живёт в parts сообщения.
+    // Правильно: сначала abort() зависший turn (чтобы сервер закрыл tool с error),
+    // потом отправить ответ обычным user-message. Без abort() два user-message подряд
+    // без tool_result вешают LLM-контракт (два user в ряд запрещены).
+    if (sid) {
+      try {
+        console.info("[QuestionCard] abort() stale turn before answering");
+        await api.abortSession(sid);
+        // маленькая пауза, чтобы сервер успел записать abort в БД
+        await new Promise((r) => setTimeout(r, 200));
+      } catch (e) {
+        console.warn("[QuestionCard] abortSession failed (ok, продолжаем):", e);
+      }
+    }
+
+    console.info("[QuestionCard] send answer as user-message:", answerText);
+    await Promise.resolve(send(answerText));
+  }
+
   const handleOptionClick = useCallback(
     (qIdx: number, optIdx: number, label: string) => {
-      if (answered || !isWaiting) return;
+      if (answered) return;
       setSelectedIdx((prev) => ({ ...prev, [qIdx]: optIdx }));
       setAnswered(true);
-      send(label);
+      console.info("[QuestionCard] option chosen:", label);
+      submitAnswer([label]).catch((err) => {
+        console.error("[QuestionCard] submitAnswer failed:", err);
+        setAnswered(false);
+      });
     },
-    [answered, isWaiting, send],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [answered],
   );
 
   const handleCustomSubmit = useCallback(
     (qIdx: number) => {
-      if (answered || !isWaiting) return;
+      if (answered) return;
       const text = customText[qIdx]?.trim();
       if (!text) return;
       setAnswered(true);
-      send(text);
+      console.info("[QuestionCard] custom answer:", text);
+      submitAnswer([text]).catch((err) => {
+        console.error("[QuestionCard] submitAnswer failed:", err);
+        setAnswered(false);
+      });
     },
-    [answered, isWaiting, customText, send],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [answered, customText],
   );
 
   if (questions.length === 0) return <DefaultToolCard part={part} />;
@@ -213,7 +273,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
             <div className="flex flex-col gap-1">
               {q.options.map((opt, optIdx) => {
                 const selected = selectedIdx[qIdx] === optIdx;
-                const disabled = answered || !isWaiting;
+                const disabled = answered;
                 return (
                   <button
                     key={optIdx}
@@ -271,51 +331,95 @@ function QuestionCard({ part }: { part: ToolPart }) {
   );
 }
 
+function CodeBlock({ label, text }: { label: string; text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    }).catch(() => {});
+  };
+  return (
+    <div className="rounded-lg border border-border overflow-hidden" style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 4%)" }}>
+      <div className="flex items-center justify-between px-2.5 py-1 border-b border-border/70" style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 8%)" }}>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          {label}
+        </span>
+        <button
+          type="button"
+          onClick={copy}
+          className="p-1 rounded hover:bg-accent/60 text-muted-foreground/60 hover:text-foreground transition"
+          title="Copy"
+          aria-label="Copy"
+        >
+          {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+        </button>
+      </div>
+      <pre className="max-h-56 overflow-auto p-2.5 font-mono text-[11.5px] leading-relaxed text-foreground/85 whitespace-pre-wrap break-all">
+        {text}
+      </pre>
+    </div>
+  );
+}
+
 function DefaultToolCard({ part }: { part: ToolPart }) {
   const state = getState(part);
   const running = state === "running";
+  const errored = state === "error";
   const input = fmt(getInput(part));
   const output = getOutput(part);
   const summary = getSummary(part);
   const hasBody = Boolean(input || output);
   const duration = useDuration(getTime(part), running);
   const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
-  // Reference behavior: card stays open in real time while running, collapses once done.
   const expanded = manuallyToggled ?? running;
   const toolName = part.tool;
   const label = friendlyToolLabel(toolName);
+  const isBash = ["bash", "shell", "cmd"].includes((toolName || "").toLowerCase());
 
   return (
-    <div className="not-prose my-1 overflow-hidden rounded-xl border border-border bg-card">
+    <div className="not-prose my-1">
+      {/* Ghost-строка заголовка tool: прозрачная, минимальная */}
       <button
         type="button"
         className={cn(
-          "flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition",
-          hasBody && "hover:bg-accent/40",
+          "group/tool flex w-full items-center gap-2 px-2 py-1.5 text-left rounded-lg transition",
+          hasBody && "hover:bg-accent/30 cursor-pointer",
+          !hasBody && "cursor-default"
         )}
         onClick={hasBody ? () => setManuallyToggled((e) => (e === null ? false : !e)) : undefined}
       >
-        <span
-          className={cn("h-1.5 w-1.5 shrink-0 rounded-full", stateDot[state] || stateDot.running)}
-        />
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground">
-          {toolIcon(toolName) || <Terminal className="h-3.5 w-3.5" />}
+        {/* Иконка tool'а в маленькой квадратной рамке */}
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border text-muted-foreground" style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 6%)" }}>
+          {toolIcon(toolName) || <Terminal className="h-3 w-3" />}
         </span>
-        <span className="text-[12.5px] font-medium text-foreground/90">{label}</span>
-        {state === "completed" && !running && (
-          <Check className="h-3 w-3 shrink-0 text-emerald-500" />
+        {/* Название */}
+        <span className="text-[13px] font-medium text-foreground/85">{label}</span>
+        {/* Статус: ✓ или ● или ✕ */}
+        {running && (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
         )}
+        {!running && !errored && (
+          <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" strokeWidth={2.5} />
+        )}
+        {errored && (
+          <span className="text-[11px] font-medium text-red-400">error</span>
+        )}
+        {/* Duration */}
+        {duration && (
+          <span className="text-[11.5px] text-muted-foreground/70">{duration}</span>
+        )}
+        {/* Summary inline (обрезается) */}
         {summary && (
-          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground/70">
             {summary}
           </span>
         )}
         {!summary && <span className="flex-1" />}
-        {duration && (
-          <span className="shrink-0 text-[11px] text-muted-foreground/80">{duration}</span>
-        )}
+        {/* Chevron */}
         {hasBody && (
-          <span className="text-muted-foreground/80">
+          <span className="text-muted-foreground/50 shrink-0">
             {expanded ? (
               <ChevronDown className="h-3.5 w-3.5" />
             ) : (
@@ -324,17 +428,15 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
           </span>
         )}
       </button>
+
+      {/* Раскрытые секции в стиле Arena: COMMAND / STDOUT etc */}
       {hasBody && expanded && (
-        <div className="space-y-1.5 border-t border-border px-2.5 py-2">
+        <div className="mt-1.5 ml-6 space-y-1.5">
           {input && (
-            <pre className="max-h-36 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[11px] leading-relaxed text-foreground/80 whitespace-pre-wrap break-all">
-              {input}
-            </pre>
+            <CodeBlock label={isBash ? "COMMAND" : "INPUT"} text={input} />
           )}
           {output && (
-            <pre className="max-h-44 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
-              {output}
-            </pre>
+            <CodeBlock label={isBash ? "STDOUT" : "OUTPUT"} text={output} />
           )}
         </div>
       )}

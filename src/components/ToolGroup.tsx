@@ -36,35 +36,35 @@ const ToolGroup = ({ tool, parts }: { tool: string; parts: ToolPart[] }) => {
   const toolName = typeof tool === "string" ? tool : "tool";
 
   return (
-    <div className="not-prose my-1.5 overflow-hidden rounded-xl border border-border bg-card">
+    <div className="not-prose my-1">
       <button
         type="button"
-        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-accent/40 transition"
+        className="group/toolgrp flex w-full items-center gap-2 px-2 py-1.5 text-left rounded-lg hover:bg-accent/30 transition cursor-pointer"
         onClick={() => setManuallyToggled((e) => (e === null ? false : !e))}
       >
-        <span
-          className={cn(
-            "h-1.5 w-1.5 shrink-0 rounded-full",
-            anyRunning ? "bg-amber-400 animate-pulse" : anyError ? "bg-red-400" : "bg-emerald-400",
-          )}
-        />
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground">
-          {toolIcon(toolName)}
-        </span>
-        <span className="text-[12.5px] font-medium text-foreground/90">
-          {groupLabel(toolName, parts.length)}
-        </span>
-        <span className="flex-1" />
-        <span className="text-muted-foreground/80">
+        <span className="text-muted-foreground/50 shrink-0">
           {expanded ? (
             <ChevronDown className="h-3.5 w-3.5" />
           ) : (
             <ChevronRight className="h-3.5 w-3.5" />
           )}
         </span>
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border text-muted-foreground" style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 6%)" }}>
+          {toolIcon(toolName)}
+        </span>
+        <span className="text-[13px] font-medium text-foreground/85">
+          {groupLabel(toolName, parts.length)}
+        </span>
+        {anyRunning && (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
+        )}
+        {!anyRunning && anyError && (
+          <span className="text-[11px] font-medium text-red-400">error</span>
+        )}
+        <span className="flex-1" />
       </button>
       {expanded && (
-        <div className="space-y-1 border-t border-border p-1.5">
+        <div className="mt-1 ml-4 pl-3 border-l border-border/40 space-y-0.5">
           {parts.map((part, i) => (
             <ToolCard key={i} part={part} />
           ))}
