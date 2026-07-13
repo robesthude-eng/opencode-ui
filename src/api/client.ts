@@ -21,6 +21,12 @@ function headers(): Record<string, string> {
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  // guard: обрываем запрос, если sessionID в пути уже в blacklist
+  const sidMatch = path.match(/\/session\/(ses_[A-Za-z0-9]+)/);
+  if (sidMatch && __deadSessions.has(sidMatch[1])) {
+    throw new SessionGoneError(sidMatch[1], "session in local dead-list");
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
   try {
@@ -59,6 +65,21 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export interface PromptModel {
   providerID: string;
   modelID: string;
+}
+
+// UX-fix: локальный чёрный список sessionID, для которых сервер уже вернул 410.
+// Дальнейшие запросы к таким ID мы обрываем на клиенте, не тратя сеть.
+const __deadSessions = new Set<string>();
+function markSessionDead(sid: string) { if (sid) __deadSessions.add(sid); }
+export function isSessionDead(sid: string): boolean { return __deadSessions.has(sid); }
+
+export class SessionGoneError extends Error {
+  sessionId: string;
+  constructor(sessionId: string, message = "session_gone") {
+    super(message);
+    this.name = "SessionGoneError";
+    this.sessionId = sessionId;
+  }
 }
 
 export const api = {
@@ -110,6 +131,22 @@ export const api = {
     req<void>(`/session/${id}/permissions/${permissionId}`, {
       method: "POST",
       body: JSON.stringify({ response }),
+    }),
+
+  // v2 question API — правильный способ ответить на интерактивный tool "question"
+  listPendingQuestions: (id: string) =>
+    req<{ data: Array<{ id: string; sessionID: string; questions: unknown[] }> }>(
+      `/session/${id}/question`,
+    ),
+  replyQuestion: (id: string, requestId: string, answers: string[][]) =>
+    req<void>(`/session/${id}/question/${requestId}/reply`, {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    }),
+  rejectQuestion: (id: string, requestId: string) =>
+    req<void>(`/session/${id}/question/${requestId}/reject`, {
+      method: "POST",
+      body: "{}",
     }),
 
   listDir: (path = ".", sessionId?: string | null) =>

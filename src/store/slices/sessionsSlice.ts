@@ -1,4 +1,4 @@
-import { api } from "../../api/client";
+import { api, SessionGoneError } from "../../api/client";
 import type { SessionInfo, SessionStatus } from "../../api/types";
 import { normalizeMessages } from "../helpers";
 import type { SessionsSlice, Slice } from "../types";
@@ -33,8 +33,26 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
     try {
       const msgs = normalizeMessages(await api.listMessages(id));
       set((s) => ({ messages: { ...s.messages, [id]: msgs } }));
-    } catch {
-      // ignore
+    } catch (e) {
+      // UX-fix: если сессия мёртвая — убираем её из стора и переключаемся
+      if (e instanceof SessionGoneError) {
+        console.warn("[select] session gone, cleaning up:", id);
+        set((state) => {
+          const messages = { ...state.messages };
+          delete messages[id];
+          const remaining = state.sessions.filter((x) => x.id !== id);
+          const nextId = remaining[0]?.id ?? null;
+          return {
+            sessions: remaining,
+            messages,
+            currentID: nextId,
+          };
+        });
+        // если браузерный URL держит /chat/<dead>, тихо чистим
+        if (typeof window !== "undefined" && window.location.pathname.includes(id)) {
+          window.history.replaceState({}, "", "/");
+        }
+      }
     }
   },
 
