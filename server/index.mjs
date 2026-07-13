@@ -12,6 +12,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
+import https from "node:https";
 import { createRequire } from "node:module";
 import { enableAutoMerge, openPullRequest } from "./github-pr.mjs";
 
@@ -1230,6 +1231,84 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // GET /api/self-improve/prs — recent PRs opened by SI-agent
+  // Filters branches starting with "si/" (created by /create-pr).
+  // Returns { prs: [{number, title, url, state, merged, head_branch, ...}] }
+  // ═══════════════════════════════════════════════════════════
+  if (req.url.startsWith("/api/self-improve/prs") && req.method === "GET") {
+    if (!isSelfImproveEnabled(WORKDIR)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled." }));
+      return;
+    }
+    (async () => {
+      try {
+        const { readRemoteInfo } = await import("./github-pr.mjs");
+        const uiDir = getUiDir(WORKDIR);
+        const { token, owner, repo } = await readRemoteInfo(uiDir);
+        if (!token) throw new Error("No GITHUB_TOKEN available");
+
+        const parsed = new URL(req.url, "http://localhost");
+        const state = parsed.searchParams.get("state") || "all";
+
+        const list = await new Promise((resolve, reject) => {
+          const rq = https.request(
+            {
+              hostname: "api.github.com",
+              port: 443,
+              path: `/repos/${owner}/${repo}/pulls?state=${state}&per_page=30&sort=created&direction=desc`,
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: "application/vnd.github+json",
+                "User-Agent": "opencode-ui-self-improve/1.0",
+              },
+            },
+            (rs) => {
+              let b = "";
+              rs.on("data", (c) => (b += c));
+              rs.on("end", () => {
+                try {
+                  resolve(JSON.parse(b));
+                } catch (e) {
+                  reject(e);
+                }
+              });
+            },
+          );
+          rq.on("error", reject);
+          rq.setTimeout(15000, () => rq.destroy(new Error("GitHub API timeout")));
+          rq.end();
+        });
+
+        const filtered = (Array.isArray(list) ? list : [])
+          .filter((pr) => pr.head?.ref?.startsWith("si/"))
+          .slice(0, 20)
+          .map((pr) => ({
+            number: pr.number,
+            title: pr.title,
+            url: pr.html_url,
+            state: pr.state,
+            merged: !!pr.merged_at,
+            mergeable_state: pr.mergeable_state,
+            head_branch: pr.head?.ref,
+            created_at: pr.created_at,
+            updated_at: pr.updated_at,
+            merged_at: pr.merged_at,
+            auto_merge: !!pr.auto_merge,
+          }));
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ prs: filtered }));
+      } catch (e) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "failed to list PRs", detail: String(e?.message || e) }));
+      }
+    })();
+    return;
+  }
+
   if (req.url === "/api/rebuild" && req.method === "POST") {
     if (!isSelfImproveEnabled(WORKDIR)) {
       res.writeHead(403, { "Content-Type": "application/json" });
@@ -1758,7 +1837,7 @@ const server = http.createServer((req, res) => {
     const sep = strippedUrl.includes("?") ? "&" : "?";
     const deleteDir = selfImproveDir || sessionWorkspace;
     req.url = `${strippedUrl + sep}directory=${encodeURIComponent(deleteDir)}`;
-    systemProxy.web(req, res);
+
     return;
   }
 
@@ -1782,7 +1861,7 @@ const server = http.createServer((req, res) => {
   const strippedUrl = req.url.slice(4) || "/";
   if (isGlobalRoute(urlPathNoQuery) || !sessionId) {
     req.url = strippedUrl;
-    systemProxy.web(req, res);
+
     return;
   }
 
@@ -1801,7 +1880,6 @@ const server = http.createServer((req, res) => {
       const stripped = req.url.startsWith("/api") ? req.url.slice(4) : req.url;
       req.url = stripped + (stripped.includes("?") ? "&" : "?") + dirParam;
     }
-    systemProxy.web(req, res);
   } catch (err) {
     console.error(`[Proxy] Error routing to session ${sessionId}:`, err.message);
     res.writeHead(502, { "Content-Type": "application/json" });

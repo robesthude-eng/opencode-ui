@@ -242,6 +242,23 @@ export const api = {
       body: JSON.stringify({ providerId }),
     }),
   listCustomKeys: () => req<string[]>(`/auth/custom`),
+
+  listSelfImprovePRs: (state: "open" | "closed" | "all" = "all") =>
+    req<{
+      prs: Array<{
+        number: number;
+        title: string;
+        url: string;
+        state: "open" | "closed";
+        merged: boolean;
+        mergeable_state?: string;
+        head_branch: string;
+        created_at: string;
+        updated_at: string;
+        merged_at: string | null;
+        auto_merge: boolean;
+      }>;
+    }>(`/self-improve/prs?state=${state}`),
 };
 
 /**

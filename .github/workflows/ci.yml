@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# Принцип наименьших привилегий: CI не должен модифицировать репу.
+# GITHUB_TOKEN получает ТОЛЬКО чтение содержимого репозитория. Даже если PR
+# содержит malicious npm-пакет, он не сможет пушить в main или писать в issues.
+permissions:
+  contents: read
+
 # Отменяем предыдущие ран'ы для той же ветки, чтобы не тратить minutes
 concurrency:
   group: ci-${{ github.ref }}

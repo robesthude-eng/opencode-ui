@@ -9,6 +9,10 @@ on:
   # Плюс возможность запустить вручную из UI
   workflow_dispatch:
 
+# Deploy — только SSH до VDS, ни в один API GitHub не пишет
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: SSH deploy to production VDS

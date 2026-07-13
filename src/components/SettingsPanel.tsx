@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { PROVIDERS, ZEN_FREE_MODELS, ZEN_PROVIDER_ID } from "../config/providers";
 import { useStore } from "../store/useStore";
 import { CheckIcon, CloseIcon } from "./icons";
+import SelfImprovePRsList from "./SelfImprovePRsList";
 
 type SettingsTab = "self-improve" | "free-models" | "providers" | "about";
 
@@ -526,6 +527,8 @@ export default function SettingsPanel() {
             {/* SELF-IMPROVE TAB */}
             {activeTab === "self-improve" && (
               <div className="space-y-4">
+                <SelfImprovePRsList visible={activeTab === "self-improve"} />
+
                 {/* Live system status — always useful for admin */}
                 <div className="rounded-xl border border-border bg-card p-4">
                   <div className="flex items-center justify-between gap-3 mb-3">
