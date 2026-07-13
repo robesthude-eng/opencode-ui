@@ -1855,29 +1855,95 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ error: "Invalid session ID format." }));
       return;
     }
-    console.log(`[Session Cleanup] Deleting session ${sid}...`);
+    console.log(`[Full-Purge] Deleting session ${sid}...`);
+    // Audit log — фиксируем кто/когда/что удалил (даже если файлы уже пусты)
+    try {
+      const auditLine = `${new Date().toISOString()} DELETE session=${sid} user=${userEmail || "anon"} ip=${req.socket.remoteAddress || "?"}\n`;
+      fs.appendFileSync(path.join(WORKDIR, "audit.log"), auditLine);
+    } catch (_e) {}
+
     const pathsToClean = [path.join(WORKDIR, "sessions", sid), path.join(WORKDIR, "uploads", sid)];
-    for (const p of pathsToClean) {
-      if (fs.existsSync(p)) {
-        try {
-          fs.rmSync(p, { recursive: true, force: true });
-          console.log(`[Session Cleanup] Removed: ${p}`);
-        } catch (err) {
-          console.error(`[Session Cleanup] Failed to remove ${p}:`, err.message);
+    const removeAll = () => {
+      for (const p of pathsToClean) {
+        if (fs.existsSync(p)) {
+          try {
+            fs.rmSync(p, { recursive: true, force: true });
+            console.log(`[Full-Purge] Removed: ${p}`);
+          } catch (err) {
+            console.error(`[Full-Purge] Failed to remove ${p}:`, err.message);
+          }
         }
       }
+    };
+    removeAll();
+
+    // Убираем ownership и из json-файла, и из SQLite-таблицы session_owners
+    try {
+      const owners = loadJson(OWNERS_FILE, {});
+      delete owners[sid];
+      saveJson(OWNERS_FILE, owners);
+    } catch (_e) {}
+    try {
+      const dbPath = path.join(WORKDIR, "opencode.db");
+      if (fs.existsSync(dbPath)) {
+        const Database = require("better-sqlite3");
+        const uidb = new Database(dbPath);
+        uidb.prepare("DELETE FROM session_owners WHERE session_id = ?").run(sid);
+        uidb.close();
+      }
+    } catch (e) {
+      console.error("[Full-Purge] session_owners DELETE failed:", e.message);
     }
-    const owners = loadJson(OWNERS_FILE, {});
-    delete owners[sid];
-    saveJson(OWNERS_FILE, owners);
-    // Proxy the DELETE to OpenCode WITH the session's isolated workspace so the
-    // instance also clears its internal message memory for this chat. Every other
-    // route appends directory=; this was the only one missing it.
+
+    // Retention: чистим бэкапы OpenCode-БД старше 24 часов (иначе там остаётся
+    // полная копия удалённых сессий бесконечно долго).
+    try {
+      const backupsDir = path.join(WORKDIR, "backups");
+      if (fs.existsSync(backupsDir)) {
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        for (const f of fs.readdirSync(backupsDir)) {
+          try {
+            const fp = path.join(backupsDir, f);
+            const st = fs.statSync(fp);
+            if (st.isFile() && st.mtimeMs < cutoff) {
+              fs.unlinkSync(fp);
+            }
+          } catch (_e) {}
+        }
+      }
+    } catch (_e) {}
+
+    // Post-cleanup: OpenCode при proxy DELETE может пере-создать пустую
+    // директорию для realPath валидации. Ждём ответ проксирования и уносим
+    // остаточную скорлупу + делаем VACUUM OpenCode-БД чтобы физически
+    // стереть строки, а не оставлять их в WAL.
     const sessionWorkspace = path.join(WORKDIR, "sessions", sid, "workspace");
     const strippedUrl = req.url.startsWith("/api") ? req.url.slice(4) : req.url;
     const sep = strippedUrl.includes("?") ? "&" : "?";
     const deleteDir = selfImproveDir || sessionWorkspace;
     req.url = `${strippedUrl + sep}directory=${encodeURIComponent(deleteDir)}`;
+
+    // hook на завершение ответа — гарантированно чистим то что OpenCode оставил
+    res.on("close", () => {
+      setTimeout(() => {
+        removeAll();
+        // VACUUM + WAL checkpoint на OpenCode-БД
+        try {
+          const ocDb = path.join(WORKDIR, ".opencode_data", "opencode.db");
+          if (fs.existsSync(ocDb)) {
+            const Database = require("better-sqlite3");
+            const oc = new Database(ocDb);
+            oc.pragma("wal_checkpoint(TRUNCATE)");
+            oc.exec("VACUUM");
+            oc.close();
+            console.log(`[Full-Purge] VACUUM done for OpenCode DB after ${sid}`);
+          }
+        } catch (e) {
+          console.error("[Full-Purge] VACUUM failed:", e.message);
+        }
+      }, 500);
+    });
+
     systemProxy.web(req, res);
     return;
   }
