@@ -38,6 +38,20 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
+      // 410 Gone → сессия убита на бэке. Помечаем в blacklist и бросаем
+      // типизированную ошибку — sessionsSlice.select() / messagesSlice.send()
+      // сами почистят стор, создадут новую сессию и повторят prompt.
+      if (res.status === 410) {
+        let sid = sidMatch?.[1];
+        if (!sid) {
+          try {
+            const j = JSON.parse(body);
+            if (typeof j.sessionId === "string") sid = j.sessionId;
+          } catch {}
+        }
+        if (sid) _markSessionDead(sid);
+        throw new SessionGoneError(sid ?? "unknown", body || "session_gone");
+      }
       throw new Error(`${res.status} ${res.statusText} ${body}`.trim());
     }
     if (res.status === 204) return undefined as T;
