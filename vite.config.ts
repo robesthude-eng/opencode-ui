@@ -10,39 +10,9 @@ try {
   await import("babel-plugin-react-compiler");
   reactCompilerPlugin = [["babel-plugin-react-compiler", {}]];
 } catch {}
-let pwaPlugin: any[] = [];
-try {
-  // optional dep – optional dep
-  const { VitePWA } = await import("vite-plugin-pwa");
-  pwaPlugin = [
-    VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["favicon.ico"],
-      manifest: {
-        name: "OpenCode UI",
-        short_name: "OpenCode",
-        description: "A custom web UI for OpenCode",
-        theme_color: "#0b0b0f",
-        background_color: "#0b0b0f",
-        display: "standalone",
-        icons: [
-          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-        ],
-      },
-      workbox: {
-        navigateFallback: "/index.html",
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\/api\/.*/i,
-            handler: "NetworkFirst",
-            options: { cacheName: "api-cache", networkTimeoutSeconds: 3 },
-          },
-        ],
-      },
-    }),
-  ];
-} catch {}
+// PWA temporarily disabled (was serving stale bundles).
+// Keeping empty array so ...pwaPlugin spread in defineConfig stays valid.
+const pwaPlugin: any[] = [];
 
 /**
  * The OpenCode headless server.

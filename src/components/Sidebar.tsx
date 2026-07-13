@@ -117,8 +117,8 @@ export default function Sidebar() {
         </div>
 
         {/* Chat list */}
-        <ScrollArea className="flex-1">
-          <nav className="p-2 space-y-1">
+        <ScrollArea className="flex-1 w-full" style={{ width: "100%" }}>
+          <nav className="p-2 space-y-1" style={{ width: "100%", overflowX: "hidden" }}>
             {sessions.length === 0 && (
               <p className="px-3 py-8 text-sm text-muted-foreground text-center">
                 No conversations yet
@@ -139,33 +139,128 @@ export default function Sidebar() {
                 <div
                   key={s.id}
                   className={cn(
-                    "group flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm cursor-pointer transition",
+                    "group rounded-xl text-sm transition",
                     isActive
                       ? "bg-muted text-foreground"
                       : "hover:bg-muted/60 text-muted-foreground hover:text-foreground",
                   )}
-                  onClick={() => {
-                    select(s.id);
-                    close();
+                  style={{
+                    width: "100%",
+                    maxWidth: "100%",
+                    boxSizing: "border-box",
+                    display: "flex",
+                    alignItems: "stretch",
+                    gap: 4,
+                    overflow: "hidden",
                   }}
                 >
-                  <span className="flex-1 truncate flex items-center gap-2">
-                    {busy && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                    )}
-                    {displayTitle}
-                  </span>
                   <button
                     type="button"
-                    className="opacity-60 group-hover:opacity-100 [@media(hover:none)]:opacity-100 p-2 -mr-1 rounded-lg hover:bg-background transition text-muted-foreground hover:text-red-400 min-w-[36px] min-h-[36px] flex items-center justify-center"
+                    onClick={() => {
+                      select(s.id);
+                      close();
+                    }}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      paddingLeft: 12,
+                      paddingRight: 4,
+                      paddingTop: 10,
+                      paddingBottom: 10,
+                      background: "transparent",
+                      border: "none",
+                      color: "inherit",
+                      font: "inherit",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      borderRadius: 12,
+                    }}
+                  >
+                    {busy && (
+                      <span
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: "50%",
+                          background: "#10b981",
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {displayTitle}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      removeSession(s.id);
+                      if (confirm(`Удалить чат «${displayTitle}»?`)) {
+                        removeSession(s.id);
+                      }
                     }}
-                    title="Delete"
-                    aria-label={`Delete chat ${displayTitle}`}
+                    title="Удалить чат"
+                    aria-label={`Удалить чат ${displayTitle}`}
+                    style={{
+                      flexShrink: 0,
+                      alignSelf: "center",
+                      width: 32,
+                      height: 32,
+                      marginRight: 4,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderRadius: 8,
+                      background: "transparent",
+                      color: "currentColor",
+                      opacity: 0.45,
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                      transition: "background 160ms ease, color 160ms ease, opacity 160ms ease, transform 100ms ease",
+                    }}
+                    onPointerEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
+                      e.currentTarget.style.color = "#ef4444";
+                      e.currentTarget.style.opacity = "1";
+                    }}
+                    onPointerLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.color = "currentColor";
+                      e.currentTarget.style.opacity = "0.45";
+                    }}
+                    onPointerDown={(e) => {
+                      e.currentTarget.style.transform = "scale(0.88)";
+                      e.currentTarget.style.background = "rgba(239, 68, 68, 0.18)";
+                      e.currentTarget.style.color = "#ef4444";
+                      e.currentTarget.style.opacity = "1";
+                    }}
+                    onPointerUp={(e) => {
+                      e.currentTarget.style.transform = "scale(1)";
+                    }}
+                    onPointerCancel={(e) => {
+                      e.currentTarget.style.transform = "scale(1)";
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.color = "currentColor";
+                      e.currentTarget.style.opacity = "0.45";
+                    }}
                   >
-                    <TrashIcon />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
                   </button>
                 </div>
               );
