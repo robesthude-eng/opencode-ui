@@ -1760,6 +1760,38 @@ const server = http.createServer((req, res) => {
                   fs.mkdirSync(path.join(sessionWorkspace, "uploads"), { recursive: true });
                 }
                 console.log(`[New Chat] Isolated workspace for ${sid}: ${sessionWorkspace}`);
+                // CRITICAL: OpenCode запомнил preIsolationDir из POST /session query.
+                // После нашего renameSync путь стал невалиден → каждый prompt валится
+                // с PlatformError: NotFound: FileSystem.realPath (old path).
+                // Уведомляем OpenCode о новом пути через move-session.
+                const moveBody = JSON.stringify({
+                  sessionID: sid,
+                  destination: { directory: sessionWorkspace },
+                  moveChanges: false,
+                });
+                const moveReq = http.request({
+                  hostname: "127.0.0.1",
+                  port: SYSTEM_PORT,
+                  path: "/experimental/control-plane/move-session",
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Content-Length": Buffer.byteLength(moveBody),
+                  },
+                }, (mr) => {
+                  let mb = "";
+                  mr.on("data", (c) => (mb += c));
+                  mr.on("end", () => {
+                    if (mr.statusCode !== 204) {
+                      console.error(`[New Chat] move-session for ${sid} → HTTP ${mr.statusCode}: ${mb.slice(0, 200)}`);
+                    } else {
+                      console.log(`[New Chat] OpenCode informed: ${sid} directory → ${sessionWorkspace}`);
+                    }
+                  });
+                });
+                moveReq.on("error", (e) => console.error(`[New Chat] move-session failed for ${sid}:`, e.message));
+                moveReq.write(moveBody);
+                moveReq.end();
               } catch (e) {
                 console.error(`[New Chat] Failed to setup workspace for ${sid}:`, e.message);
               }
