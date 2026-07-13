@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
   && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --include=dev
 COPY . .
 RUN npm run build
 
@@ -21,7 +21,7 @@ RUN npm install -g opencode-ai@1.17.13
 
 # Full install: self-improve sandbox needs tsc/vitest/biome/vite
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 COPY --from=build /app/dist ./dist
 
