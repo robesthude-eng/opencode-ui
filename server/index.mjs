@@ -1878,7 +1878,7 @@ const server = http.createServer((req, res) => {
     const sep = strippedUrl.includes("?") ? "&" : "?";
     const deleteDir = selfImproveDir || sessionWorkspace;
     req.url = `${strippedUrl + sep}directory=${encodeURIComponent(deleteDir)}`;
-
+    systemProxy.web(req, res);
     return;
   }
 
@@ -1902,7 +1902,7 @@ const server = http.createServer((req, res) => {
   const strippedUrl = req.url.slice(4) || "/";
   if (isGlobalRoute(urlPathNoQuery) || !sessionId) {
     req.url = strippedUrl;
-
+    systemProxy.web(req, res);
     return;
   }
 
@@ -1921,6 +1921,7 @@ const server = http.createServer((req, res) => {
       const stripped = req.url.startsWith("/api") ? req.url.slice(4) : req.url;
       req.url = stripped + (stripped.includes("?") ? "&" : "?") + dirParam;
     }
+    systemProxy.web(req, res);
   } catch (err) {
     console.error(`[Proxy] Error routing to session ${sessionId}:`, err.message);
     res.writeHead(502, { "Content-Type": "application/json" });
