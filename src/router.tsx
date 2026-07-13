@@ -68,6 +68,13 @@ function AppShell() {
     applyTheme(theme);
   }, [theme]);
 
+  // UX-fix: on app mount, pull authoritative self-improve state from server.
+  // Prevents localStorage drift (server was reset, admin toggled from another tab, etc.)
+  useEffect(() => {
+    const sync = useStore.getState().syncSelfImproveFromServer;
+    if (typeof sync === "function") { void sync(); }
+  }, []);
+
   useEffect(() => {
     if (!currentUser) return;
     checkConnection();

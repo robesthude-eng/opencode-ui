@@ -1515,10 +1515,25 @@ const server = http.createServer((req, res) => {
       body += chunk;
     });
     req.on("end", () => {
+      // UX/SECURITY-fix: OpenCode-session inherits default directory (/app/workspace) if
+      // ?directory= is not passed. That gives the agent access to the whole workspace root
+      // (peer sessions, opencode.db, audit.log, uploaded UI source). We pre-create an
+      // isolated per-session workspace here and force OpenCode to use it.
+      // NOTE: we cannot know the sessionId before creation, so we create a temp
+      // marker directory and let post-response logic rename/adjust if needed.
+      // Better: create session, then IMMEDIATELY move OpenCode to the isolated dir via
+      // an internal PATCH. OpenCode API doesn't expose that, so we pre-generate an
+      // isolation directory keyed on user + timestamp, and pass it as ?directory=.
+      const preIsolationDir = path.join(WORKDIR, "sessions", "_new-" + Date.now() + "-" + Math.random().toString(36).slice(2,10));
+      try {
+        fs.mkdirSync(preIsolationDir, { recursive: true });
+        fs.mkdirSync(path.join(preIsolationDir, "uploads"), { recursive: true });
+      } catch (_e) {}
+
       const opts = {
         hostname: "127.0.0.1",
         port: SYSTEM_PORT,
-        path: "/session",
+        path: "/session?directory=" + encodeURIComponent(preIsolationDir),
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1537,16 +1552,24 @@ const server = http.createServer((req, res) => {
             if (sid && isValidSessionId(sid)) {
               const sessionWorkspace = path.join(WORKDIR, "sessions", sid, "workspace");
               try {
+                // Rename our pre-isolation dir to the canonical sessions/<sid>/workspace
+                // Session was created with directory=preIsolationDir so OpenCode already
+                // uses it — rename is safe because it's a same-filesystem move.
+                fs.mkdirSync(path.dirname(sessionWorkspace), { recursive: true });
                 if (fs.existsSync(sessionWorkspace)) {
                   fs.rmSync(sessionWorkspace, { recursive: true, force: true });
                 }
-                fs.mkdirSync(sessionWorkspace, { recursive: true });
-                fs.mkdirSync(path.join(sessionWorkspace, "uploads"), { recursive: true });
+                if (fs.existsSync(preIsolationDir)) {
+                  fs.renameSync(preIsolationDir, sessionWorkspace);
+                } else {
+                  fs.mkdirSync(sessionWorkspace, { recursive: true });
+                  fs.mkdirSync(path.join(sessionWorkspace, "uploads"), { recursive: true });
+                }
                 console.log(
-                  `[New Chat] Created empty workspace for ${sid}: ${sessionWorkspace} (Claude-like isolation)`,
+                  `[New Chat] Isolated workspace for ${sid}: ${sessionWorkspace}`,
                 );
               } catch (e) {
-                console.error(`[New Chat] Failed to create workspace for ${sid}:`, e.message);
+                console.error(`[New Chat] Failed to setup workspace for ${sid}:`, e.message);
               }
               if (userEmail) {
                 const owners = loadJson(OWNERS_FILE, {});

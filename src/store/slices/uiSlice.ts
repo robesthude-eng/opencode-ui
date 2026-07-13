@@ -41,4 +41,23 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
     }
     set({ selfImproveEnabled });
   },
+
+  // UX-fix: pull actual server state on app load; localStorage can drift out of sync
+  // (e.g. admin toggled from another device or state was reset server-side).
+  syncSelfImproveFromServer: async () => {
+    try {
+      const res = await fetch("/api/settings/self-improve", { credentials: "include" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { enabled?: boolean; sessionId?: string | null };
+      const enabled = !!data.enabled;
+      const sessionId = data.sessionId || null;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("opencode_self_improve", String(enabled));
+        if (sessionId) localStorage.setItem("opencode_self_improve_session", sessionId);
+        else localStorage.removeItem("opencode_self_improve_session");
+      }
+      set({ selfImproveEnabled: enabled, selfImproveSessionId: sessionId });
+    } catch (_e) { /* silent */ }
+  },
+
 });

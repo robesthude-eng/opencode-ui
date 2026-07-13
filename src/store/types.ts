@@ -55,6 +55,7 @@ export interface UiSlice {
   setWorkspaceOpen: (open: boolean) => void;
   setSelfImproveSessionId: (id: string | null) => void;
   setSelfImproveEnabled: (enabled: boolean) => void;
+  syncSelfImproveFromServer: () => Promise<void>;
 }
 
 export interface SessionsSlice {
