@@ -43,9 +43,6 @@ export default function ChatView() {
     setIsScrolledUp(false);
   };
 
-  // Throttle onScroll via requestAnimationFrame — without this, streaming
-  // re-renders fire scroll events on every token, creating a feedback loop
-  // (scroll → setState → re-render → scroll) that causes jank on mobile.
   const scrollRafRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
   const onScroll = () => {
     if (scrollRafRef.current) return;
@@ -118,8 +115,20 @@ export default function ChatView() {
   const visibleMessages = (messages || []).filter(
     (m) => !showTyping || m.role !== "assistant" || hasVisibleContent(m),
   );
-  const isWindowed = visibleMessages.length > windowSize;
-  const renderedMessages = isWindowed ? visibleMessages.slice(-windowSize) : visibleMessages;
+  
+  // Group consecutive messages by role (specifically for assistant turns)
+  const groupedMessages: { role: string; messages: Message[] }[] = [];
+  for (const m of visibleMessages) {
+    const lastGroup = groupedMessages[groupedMessages.length - 1];
+    if (lastGroup && lastGroup.role === m.role && m.role === "assistant") {
+      lastGroup.messages.push(m);
+    } else {
+      groupedMessages.push({ role: m.role, messages: [m] });
+    }
+  }
+
+  const isWindowed = groupedMessages.length > windowSize;
+  const renderedGroups = isWindowed ? groupedMessages.slice(-windowSize) : groupedMessages;
 
   return (
     <div className="flex-1 relative overflow-hidden bg-background min-h-0">
@@ -150,9 +159,9 @@ export default function ChatView() {
             </div>
           )}
           <div>
-            {renderedMessages.map((m, i, arr) => {
-              const isWorking = status === "busy" && m.role === "assistant" && i === arr.length - 1;
-              return <MessageItem key={m.id} message={m} isWorking={isWorking} />;
+            {renderedGroups.map((group, i) => {
+              const isWorking = status === "busy" && group.role === "assistant" && i === renderedGroups.length - 1;
+              return <MessageItem key={i} messages={group.messages} isWorking={isWorking} />;
             })}
             {showTyping && (
               <div className="flex gap-3 py-5 px-3 md:px-6">

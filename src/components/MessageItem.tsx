@@ -65,100 +65,109 @@ function groupParts(parts: Part[]): RenderItem[] {
   return result;
 }
 
-function MessageItem({ message, isWorking }: { message: Message; isWorking?: boolean }) {
-  const [showUserActions, setShowUserActions] = useState(false);
-  const role = message.role || (message.info?.role as string | undefined) || "assistant";
+function MessageItem({ 
+  messages, 
+  isWorking 
+}: { 
+  messages: Message | Message[]; 
+  isWorking?: boolean 
+}) {
+  const msgArray = Array.isArray(messages) ? messages : [messages];
+  const firstMsg = msgArray[0];
+  const role = firstMsg.role || (firstMsg.info?.role as string | undefined) || "assistant";
   const isUser = role === "user";
-  const items = groupParts(message.parts || []);
-  const msgText = getMessageText(message);
+  
+  // Combine all text for the copy button
+  const combinedText = msgArray.map(m => getMessageText(m)).filter(Boolean).join("\n\n");
 
-  // User: compact purple bubble (Arena-like)
   if (isUser) {
     return (
-      <div className="flex justify-end px-3 md:px-6 py-2">
-        <div className="group flex flex-col items-end max-w-[85%] md:max-w-[70%] gap-1">
-          <div
-            className="rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-[14.5px] leading-relaxed text-primary-foreground shadow-sm cursor-pointer"
-            onClick={() => setShowUserActions((v) => !v)}
-          >
-            <div className="whitespace-pre-wrap break-words">{msgText || "…"}</div>
-          </div>
-          <div
-            className={cn(
-              "flex justify-end transition-opacity z-10",
-              showUserActions
-                ? "opacity-100"
-                : "opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-70",
-            )}
-          >
-            <CopyButton
-              text={msgText}
-              title="Copy"
-              className="!bg-card !text-foreground border border-border backdrop-blur rounded-full shadow h-6 w-6"
-            />
-          </div>
-        </div>
+      <div className="flex flex-col items-end px-3 md:px-6 py-2 gap-1">
+        {msgArray.map((message, idx) => {
+          const msgText = getMessageText(message);
+          return (
+            <div key={message.id || idx} className="max-w-[85%] md:max-w-[70%] group relative">
+              <div className="rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-[14.5px] leading-relaxed text-primary-foreground shadow-sm">
+                <div className="whitespace-pre-wrap break-words">{msgText || "…"}</div>
+              </div>
+              {idx === msgArray.length - 1 && combinedText && (
+                <div className="flex justify-end mt-1 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+                  <CopyButton text={combinedText} title="Copy" className="h-7 w-7" />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
 
-  // Assistant: open layout, avatar + content column (Arena-like, not heavy card)
+  // Assistant: content then avatar+copy below
   return (
-    <div className="flex gap-2.5 px-3 md:px-6 py-3">
-      <div
-        className={cn(
-          "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
-          "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[12px] text-white shadow-sm",
-          isWorking && "animate-pulse",
-        )}
-      >
-        ✦
+    <div className="flex flex-col px-3 md:px-6 py-3 gap-1.5">
+      <div className="min-w-0 max-w-[min(100%,720px)] space-y-1.5">
+        {msgArray.map((message, msgIdx) => {
+          const items = groupParts(message.parts || []);
+          return (
+            <div key={message.id || msgIdx} className="text-[14.5px] leading-[1.55] text-foreground/95">
+              {message.info?.error && (
+                <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400 mb-2">
+                  {message.info.error.message ||
+                    message.info.error?.data?.message ||
+                    (typeof message.info.error === "string"
+                      ? message.info.error
+                      : "Ошибка API: проверьте тариф модели или ключ")}
+                </div>
+              )}
+              {(() => {
+                const attParts = items.filter((item) => "type" in item && item.type === "attachment");
+                const otherParts = items.filter(
+                  (item) => !("type" in item) || item.type !== "attachment",
+                );
+                return (
+                  <>
+                    {attParts.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {attParts.map((item, i) => (
+                          <PartView key={`att-${i}`} part={item as Part} />
+                        ))}
+                      </div>
+                    )}
+                    {otherParts.map((item, i) => {
+                      const g = item as ToolGroupData;
+                      if ("kind" in g && g.kind === "group") {
+                        return <ToolGroup key={i} tool={g.tool} parts={g.parts} />;
+                      }
+                      return (
+                        <PartView
+                          key={i}
+                          part={item as Part}
+                          isLastStreaming={isWorking && msgIdx === msgArray.length - 1 && i === otherParts.length - 1}
+                        />
+                      );
+                    })}
+                  </>
+                );
+              })()}
+            </div>
+          );
+        })}
       </div>
-      <div className="min-w-0 flex-1 max-w-[min(100%,720px)] space-y-1.5">
-        {message.info?.error && (
-          <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">
-            {message.info.error.message ||
-              message.info.error?.data?.message ||
-              (typeof message.info.error === "string"
-                ? message.info.error
-                : "Ошибка API: проверьте тариф модели или ключ")}
-          </div>
-        )}
-        <div className="text-[14.5px] leading-[1.55] text-foreground/95">
-          {(() => {
-            const attParts = items.filter((item) => "type" in item && item.type === "attachment");
-            const otherParts = items.filter(
-              (item) => !("type" in item) || item.type !== "attachment",
-            );
-            return (
-              <>
-                {attParts.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {attParts.map((item, i) => (
-                      <PartView key={`att-${i}`} part={item as Part} />
-                    ))}
-                  </div>
-                )}
-                {otherParts.map((item, i) => {
-                  const g = item as ToolGroupData;
-                  if ("kind" in g && g.kind === "group") {
-                    return <ToolGroup key={i} tool={g.tool} parts={g.parts} />;
-                  }
-                  return (
-                    <PartView
-                      key={i}
-                      part={item as Part}
-                      isLastStreaming={isWorking && i === otherParts.length - 1}
-                    />
-                  );
-                })}
-              </>
-            );
-          })()}
+      
+      {/* Footer: Avatar and Copy Button */}
+      <div className="flex items-center gap-2.5 mt-1">
+        <div
+          className={cn(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
+            "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[10px] text-white shadow-sm",
+            isWorking && "animate-pulse",
+          )}
+        >
+          ✦
         </div>
-        {msgText && (
-          <div className="pt-0.5 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-            <CopyButton text={msgText} title="Copy message" className="h-7 w-7" />
+        {combinedText && (
+          <div className="opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100">
+            <CopyButton text={combinedText} title="Copy message" className="h-7 w-7" />
           </div>
         )}
       </div>
