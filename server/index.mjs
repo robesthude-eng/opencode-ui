@@ -1769,27 +1769,36 @@ const server = http.createServer((req, res) => {
                   destination: { directory: sessionWorkspace },
                   moveChanges: false,
                 });
-                const moveReq = http.request({
-                  hostname: "127.0.0.1",
-                  port: SYSTEM_PORT,
-                  path: "/experimental/control-plane/move-session",
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "Content-Length": Buffer.byteLength(moveBody),
+                const moveReq = http.request(
+                  {
+                    hostname: "127.0.0.1",
+                    port: SYSTEM_PORT,
+                    path: "/experimental/control-plane/move-session",
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Content-Length": Buffer.byteLength(moveBody),
+                    },
                   },
-                }, (mr) => {
-                  let mb = "";
-                  mr.on("data", (c) => (mb += c));
-                  mr.on("end", () => {
-                    if (mr.statusCode !== 204) {
-                      console.error(`[New Chat] move-session for ${sid} → HTTP ${mr.statusCode}: ${mb.slice(0, 200)}`);
-                    } else {
-                      console.log(`[New Chat] OpenCode informed: ${sid} directory → ${sessionWorkspace}`);
-                    }
-                  });
-                });
-                moveReq.on("error", (e) => console.error(`[New Chat] move-session failed for ${sid}:`, e.message));
+                  (mr) => {
+                    let mb = "";
+                    mr.on("data", (c) => (mb += c));
+                    mr.on("end", () => {
+                      if (mr.statusCode !== 204) {
+                        console.error(
+                          `[New Chat] move-session for ${sid} → HTTP ${mr.statusCode}: ${mb.slice(0, 200)}`,
+                        );
+                      } else {
+                        console.log(
+                          `[New Chat] OpenCode informed: ${sid} directory → ${sessionWorkspace}`,
+                        );
+                      }
+                    });
+                  },
+                );
+                moveReq.on("error", (e) =>
+                  console.error(`[New Chat] move-session failed for ${sid}:`, e.message),
+                );
                 moveReq.write(moveBody);
                 moveReq.end();
               } catch (e) {
