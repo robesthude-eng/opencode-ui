@@ -145,7 +145,13 @@ function saveUserKeys(userEmail, keys) {
 // Basic Auth check (single-operator "password mode" — no self-registered users yet).
 // Timing-safe comparison to avoid leaking the password length/content via timing.
 function checkBasicAuth(req) {
-  return true; // Basic Auth disabled to allow access to the modern UI login/registration
+  if (!AUTH_PASSWORD) return false;
+  const header = req.headers.authorization || "";
+  const expected = `Basic ${Buffer.from(`${AUTH_USER}:${AUTH_PASSWORD}`).toString("base64")}`;
+  const headerBuf = Buffer.from(header);
+  const expectedBuf = Buffer.from(expected);
+  if (headerBuf.length !== expectedBuf.length) return false;
+  return crypto.timingSafeEqual(headerBuf, expectedBuf);
 }
 
 // MIME

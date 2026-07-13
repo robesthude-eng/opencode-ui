@@ -159,7 +159,29 @@ export function getUserEmail(req, sessionsFile, sessionTtlMs) {
 }
 
 export function checkAuth(req, res, usersFile, sessionsFile, sessionTtlMs) {
-  return true; // FORCE ALLOW FOR DEBUGGING
+  const token = extractToken(req);
+  const sessions = loadJson(sessionsFile, {});
+  const sess = token ? sessions[token] : null;
+  if (sess?.email) {
+    if (sessionTtlMs > 0 && Date.now() - (sess.createdAt || 0) > sessionTtlMs) {
+      delete sessions[token];
+      saveAuthJson(sessionsFile, sessions);
+    } else {
+      return true; // Valid, non-expired session token
+    }
+  }
+  const users = loadJson(usersFile, {});
+  if (Object.keys(users).length > 0) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Unauthorized", needLogin: true }));
+    return false;
+  }
+  if (req.url?.startsWith("/api/")) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Unauthorized", needLogin: true }));
+    return false;
+  }
+  return true;
 }
 
 export function checkAuthRateLimit(req, res) {
