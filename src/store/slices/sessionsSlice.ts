@@ -1,4 +1,4 @@
-import { api, SessionGoneError } from "../../api/client";
+import { api, isSessionDead, SessionGoneError } from "../../api/client";
 import type { SessionInfo, SessionStatus } from "../../api/types";
 import { normalizeMessages } from "../helpers";
 import type { SessionsSlice, Slice } from "../types";
@@ -6,6 +6,17 @@ import { byUpdated } from "../types";
 
 // Prevent concurrent optimistic session creation from rapid "New chat" clicks.
 let creatingSession = false;
+
+// UX-fix: чтобы React StrictMode / URL-effect не делали 3 select() подряд
+// с уходом в сеть, помним какие sid мы уже начинали проверять.
+// Комбо с __deadSessions в client.ts даёт полное подавление флудa 410.
+const __pendingSelect = new Set<string>();
+function _cleanupGhostFromURL(sid: string) {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname.includes(sid)) {
+    window.history.replaceState({}, "", "/");
+  }
+}
 
 export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
   sessions: [],
@@ -28,6 +39,29 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
   },
 
   select: async (id) => {
+    // UX-fix: если sid уже в blacklist (сервер вернул 410 в прошлом запросе) —
+    // не идём в сеть повторно. Просто чистим URL и переключаемся на первую живую.
+    if (id && isSessionDead(id)) {
+      console.warn("[select] sid уже помечен dead, пропускаем сетевой вызов:", id);
+      set((state) => {
+        const messages = { ...state.messages };
+        delete messages[id];
+        const remaining = state.sessions.filter((x) => x.id !== id);
+        const nextId = remaining[0]?.id ?? null;
+        return { sessions: remaining, messages, currentID: nextId };
+      });
+      _cleanupGhostFromURL(id);
+      return;
+    }
+
+    // UX-fix: защита от React StrictMode double-invoke и от URL↔store loop —
+    // если select(id) уже в полёте, не запускаем второй параллельно.
+    if (id && __pendingSelect.has(id)) {
+      set({ currentID: id });
+      return;
+    }
+    if (id) __pendingSelect.add(id);
+
     set({ currentID: id });
     if (!id) return;
     try {
@@ -48,11 +82,10 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
             currentID: nextId,
           };
         });
-        // если браузерный URL держит /chat/<dead>, тихо чистим
-        if (typeof window !== "undefined" && window.location.pathname.includes(id)) {
-          window.history.replaceState({}, "", "/");
-        }
+        _cleanupGhostFromURL(id);
       }
+    } finally {
+      if (id) __pendingSelect.delete(id);
     }
   },
 
