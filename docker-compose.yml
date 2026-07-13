@@ -1,0 +1,18 @@
+services:
+  opencode-ui:
+    build: .
+    container_name: opencode-ui
+    ports:
+      - "3000:3000"
+    volumes:
+      - opencode_data:/app/workspace
+    env_file:
+      - .env
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - OPENCODE_WORKDIR=/app/workspace
+    restart: always
+
+volumes:
+  opencode_data:
