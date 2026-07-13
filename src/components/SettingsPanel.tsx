@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -335,8 +335,13 @@ export default function SettingsPanel() {
     setTimeout(() => setResetStatus(null), 4000);
   };
 
+  // UX-fix: reset mobileView ТОЛЬКО когда open переключается false→true,
+  // а НЕ на каждый ре-рендер стора (loadAuth/loadDbBackups и т.д. пересоздаются
+  // при каждом обновлении Zustand — из-за них раньше useEffect срабатывал часто
+  // и мгновенно возвращал юзера с выбранного таба обратно на список меню).
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (open) {
+    if (open && !prevOpenRef.current) {
       setMobileView("menu");
       loadAuth();
       loadCheckpoints();
@@ -345,6 +350,7 @@ export default function SettingsPanel() {
       loadHealth();
       loadDbBackups();
     }
+    prevOpenRef.current = open;
   }, [
     open,
     loadAuth,
