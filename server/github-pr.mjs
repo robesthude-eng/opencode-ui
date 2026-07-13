@@ -9,9 +9,9 @@
  */
 import { execFile } from "node:child_process";
 import fs from "node:fs";
+import https from "node:https";
 import path from "node:path";
 import { promisify } from "node:util";
-import https from "node:https";
 import logger from "./logger.mjs";
 
 const pExec = promisify(execFile);
@@ -31,33 +31,46 @@ export async function readRemoteInfo(uiDir) {
 function githubApi(token, method, apiPath, body) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : undefined;
-    const req = https.request({
-      hostname: "api.github.com",
-      port: 443,
-      path: apiPath,
-      method,
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "opencode-ui-self-improve/1.0",
-        ...(data ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) } : {}),
+    const req = https.request(
+      {
+        hostname: "api.github.com",
+        port: 443,
+        path: apiPath,
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "opencode-ui-self-improve/1.0",
+          ...(data
+            ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) }
+            : {}),
+        },
       },
-    }, (res) => {
-      let buf = "";
-      res.on("data", (c) => (buf += c));
-      res.on("end", () => {
-        try {
-          const json = buf ? JSON.parse(buf) : {};
-          if (res.statusCode >= 200 && res.statusCode < 300) resolve({ status: res.statusCode, body: json });
-          else reject(new Error(`GitHub ${method} ${apiPath} → ${res.statusCode}: ${json.message || buf.slice(0, 200)}`));
-        } catch (e) {
-          reject(new Error(`GitHub API parse error: ${e.message}; raw: ${buf.slice(0, 200)}`));
-        }
-      });
-    });
+      (res) => {
+        let buf = "";
+        res.on("data", (c) => (buf += c));
+        res.on("end", () => {
+          try {
+            const json = buf ? JSON.parse(buf) : {};
+            if (res.statusCode >= 200 && res.statusCode < 300)
+              resolve({ status: res.statusCode, body: json });
+            else
+              reject(
+                new Error(
+                  `GitHub ${method} ${apiPath} → ${res.statusCode}: ${json.message || buf.slice(0, 200)}`,
+                ),
+              );
+          } catch (e) {
+            reject(new Error(`GitHub API parse error: ${e.message}; raw: ${buf.slice(0, 200)}`));
+          }
+        });
+      },
+    );
     req.on("error", reject);
-    req.setTimeout(20000, () => { req.destroy(new Error("GitHub API timeout")); });
+    req.setTimeout(20000, () => {
+      req.destroy(new Error("GitHub API timeout"));
+    });
     if (data) req.write(data);
     req.end();
   });
@@ -72,7 +85,10 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
   if (!title) throw new Error("title required");
 
   const { token, owner, repo } = await readRemoteInfo(uiDir);
-  if (!token) throw new Error("No PAT found in origin URL — cannot push. Re-run `git remote set-url` with a token.");
+  if (!token)
+    throw new Error(
+      "No PAT found in origin URL — cannot push. Re-run `git remote set-url` with a token.",
+    );
 
   // Branch name: si/YYYY-MM-DD-HHMMSS[-shortHash]
   const now = new Date();
@@ -89,19 +105,33 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
 
   // 2) Create branch from origin/main (throw away any uncommitted local drift for cleanliness)
   //    but STASH first so we don't lose ongoing work
-  try { await pExec("git", ["-C", uiDir, "stash", "push", "-u", "-m", `pre-pr-stash-${stamp}`], { timeout: 10000 }); } catch {}
-  await pExec("git", ["-C", uiDir, "checkout", "-B", branch, `origin/${baseBranch}`], { timeout: 15000 });
+  try {
+    await pExec("git", ["-C", uiDir, "stash", "push", "-u", "-m", `pre-pr-stash-${stamp}`], {
+      timeout: 10000,
+    });
+  } catch {}
+  await pExec("git", ["-C", uiDir, "checkout", "-B", branch, `origin/${baseBranch}`], {
+    timeout: 15000,
+  });
 
   // 3) Write files (path is relative to uiDir; guard against traversal)
   const written = [];
   for (const f of files) {
-    if (typeof f?.path !== "string" || typeof f?.content !== "string") throw new Error("each file must have {path,content} strings");
+    if (typeof f?.path !== "string" || typeof f?.content !== "string")
+      throw new Error("each file must have {path,content} strings");
     const rel = f.path.replace(/^\/+/, "");
     if (rel.includes("..") || path.isAbsolute(rel)) throw new Error(`invalid path: ${f.path}`);
     // whitelist: same as sandbox — only src/, public/, and doc files
     const top = rel.split("/")[0];
-    const allowedTop = new Set(["src", "public", "SELF_IMPROVE.md", "SELF_IMPROVE_GUIDE.md", "README.md"]);
-    if (!allowedTop.has(top)) throw new Error(`path outside allowlist: ${rel} (only src/**, public/**, docs allowed)`);
+    const allowedTop = new Set([
+      "src",
+      "public",
+      "SELF_IMPROVE.md",
+      "SELF_IMPROVE_GUIDE.md",
+      "README.md",
+    ]);
+    if (!allowedTop.has(top))
+      throw new Error(`path outside allowlist: ${rel} (only src/**, public/**, docs allowed)`);
     const abs = path.join(uiDir, rel);
     const dir = path.dirname(abs);
     fs.mkdirSync(dir, { recursive: true });
@@ -113,23 +143,48 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
   await pExec("git", ["-C", uiDir, "add", "--", ...written], { timeout: 15000 });
 
   // Skip pre-commit hook — sandbox already validated everything
-  await pExec("git", ["-C", uiDir, "-c", "user.email=self-improve@opencode-ui.local",
-    "-c", "user.name=OpenCode UI Self-Improve",
-    "commit", "--no-verify", "-m", title], { timeout: 15000 });
+  await pExec(
+    "git",
+    [
+      "-C",
+      uiDir,
+      "-c",
+      "user.email=self-improve@opencode-ui.local",
+      "-c",
+      "user.name=OpenCode UI Self-Improve",
+      "commit",
+      "--no-verify",
+      "-m",
+      title,
+    ],
+    { timeout: 15000 },
+  );
 
   // 5) Push
   // Push with token via extraheader (never writes token to disk / git config)
-  const authHeader = "Authorization: Basic " + Buffer.from(`x-access-token:${token}`).toString("base64");
-  await pExec("git", [
-    "-C", uiDir,
-    "-c", `http.https://github.com/.extraheader=${authHeader}`,
-    "push", "origin", branch, "--force-with-lease",
-  ], { timeout: 60000 });
+  const authHeader =
+    "Authorization: Basic " + Buffer.from(`x-access-token:${token}`).toString("base64");
+  await pExec(
+    "git",
+    [
+      "-C",
+      uiDir,
+      "-c",
+      `http.https://github.com/.extraheader=${authHeader}`,
+      "push",
+      "origin",
+      branch,
+      "--force-with-lease",
+    ],
+    { timeout: 60000 },
+  );
 
   // 6) Open PR via GitHub API
   const pr = await githubApi(token, "POST", `/repos/${owner}/${repo}/pulls`, {
     title,
-    body: body || `Automated PR from Self-Improvement session.\n\nChanged files:\n${written.map(f => `- \`${f}\``).join("\n")}\n\n---\n_Created by OpenCode UI Self-Improvement pipeline. CI will verify before merge._`,
+    body:
+      body ||
+      `Automated PR from Self-Improvement session.\n\nChanged files:\n${written.map((f) => `- \`${f}\``).join("\n")}\n\n---\n_Created by OpenCode UI Self-Improvement pipeline. CI will verify before merge._`,
     head: branch,
     base: baseBranch,
     maintainer_can_modify: true,
@@ -138,8 +193,12 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
   logger.info(`[create-pr] PR #${pr.body.number} opened: ${pr.body.html_url}`);
 
   // 7) Restore stashed local drift if any (best effort)
-  try { await pExec("git", ["-C", uiDir, "checkout", baseBranch], { timeout: 10000 }); } catch {}
-  try { await pExec("git", ["-C", uiDir, "stash", "pop"], { timeout: 10000 }); } catch {}
+  try {
+    await pExec("git", ["-C", uiDir, "checkout", baseBranch], { timeout: 10000 });
+  } catch {}
+  try {
+    await pExec("git", ["-C", uiDir, "stash", "pop"], { timeout: 10000 });
+  } catch {}
 
   return {
     number: pr.body.number,
@@ -164,25 +223,39 @@ export async function enableAutoMerge({ uiDir, prNumber, mergeMethod = "squash" 
     const nodeId = pr.body.node_id;
     // 2) send graphql mutation
     const result = await new Promise((resolve, reject) => {
-      const data = JSON.stringify({ query, variables: { id: nodeId, method: mergeMethod.toUpperCase() } });
-      const req = https.request({
-        hostname: "api.github.com", port: 443, path: "/graphql", method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(data),
-          "User-Agent": "opencode-ui-self-improve/1.0",
-        },
-      }, (res) => {
-        let buf = ""; res.on("data", (c) => (buf += c));
-        res.on("end", () => {
-          try { resolve(JSON.parse(buf)); }
-          catch (e) { reject(e); }
-        });
+      const data = JSON.stringify({
+        query,
+        variables: { id: nodeId, method: mergeMethod.toUpperCase() },
       });
+      const req = https.request(
+        {
+          hostname: "api.github.com",
+          port: 443,
+          path: "/graphql",
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(data),
+            "User-Agent": "opencode-ui-self-improve/1.0",
+          },
+        },
+        (res) => {
+          let buf = "";
+          res.on("data", (c) => (buf += c));
+          res.on("end", () => {
+            try {
+              resolve(JSON.parse(buf));
+            } catch (e) {
+              reject(e);
+            }
+          });
+        },
+      );
       req.on("error", reject);
       req.setTimeout(15000, () => req.destroy(new Error("timeout")));
-      req.write(data); req.end();
+      req.write(data);
+      req.end();
     });
     if (result.errors) throw new Error(JSON.stringify(result.errors));
     return { enabled: true, prNumber };

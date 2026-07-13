@@ -13,7 +13,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import { createRequire } from "node:module";
-import { openPullRequest, enableAutoMerge } from "./github-pr.mjs";
+import { enableAutoMerge, openPullRequest } from "./github-pr.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -1168,7 +1168,9 @@ const server = http.createServer((req, res) => {
     if (!checkRateLimit(res)) return;
     if (!tryAcquireBuildLock()) {
       res.writeHead(409, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Another build/PR/rollback is in progress. Wait and retry." }));
+      res.end(
+        JSON.stringify({ error: "Another build/PR/rollback is in progress. Wait and retry." }),
+      );
       return;
     }
     readBody(req, MAX_JSON_BODY_BYTES)
@@ -1188,14 +1190,22 @@ const server = http.createServer((req, res) => {
             return;
           }
           const uiDir = getUiDir(WORKDIR);
-          logAudit(WORKDIR, userEmail, "SI_CREATE_PR_START", `title="${title.slice(0, 60)}" files=${files.length}`);
+          logAudit(
+            WORKDIR,
+            userEmail,
+            "SI_CREATE_PR_START",
+            `title="${title.slice(0, 60)}" files=${files.length}`,
+          );
           const pr = await openPullRequest({ uiDir, files, title, body });
           logAudit(WORKDIR, userEmail, "SI_CREATE_PR_OK", `PR #${pr.number} ${pr.url}`);
 
           // Optionally enable auto-merge (when CI passes)
           let autoMergeResult = { enabled: false, requested: !!autoMerge };
           if (autoMerge) {
-            autoMergeResult = { ...(await enableAutoMerge({ uiDir, prNumber: pr.number })), requested: true };
+            autoMergeResult = {
+              ...(await enableAutoMerge({ uiDir, prNumber: pr.number })),
+              requested: true,
+            };
             if (autoMergeResult.enabled) {
               logAudit(WORKDIR, userEmail, "SI_AUTO_MERGE_ENABLED", `PR #${pr.number}`);
             }
