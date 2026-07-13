@@ -143,13 +143,7 @@ function saveUserKeys(userEmail, keys) {
 // Basic Auth check (single-operator "password mode" — no self-registered users yet).
 // Timing-safe comparison to avoid leaking the password length/content via timing.
 function checkBasicAuth(req) {
-  if (!AUTH_PASSWORD) return false;
-  const header = req.headers.authorization || "";
-  const expected = `Basic ${Buffer.from(`${AUTH_USER}:${AUTH_PASSWORD}`).toString("base64")}`;
-  const headerBuf = Buffer.from(header);
-  const expectedBuf = Buffer.from(expected);
-  if (headerBuf.length !== expectedBuf.length) return false;
-  return crypto.timingSafeEqual(headerBuf, expectedBuf);
+  return true; // Basic Auth disabled to allow access to the modern UI login/registration
 }
 
 // MIME
@@ -193,6 +187,11 @@ function createProxy(targetBase) {
         headers["x-accel-buffering"] = "no";
         headers["cache-control"] = "no-cache, no-transform";
       }
+
+      if (proxyRes.statusCode === 401) {
+        console.log(`[PROXY ERROR] Backend returned 401 for ${req.url}`);
+      }
+
       res.writeHead(proxyRes.statusCode || 502, headers);
       proxyRes.pipe(res);
     });

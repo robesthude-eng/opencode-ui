@@ -1,5 +1,5 @@
 import { ArrowRight, Check, ChevronDown, ChevronRight, Terminal } from "lucide-react";
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,26 @@ function getState(part: ToolPart): string {
     return status === "pending" ? "running" : status;
   }
   return "running";
+}
+
+function getTime(part: ToolPart): { start?: number; end?: number } {
+  const s = part.state;
+  if (s && typeof s === "object") return (s as ToolState).time || {};
+  return {};
+}
+
+/** Live "1.8s" / "3s" duration label. Ticks while running, freezes once ended. */
+function useDuration(time: { start?: number; end?: number }, running: boolean): string | null {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!running || !time.start) return;
+    const id = setInterval(() => setTick((t) => t + 1), 500);
+    return () => clearInterval(id);
+  }, [running, time.start]);
+  if (!time.start) return null;
+  const end = time.end && !running ? time.end : Date.now();
+  const secs = Math.max(0, (end - time.start) / 1000);
+  return secs < 10 ? `${secs.toFixed(1)}s` : `${Math.round(secs)}s`;
 }
 
 function getInput(part: ToolPart): unknown {
@@ -181,7 +201,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
       {questions.map((q, qIdx) => (
         <div
           key={qIdx}
-          className={cn("flex flex-col gap-2 p-3", qIdx > 0 && "border-t border-white/5")}
+          className={cn("flex flex-col gap-2 p-3", qIdx > 0 && "border-t border-border")}
         >
           {q.header && (
             <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300/90">
@@ -253,23 +273,25 @@ function QuestionCard({ part }: { part: ToolPart }) {
 
 function DefaultToolCard({ part }: { part: ToolPart }) {
   const state = getState(part);
+  const running = state === "running";
   const input = fmt(getInput(part));
   const output = getOutput(part);
   const summary = getSummary(part);
   const hasBody = Boolean(input || output);
+  const duration = useDuration(getTime(part), running);
   const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
-  // Arena-like: collapse completed tools by default
-  const expanded = manuallyToggled ?? state === "running";
+  // Reference behavior: card stays open in real time while running, collapses once done.
+  const expanded = manuallyToggled ?? running;
   const toolName = part.tool;
   const label = friendlyToolLabel(toolName);
 
   return (
-    <div className="not-prose my-1 overflow-hidden rounded-xl border border-white/10 bg-[#14141c]">
+    <div className="not-prose my-1 overflow-hidden rounded-xl border border-border bg-card">
       <button
         type="button"
         className={cn(
           "flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition",
-          hasBody && "hover:bg-white/[0.03]",
+          hasBody && "hover:bg-accent/40",
         )}
         onClick={hasBody ? () => setManuallyToggled((e) => (e === null ? false : !e)) : undefined}
       >
@@ -280,12 +302,18 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
           {toolIcon(toolName) || <Terminal className="h-3.5 w-3.5" />}
         </span>
         <span className="text-[12.5px] font-medium text-foreground/90">{label}</span>
+        {state === "completed" && !running && (
+          <Check className="h-3 w-3 shrink-0 text-emerald-500" />
+        )}
         {summary && (
           <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
             {summary}
           </span>
         )}
         {!summary && <span className="flex-1" />}
+        {duration && (
+          <span className="shrink-0 text-[11px] text-muted-foreground/80">{duration}</span>
+        )}
         {hasBody && (
           <span className="text-muted-foreground/80">
             {expanded ? (
@@ -297,14 +325,14 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
         )}
       </button>
       {hasBody && expanded && (
-        <div className="space-y-1.5 border-t border-white/5 px-2.5 py-2">
+        <div className="space-y-1.5 border-t border-border px-2.5 py-2">
           {input && (
-            <pre className="max-h-36 overflow-auto rounded-lg bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-zinc-300/90 whitespace-pre-wrap break-all">
+            <pre className="max-h-36 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[11px] leading-relaxed text-foreground/80 whitespace-pre-wrap break-all">
               {input}
             </pre>
           )}
           {output && (
-            <pre className="max-h-44 overflow-auto rounded-lg bg-black/40 p-2 font-mono text-[11px] leading-relaxed text-zinc-400 whitespace-pre-wrap break-all">
+            <pre className="max-h-44 overflow-auto rounded-lg bg-muted/60 p-2 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
               {output}
             </pre>
           )}

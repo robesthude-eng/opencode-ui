@@ -1,11 +1,17 @@
 import { ChevronDown, FileArchive, FileText, Image as ImageIcon, Paperclip } from "lucide-react";
-import React, { type ComponentPropsWithoutRef, memo, type ReactNode } from "react";
+import React, {
+  type ComponentPropsWithoutRef,
+  memo,
+  type ReactNode,
+  useEffect,
+  useState,
+} from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { formatSize } from "../api/files";
-import type { Part, ToolPart} from "../api/types";
+import type { Part, ToolPart } from "../api/types";
 import CopyButton from "./CopyButton";
 import ToolCard from "./ToolCard";
 
@@ -35,9 +41,9 @@ const SAFE_MD_COMPONENTS = {
       // fallback
     }
     return (
-      <div className="group/code relative my-2 overflow-hidden rounded-lg bg-black/30 dark:bg-black/40">
+      <div className="group/code relative my-2 overflow-hidden rounded-lg bg-muted/60">
         <div className="absolute right-2 top-2 z-10 opacity-60 transition group-hover/code:opacity-100 [@media(hover:none)]:opacity-100">
-          <CopyButton text={codeText || String(children)} title="Copy code" />
+          <CopyButton text={codeText || String(children)} title="Copy code" className="h-6 w-6" />
         </div>
         <pre
           className="overflow-x-auto p-3 font-mono text-[12.5px] leading-relaxed text-foreground/90"
@@ -100,6 +106,74 @@ const asText = (v: unknown): string => {
 
 const markdownPlugins = [remarkGfm];
 const rehypePlugins = [rehypeHighlight];
+
+/** "Thought for Ns" — ticks live while streaming, freezes once the reasoning part finishes. */
+function useThinkingDuration(streaming?: boolean): string {
+  const [startedAt] = useState(() => Date.now());
+  const [frozenAt, setFrozenAt] = useState<number | null>(null);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (streaming) {
+      setFrozenAt(null);
+      const id = setInterval(() => setTick((t) => t + 1), 500);
+      return () => clearInterval(id);
+    }
+    setFrozenAt((prev) => prev ?? Date.now());
+  }, [streaming]);
+
+  const end = streaming ? Date.now() : (frozenAt ?? Date.now());
+  const secs = Math.max(0, Math.round((end - startedAt) / 1000));
+  return secs <= 1 ? "1 секунду" : `${secs} секунд`;
+}
+
+function ReasoningCard({ text, streaming }: { text: string; streaming?: boolean }) {
+  const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
+  const expanded = manuallyToggled ?? !!streaming;
+  const duration = useThinkingDuration(streaming);
+
+  return (
+    <div className="not-prose my-1 overflow-hidden rounded-xl border border-border bg-card">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-accent/40 transition"
+        onClick={() => setManuallyToggled((e) => (e === null ? false : !e))}
+      >
+        <span
+          className={cn(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[9px] text-white",
+            streaming && "animate-pulse",
+          )}
+        >
+          ✦
+        </span>
+        <span className="text-[12.5px] font-medium text-foreground/90">
+          {streaming ? "Размышляет…" : `Думал ${duration}`}
+        </span>
+        <span className="flex-1" />
+        <span className="text-muted-foreground/80">
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5 transition-transform" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5 -rotate-90 transition-transform" />
+          )}
+        </span>
+      </button>
+      {expanded && (
+        <div className="border-t border-border px-3 py-2 text-[13px] leading-relaxed text-muted-foreground prose prose-sm max-w-none prose-p:my-1.5 [&_*]:text-muted-foreground">
+          <ReactMarkdown
+            remarkPlugins={markdownPlugins}
+            rehypePlugins={rehypePlugins}
+            components={SAFE_MD_COMPONENTS}
+          >
+            {text}
+          </ReactMarkdown>
+          {streaming && <span className="streaming-cursor" />}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const OptimizedPartView = ({
   part,
@@ -171,19 +245,7 @@ const OptimizedPartView = ({
       );
     case "reasoning":
       if (!p.text) return null;
-      return (
-        <details className="not-prose group my-1 overflow-hidden" open={!!isLastStreaming}>
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 py-1 text-[12.5px] font-medium text-muted-foreground marker:content-none [&::-webkit-details-marker]:hidden hover:text-foreground/80">
-            <span className="text-[13px] opacity-80">💭</span>
-            <span className="flex-1">Рассуждение</span>
-            <ChevronDown className="h-3.5 w-3.5 opacity-60 transition group-open:rotate-180" />
-          </summary>
-          <div className="pl-0.5 pb-1 text-[13px] leading-relaxed text-muted-foreground prose prose-invert prose-sm max-w-none prose-p:my-1.5">
-            {renderMarkdown(asText(p.text))}
-            {isLastStreaming && <span className="streaming-cursor" />}
-          </div>
-        </details>
-      );
+      return <ReasoningCard text={asText(p.text)} streaming={isLastStreaming} />;
     case "tool":
       return <ToolCard part={part as ToolPart} />;
     default:

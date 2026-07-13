@@ -15,7 +15,10 @@ function getMessageText(message: Message): string {
         const toolP = p as ToolPart;
         const state = typeof toolP.state === "object" ? toolP.state : undefined;
         const stateOut = state?.output;
-        const out: unknown = typeof stateOut === "string" ? stateOut : (stateOut as ToolOutput | undefined) ?? toolP.output;
+        const out: unknown =
+          typeof stateOut === "string"
+            ? stateOut
+            : ((stateOut as ToolOutput | undefined) ?? toolP.output);
         if (typeof out === "string") return out;
         if (out && typeof out === "object" && "text" in out && typeof out.text === "string")
           return out.text;
@@ -79,16 +82,16 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
         >
           <div
             className={cn(
-              "absolute -top-2 right-1 transition-opacity z-10",
+              "absolute -top-3 -right-2 transition-opacity z-10",
               showUserActions
                 ? "opacity-100"
-                : "opacity-60 group-hover:opacity-100 [@media(hover:none)]:opacity-100",
+                : "opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-70",
             )}
           >
             <CopyButton
               text={msgText}
               title="Copy"
-              className="!bg-background/90 !text-foreground backdrop-blur rounded-lg shadow h-7 w-7"
+              className="!bg-card !text-foreground border border-border backdrop-blur rounded-full shadow h-6 w-6"
             />
           </div>
           <div className="rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-[14.5px] leading-relaxed text-primary-foreground shadow-sm">
@@ -124,7 +127,9 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
         <div className="text-[14.5px] leading-[1.55] text-foreground/95">
           {(() => {
             const attParts = items.filter((item) => "type" in item && item.type === "attachment");
-            const otherParts = items.filter((item) => !("type" in item) || item.type !== "attachment");
+            const otherParts = items.filter(
+              (item) => !("type" in item) || item.type !== "attachment",
+            );
             return (
               <>
                 {attParts.length > 0 && (

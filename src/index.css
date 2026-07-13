@@ -105,6 +105,61 @@
     --color-info: #2563eb;
   }
 
+  /* highlight.js ships one hardcoded palette (github-dark). Re-map the same
+     class names to a light-friendly palette when the light theme is active,
+     otherwise code blocks stay dark-on-dark or dark-on-light. */
+  [data-theme="light"] .hljs {
+    color: #24292e;
+    background: transparent;
+  }
+  [data-theme="light"] .hljs-comment,
+  [data-theme="light"] .hljs-punctuation {
+    color: #6a737d;
+  }
+  [data-theme="light"] .hljs-deletion,
+  [data-theme="light"] .hljs-name,
+  [data-theme="light"] .hljs-quote,
+  [data-theme="light"] .hljs-selector-tag,
+  [data-theme="light"] .hljs-selector-pseudo,
+  [data-theme="light"] .hljs-tag {
+    color: #22863a;
+  }
+  [data-theme="light"] .hljs-link,
+  [data-theme="light"] .hljs-operator,
+  [data-theme="light"] .hljs-regexp,
+  [data-theme="light"] .hljs-selector-attr,
+  [data-theme="light"] .hljs-selector-class,
+  [data-theme="light"] .hljs-variable,
+  [data-theme="light"] .hljs-title {
+    color: #6f42c1;
+  }
+  [data-theme="light"] .hljs-number,
+  [data-theme="light"] .hljs-meta,
+  [data-theme="light"] .hljs-built_in,
+  [data-theme="light"] .hljs-builtin-name,
+  [data-theme="light"] .hljs-literal,
+  [data-theme="light"] .hljs-type,
+  [data-theme="light"] .hljs-params,
+  [data-theme="light"] .hljs-attribute {
+    color: #005cc5;
+  }
+  [data-theme="light"] .hljs-string,
+  [data-theme="light"] .hljs-symbol,
+  [data-theme="light"] .hljs-bullet,
+  [data-theme="light"] .hljs-addition {
+    color: #032f62;
+  }
+  [data-theme="light"] .hljs-keyword,
+  [data-theme="light"] .hljs-selector-id {
+    color: #d73a49;
+  }
+  [data-theme="light"] .hljs-emphasis {
+    font-style: italic;
+  }
+  [data-theme="light"] .hljs-strong {
+    font-weight: 700;
+  }
+
   /* Scrollbars */
   ::-webkit-scrollbar {
     width: 9px;

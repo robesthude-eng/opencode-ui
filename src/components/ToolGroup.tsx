@@ -31,15 +31,15 @@ const ToolGroup = ({ tool, parts }: { tool: string; parts: ToolPart[] }) => {
   const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
   const anyRunning = parts.some((p) => getState(p) === "running");
   const anyError = parts.some((p) => getState(p) === "error");
-  // Arena-like: groups collapsed unless running
+  // Reference behavior: group stays open in real time while any item is running.
   const expanded = manuallyToggled ?? anyRunning;
   const toolName = typeof tool === "string" ? tool : "tool";
 
   return (
-    <div className="not-prose my-1.5 overflow-hidden rounded-xl border border-white/10 bg-[#14141c]">
+    <div className="not-prose my-1.5 overflow-hidden rounded-xl border border-border bg-card">
       <button
         type="button"
-        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-white/[0.03] transition"
+        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left hover:bg-accent/40 transition"
         onClick={() => setManuallyToggled((e) => (e === null ? false : !e))}
       >
         <span
@@ -64,7 +64,7 @@ const ToolGroup = ({ tool, parts }: { tool: string; parts: ToolPart[] }) => {
         </span>
       </button>
       {expanded && (
-        <div className="space-y-1 border-t border-white/5 p-1.5">
+        <div className="space-y-1 border-t border-border p-1.5">
           {parts.map((part, i) => (
             <ToolCard key={i} part={part} />
           ))}
