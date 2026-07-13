@@ -13,6 +13,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import { createRequire } from "node:module";
+import { openPullRequest, enableAutoMerge } from "./github-pr.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -1001,6 +1002,7 @@ const server = http.createServer((req, res) => {
   const SELF_IMPROVE_ROUTES = new Set([
     "/api/settings/self-improve",
     "/api/self-improve/resync",
+    "/api/self-improve/create-pr",
     "/api/rebuild",
     "/api/reset-ui",
     "/api/git/checkpoint",
@@ -1146,6 +1148,72 @@ const server = http.createServer((req, res) => {
         }
       })
       .catch(() => {
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Request body too large" }));
+      });
+    return;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // POST /api/self-improve/create-pr — Assistant creates PR instead of pushing to main
+  // Body: { files: [{path, content}], title, body?, autoMerge?: boolean }
+  // Returns: { number, url, branch, filesWritten, autoMerge: {enabled} }
+  // ═══════════════════════════════════════════════════════════
+  if (req.url === "/api/self-improve/create-pr" && req.method === "POST") {
+    if (!isSelfImproveEnabled(WORKDIR)) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+      return;
+    }
+    if (!checkRateLimit(res)) return;
+    if (!tryAcquireBuildLock()) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Another build/PR/rollback is in progress. Wait and retry." }));
+      return;
+    }
+    readBody(req, MAX_JSON_BODY_BYTES)
+      .then(async (buf) => {
+        try {
+          const { files, title, body, autoMerge = true } = JSON.parse(buf.toString("utf8") || "{}");
+          if (!Array.isArray(files) || files.length === 0) {
+            releaseBuildLock();
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "files array required" }));
+            return;
+          }
+          if (typeof title !== "string" || !title.trim()) {
+            releaseBuildLock();
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "title (string) required" }));
+            return;
+          }
+          const uiDir = getUiDir(WORKDIR);
+          logAudit(WORKDIR, userEmail, "SI_CREATE_PR_START", `title="${title.slice(0, 60)}" files=${files.length}`);
+          const pr = await openPullRequest({ uiDir, files, title, body });
+          logAudit(WORKDIR, userEmail, "SI_CREATE_PR_OK", `PR #${pr.number} ${pr.url}`);
+
+          // Optionally enable auto-merge (when CI passes)
+          let autoMergeResult = { enabled: false, requested: !!autoMerge };
+          if (autoMerge) {
+            autoMergeResult = { ...(await enableAutoMerge({ uiDir, prNumber: pr.number })), requested: true };
+            if (autoMergeResult.enabled) {
+              logAudit(WORKDIR, userEmail, "SI_AUTO_MERGE_ENABLED", `PR #${pr.number}`);
+            }
+          }
+
+          releaseBuildLock();
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "success", ...pr, autoMerge: autoMergeResult }));
+        } catch (e) {
+          releaseBuildLock();
+          logAudit(WORKDIR, userEmail, "SI_CREATE_PR_FAIL", String(e?.message || e));
+          logger.error("[create-pr] error:", e?.message || e);
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "create-pr failed", detail: String(e?.message || e) }));
+        }
+      })
+      .catch(() => {
+        releaseBuildLock();
         res.writeHead(413, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Request body too large" }));
       });
