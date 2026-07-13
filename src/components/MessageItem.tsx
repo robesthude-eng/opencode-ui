@@ -76,13 +76,16 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
   if (isUser) {
     return (
       <div className="flex justify-end px-3 md:px-6 py-2">
-        <div
-          className="group relative max-w-[85%] md:max-w-[70%]"
-          onClick={() => setShowUserActions((v) => !v)}
-        >
+        <div className="group flex flex-col items-end max-w-[85%] md:max-w-[70%] gap-1">
+          <div
+            className="rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-[14.5px] leading-relaxed text-primary-foreground shadow-sm cursor-pointer"
+            onClick={() => setShowUserActions((v) => !v)}
+          >
+            <div className="whitespace-pre-wrap break-words">{msgText || "…"}</div>
+          </div>
           <div
             className={cn(
-              "absolute -top-3 -right-2 transition-opacity z-10",
+              "flex justify-end transition-opacity z-10",
               showUserActions
                 ? "opacity-100"
                 : "opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-70",
@@ -93,9 +96,6 @@ function MessageItem({ message, isWorking }: { message: Message; isWorking?: boo
               title="Copy"
               className="!bg-card !text-foreground border border-border backdrop-blur rounded-full shadow h-6 w-6"
             />
-          </div>
-          <div className="rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-[14.5px] leading-relaxed text-primary-foreground shadow-sm">
-            <div className="whitespace-pre-wrap break-words">{msgText || "…"}</div>
           </div>
         </div>
       </div>
