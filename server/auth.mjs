@@ -97,21 +97,23 @@ export function parseCookies(req) {
   return out;
 }
 
-export function extractToken(req) {
+/**
+ * Read a session token from credentials that do not expose it in URLs.
+ * Query-string tokens are permitted only for the legacy WebSocket event
+ * upgrade path, where the caller explicitly opts in.
+ */
+export function extractToken(req, { allowQueryToken = false } = {}) {
   const cookies = parseCookies(req);
   if (cookies[SESSION_COOKIE]) return cookies[SESSION_COOKIE];
-  let token = (req.headers?.["x-auth-token"] || req.headers?.authorization || "")
+  const token = (req.headers?.["x-auth-token"] || req.headers?.authorization || "")
     .replace(/^Bearer\s+/i, "")
     .trim();
-  if (token) return token;
-  if (req.url?.includes("token=")) {
-    try {
-      token = new URL(req.url, "http://localhost").searchParams.get("token") || "";
-    } catch {
-      token = "";
-    }
+  if (token || !allowQueryToken) return token;
+  try {
+    return new URL(req.url || "/", "http://localhost").searchParams.get("token") || "";
+  } catch {
+    return "";
   }
-  return token || "";
 }
 
 export function buildSessionCookie(token, maxAgeMs) {
