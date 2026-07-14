@@ -751,8 +751,6 @@ export function rollbackToCommit(workdir, hash, callback) {
  * Keeps at most 1 rotated file (2MB total max).
  */
 const AUDIT_MAX_BYTES = 1024 * 1024; // 1MB
-const _AUDIT_MAX_FILES = 1; // keep audit.log + audit.log.1
-
 export function logAudit(workdir, userEmail, action, details = "") {
   try {
     const logFile = path.join(workdir, "audit.log");

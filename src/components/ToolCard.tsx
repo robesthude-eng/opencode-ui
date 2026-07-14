@@ -101,13 +101,6 @@ function friendlyToolLabel(tool?: string): string {
   return "used " + tool.charAt(0).toUpperCase() + tool.slice(1);
 }
 
-const _stateDot: Record<string, string> = {
-  running: "bg-amber-400 animate-pulse",
-  pending: "bg-amber-400 animate-pulse",
-  completed: "bg-emerald-400",
-  error: "bg-red-400",
-};
-
 /* ---------- Question tool card ---------- */
 
 interface QuestionItem {
