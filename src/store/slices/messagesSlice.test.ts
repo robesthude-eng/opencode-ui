@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { api, SessionGoneError } from "../../api/client";
 import type { AppEvent, Message, SessionInfo } from "../../api/types";
 import type { State } from "../types";
 import { createMessagesSlice } from "./messagesSlice";
@@ -37,6 +38,10 @@ const assistant: Message = {
 
 describe("messagesSlice streaming event reducer", () => {
   let store: ReturnType<typeof makeStore>;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   beforeEach(() => {
     store = makeStore({
@@ -86,6 +91,28 @@ describe("messagesSlice streaming event reducer", () => {
     expect(store.messages[sid][0].parts).toContainEqual(
       expect.objectContaining({ id: "part_late", text: "arrived first" }),
     );
+  });
+
+  test("recovers from 410 Gone by replacing the stale session before retrying", async () => {
+    const newSid = "ses_recovered";
+    const prompt = vi
+      .spyOn(api, "promptWithParts")
+      .mockRejectedValueOnce(new SessionGoneError(sid, "gone"))
+      .mockResolvedValueOnce({ info: { finish: "error" } } as Message);
+    vi.spyOn(api, "listMessages").mockResolvedValue([]);
+    store.newSession = async () => {
+      Object.assign(store, {
+        currentID: newSid,
+        sessions: [{ id: newSid, title: "Recovered", time: { updated: 2 } } as SessionInfo],
+      });
+    };
+
+    await store.send("retry this prompt");
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledTimes(2));
+
+    expect(store.sessions.map((session) => session.id)).toEqual([newSid]);
+    expect(store.messages[sid]).toBeUndefined();
+    expect(store.currentID).toBe(newSid);
   });
 
   test("removes session state when an SSE removal arrives during streaming", () => {
