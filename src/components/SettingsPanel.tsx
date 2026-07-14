@@ -548,7 +548,7 @@ export default function SettingsPanel() {
             {/* SELF-IMPROVE TAB */}
             {activeTab === "self-improve" && (
               <div className="space-y-4">
-                <SelfImprovePRsList visible={activeTab === "self-improve"} />
+                {isAdminUser && <SelfImprovePRsList visible={activeTab === "self-improve"} />}
 
                 {/* Live system status — always useful for admin */}
                 <div className="rounded-xl border border-border bg-card p-4">

@@ -1273,6 +1273,11 @@ const server = http.createServer((req, res) => {
   // Returns { prs: [{number, title, url, state, merged, head_branch, ...}] }
   // ═══════════════════════════════════════════════════════════
   if (req.url.startsWith("/api/self-improve/prs") && req.method === "GET") {
+    if (!isRequestAdmin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Admin access required." }));
+      return;
+    }
     if (!isSelfImproveEnabled(WORKDIR)) {
       res.writeHead(403, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled." }));
