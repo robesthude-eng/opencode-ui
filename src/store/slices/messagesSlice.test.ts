@@ -3,21 +3,21 @@ import type { AppEvent, Message, SessionInfo } from "../../api/types";
 import type { State } from "../types";
 import { createMessagesSlice } from "./messagesSlice";
 
-type Store = Partial<State> & ReturnType<typeof createMessagesSlice>;
+type Store = State & ReturnType<typeof createMessagesSlice>;
 
 function event(type: string, properties: Record<string, unknown>): AppEvent {
   return { type, properties } as AppEvent;
 }
 
 function makeStore(initial: Partial<Store> = {}) {
-  const store: Store = {
+  const store = {
     sessions: [],
     status: {},
     permissions: [],
     messages: {},
     attachments: [],
     ...initial,
-  };
+  } as Store;
   const set = (update: unknown) => {
     const next = typeof update === "function" ? update(store) : update;
     Object.assign(store, next);
