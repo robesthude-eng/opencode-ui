@@ -29,8 +29,10 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VDS_DEPLOY_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          # Добавим fingerprint VDS в known_hosts (иначе SSH спросит y/n и повиснет)
-          ssh-keyscan -H ${{ secrets.VDS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          # Pinned host key stored as an Actions secret. Never trust a key fetched
+          # during deployment: that would let a network attacker impersonate the VDS.
+          printf '%s\n' "${{ secrets.VDS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       - name: Trigger remote deploy
         run: |
@@ -39,7 +41,8 @@ jobs:
           # remote script has successfully rebuilt the container.
           # authorized_keys ограничен command="/root/deploy.sh" — любой ssh вызовет только его
           ssh -i ~/.ssh/deploy_key \
-              -o StrictHostKeyChecking=no \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
               -o ConnectTimeout=15 \
               -o ServerAliveInterval=30 \
               -o ServerAliveCountMax=3 \
