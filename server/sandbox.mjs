@@ -8,6 +8,83 @@ import { logAudit } from "./self-improve.mjs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const MAX_SANDBOX_FILES = 20;
+// JSON bodies are capped at 256 KB by middleware; leave room for path and JSON overhead.
+const MAX_SANDBOX_CONTENT_BYTES = 200 * 1024;
+let sandboxRunInProgress = false;
+
+/**
+ * Validate one user-controlled path before it reaches either the sandbox or the
+ * persistent source tree. String-prefix checks are not sufficient here:
+ * "src/../package.json" starts with "src/" but escapes the intended scope.
+ */
+export function normalizeSandboxPath(inputPath) {
+  if (typeof inputPath !== "string" || !inputPath) {
+    throw new Error("file path must be a non-empty string");
+  }
+  const raw = inputPath.replace(/\\/g, "/");
+  const segments = raw.split("/");
+  if (
+    raw.includes("\0") ||
+    path.posix.isAbsolute(raw) ||
+    segments.some((segment) => segment === "..")
+  ) {
+    throw new Error("path traversal is not allowed");
+  }
+  const normalized = path.posix.normalize(raw).replace(/^\.\//, "");
+  if (!normalized.startsWith("src/") || normalized === "src/") {
+    throw new Error("only files under src/** may be changed");
+  }
+  return normalized;
+}
+
+/** Resolve a previously validated relative path and enforce an exact directory boundary. */
+export function resolveInside(rootDir, relativePath) {
+  const root = path.resolve(rootDir);
+  const resolved = path.resolve(root, relativePath);
+  if (!resolved.startsWith(`${root}${path.sep}`)) {
+    throw new Error("resolved path escapes its allowed directory");
+  }
+  return resolved;
+}
+
+export function validateSandboxFiles(files) {
+  if (!Array.isArray(files) || files.length === 0) {
+    throw new Error("files array is required");
+  }
+  if (files.length > MAX_SANDBOX_FILES) {
+    throw new Error(`at most ${MAX_SANDBOX_FILES} files may be changed per request`);
+  }
+
+  let totalBytes = 0;
+  const seen = new Set();
+  return files.map((file) => {
+    if (!file || typeof file !== "object" || typeof file.content !== "string") {
+      throw new Error("each file requires string path and content fields");
+    }
+    const normalizedPath = normalizeSandboxPath(file.path);
+    if (seen.has(normalizedPath)) {
+      throw new Error(`duplicate file path: ${normalizedPath}`);
+    }
+    seen.add(normalizedPath);
+    totalBytes += Buffer.byteLength(file.content, "utf8");
+    if (totalBytes > MAX_SANDBOX_CONTENT_BYTES) {
+      throw new Error("total changed source exceeds the 200 KB request limit");
+    }
+    return { ...file, path: normalizedPath };
+  });
+}
+
+export function tryAcquireSandboxRun() {
+  if (sandboxRunInProgress) return false;
+  sandboxRunInProgress = true;
+  return true;
+}
+
+export function releaseSandboxRun() {
+  sandboxRunInProgress = false;
+}
+
 export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
   if (!checkRateLimit(res)) return;
 
@@ -22,73 +99,54 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
             dryRun = true,
             skipTests = false,
           } = JSON.parse(buf.toString("utf8") || "{}");
-          if (!Array.isArray(files) || files.length === 0) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Missing or invalid 'files' array in payload." }));
+          let safeFiles;
+          try {
+            safeFiles = validateSandboxFiles(files);
+          } catch (validationError) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(
+              JSON.stringify({
+                error: `Sandbox security: ${validationError.message}. Allowed: src/** only.`,
+              }),
+            );
             return;
           }
 
-          // Security: self-improve sandbox may only touch src/** files
-          // Block package.json, server/**, config files, etc. to prevent RCE via npm install
-          const ALLOWED_PREFIXES = ["src/"];
-          const BLOCKED_EXACT = new Set([
-            "package.json",
-            "package-lock.json",
-            "vite.config.ts",
-            "tsconfig.json",
-            "tsconfig.node.json",
-            "vitest.config.ts",
-            "index.html",
-            "Dockerfile",
-            "railway.json",
-            "server.mjs",
-            "start.sh",
-          ]);
-          for (const f of files) {
-            const p = (f.path || "").replace(/\\/g, "/");
-            if (BLOCKED_EXACT.has(p) || p.startsWith("server/") || p.startsWith(".github/")) {
-              res.writeHead(403, { "Content-Type": "application/json" });
-              res.end(
-                JSON.stringify({
-                  error: `Sandbox security: editing '${p}' is blocked. Allowed: src/** only.`,
-                }),
-              );
-              return;
-            }
-            if (!ALLOWED_PREFIXES.some((pref) => p.startsWith(pref))) {
-              res.writeHead(403, { "Content-Type": "application/json" });
-              res.end(
-                JSON.stringify({
-                  error: `Sandbox security: path '${p}' is outside allowed scope (src/).`,
-                }),
-              );
-              return;
-            }
+          // A run holds a shared /tmp workspace and can invoke several expensive
+          // tools. Do not let concurrent admin requests corrupt each other's tree.
+          if (!tryAcquireSandboxRun()) {
+            res.writeHead(409, { "Content-Type": "application/json" });
+            res.end(
+              JSON.stringify({ error: "A sandbox run is already in progress. Try again shortly." }),
+            );
+            return;
           }
 
-          runSandboxCheck(
-            WORKDIR,
-            files,
-            dryRun,
-            userEmail,
-            (err, result) => {
-              if (err) {
-                res.writeHead(500, { "Content-Type": "application/json" });
-                res.end(
-                  JSON.stringify({
-                    status: "error",
-                    error: "Internal sandbox error",
-                    detail: err.message,
-                  }),
-                );
-              } else {
-                res.writeHead(200, { "Content-Type": "application/json" });
-                res.end(JSON.stringify(result));
-              }
-            },
-            2,
-            { skipTests },
-          );
+          let finished = false;
+          const finish = (err, result) => {
+            if (finished) return;
+            finished = true;
+            releaseSandboxRun();
+            if (err) {
+              res.writeHead(500, { "Content-Type": "application/json" });
+              res.end(
+                JSON.stringify({
+                  status: "error",
+                  error: "Internal sandbox error",
+                  detail: err.message,
+                }),
+              );
+            } else {
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify(result));
+            }
+          };
+
+          try {
+            runSandboxCheck(WORKDIR, safeFiles, dryRun, userEmail, finish, 2, { skipTests });
+          } catch (runError) {
+            finish(runError);
+          }
         } catch (_e) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Invalid JSON payload" }));
@@ -168,10 +226,13 @@ function runSandboxCheck(
   }
 
   for (const f of files) {
-    const filePath = path.join(sandboxDir, f.path);
-    const resolvedPath = path.resolve(filePath);
-    if (!resolvedPath.startsWith(sandboxDir)) {
-      return callback(new Error(`Security violation: path ${f.path} escapes sandbox.`));
+    let resolvedPath;
+    try {
+      resolvedPath = resolveInside(sandboxDir, f.path);
+    } catch (e) {
+      return callback(
+        new Error(`Security violation: path ${f.path} escapes sandbox: ${e.message}`),
+      );
     }
     try {
       fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
@@ -360,13 +421,7 @@ function runSandboxCheck(
 
                   try {
                     for (const f of files) {
-                      const destPath = path.join(activeUiDir, f.path);
-                      const resolvedDest = path.resolve(destPath);
-                      if (!resolvedDest.startsWith(activeUiDir)) {
-                        return callback(
-                          new Error(`Security violation: destination path escapes repository.`),
-                        );
-                      }
+                      const resolvedDest = resolveInside(activeUiDir, f.path);
                       fs.mkdirSync(path.dirname(resolvedDest), { recursive: true });
                       fs.writeFileSync(resolvedDest, f.content, "utf8");
                     }
