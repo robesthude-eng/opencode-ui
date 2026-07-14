@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "vitest";
 import type { AppEvent, Message, SessionInfo } from "../../api/types";
-import { createMessagesSlice } from "./messagesSlice";
 import type { State } from "../types";
+import { createMessagesSlice } from "./messagesSlice";
 
 type Store = Partial<State> & ReturnType<typeof createMessagesSlice>;
 
