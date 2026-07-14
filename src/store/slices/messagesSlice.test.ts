@@ -63,6 +63,26 @@ describe("messagesSlice streaming event reducer", () => {
     expect(store.messages[sid][0].parts[0]).toMatchObject({ text: "first second" });
   });
 
+  test("does not lose accumulated text when a later info-only polling update arrives", () => {
+    store.applyEvent(
+      event("message.part.delta", {
+        sessionID: sid,
+        messageID: "msg_1",
+        partID: "part_1",
+        field: "text",
+        delta: " second",
+      }),
+    );
+    store.applyEvent(
+      event("message.updated", {
+        sessionID: sid,
+        message: { id: "msg_1", role: "assistant", parts: [], info: { finish: "stop" } },
+      }),
+    );
+
+    expect(store.messages[sid][0].parts[0]).toMatchObject({ text: "first second" });
+  });
+
   test("applies a streaming delta to an existing part", () => {
     store.applyEvent(
       event("message.part.delta", {
