@@ -17,8 +17,6 @@ const __locallyBusy = new Set<string>();
 // UX-fix: колбэки, которые ждут *настоящего* завершения сессии от сервера
 // (событие session.idle). Ключ — sessionID.
 const __idleResolvers = new Map<string, () => void>();
-// Максимальное время ожидания настоящего idle, страховка на случай пропажи SSE.
-const _REAL_IDLE_TIMEOUT_MS = 5 * 60 * 1000; // legacy, unused after hybrid fix
 const SEND_HARD_TIMEOUT_MS = 90 * 1000; // 90 сек без завершения = принудительно закрываем turn
 
 export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
