@@ -52,6 +52,8 @@ SSE is the primary hot-path writer. Polling is a controlled reconciliation backs
 
 ### P0.1 — Contract tests and confirmed security gaps
 
+**Status: in progress**
+
 - Extract pure URL/session/isolation helpers without behavior changes.
 - Add deterministic contract tests for `?directory=`, global routes, event routes and DELETE session routing.
 - Close every confirmed admin-route gap, including `/api/self-improve/prs` if non-admin access is verified.
