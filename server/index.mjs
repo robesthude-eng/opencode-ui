@@ -58,6 +58,7 @@ import {
   createCheckpoint,
   getSelfImproveSessionId,
   getUiDir,
+  getWorkingDiff,
   instantRollbackDist,
   isSelfImproveEnabled,
   listCheckpoints,
@@ -1002,6 +1003,25 @@ const server = http.createServer((req, res) => {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to read audit logs", detail: e.message }));
     }
+    return;
+  }
+
+  // Preview pending self-improve source changes before publishing a rebuild.
+  if (urlPath === "/api/git/diff" && req.method === "GET") {
+    if (!isRequestAdmin) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Admin access required." }));
+      return;
+    }
+    getWorkingDiff(WORKDIR, (err, result) => {
+      if (err) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to read source diff", detail: err.message }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(result));
+    });
     return;
   }
 

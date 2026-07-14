@@ -50,6 +50,8 @@ export default function SettingsPanel() {
   const [dbBackups, setDbBackups] = useState<{ name: string; bytes: number; time: string }[]>([]);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
   const [toggleBusy, setToggleBusy] = useState(false);
+  const [sourceDiff, setSourceDiff] = useState<string | null>(null);
+  const [diffStatus, setDiffStatus] = useState<string | null>(null);
   // Mobile: "menu" shows nav list; "content" shows selected tab with Back
   const [mobileView, setMobileView] = useState<"menu" | "content">("menu");
 
@@ -84,6 +86,19 @@ export default function SettingsPanel() {
       }
     } catch {
       setCheckpoints([]);
+    }
+  };
+
+  const loadSourceDiff = async () => {
+    setDiffStatus("Загрузка diff…");
+    try {
+      const res = await fetch("/api/git/diff", { credentials: "include", headers: getHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Не удалось загрузить diff");
+      setSourceDiff(data.diff || "");
+      setDiffStatus(data.changed ? "Изменения найдены" : "Нет непубликованных изменений");
+    } catch (error) {
+      setDiffStatus(`Ошибка: ${(error as Error).message}`);
     }
   };
 
@@ -782,6 +797,14 @@ export default function SettingsPanel() {
 
                   <div className="flex flex-wrap gap-2">
                     <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!isAdminUser}
+                      onClick={loadSourceDiff}
+                    >
+                      🔎 Просмотреть diff
+                    </Button>
+                    <Button
                       size="sm"
                       disabled={!!checkpointStatus || !selfImproveEnabled || !isAdminUser}
                       onClick={handleCreateCheckpoint}
@@ -815,6 +838,17 @@ export default function SettingsPanel() {
                           : "Заводской сброс"}
                     </Button>
                   </div>
+
+                  {sourceDiff !== null && (
+                    <div className="rounded-lg border border-border bg-zinc-950 p-3">
+                      <div className="mb-2 text-xs font-medium text-muted-foreground">
+                        {diffStatus}
+                      </div>
+                      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-zinc-200">
+                        {sourceDiff || "Нет изменений в src/**"}
+                      </pre>
+                    </div>
+                  )}
 
                   {(rollbackStatus ||
                     (rebuildStatus &&
