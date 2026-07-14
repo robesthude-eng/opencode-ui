@@ -34,8 +34,15 @@ jobs:
 
       - name: Trigger remote deploy
         run: |
+          # Docker build can be silent for several minutes. Keep the SSH transport
+          # alive so an idle network device cannot report a failed deploy after the
+          # remote script has successfully rebuilt the container.
           # authorized_keys ограничен command="/root/deploy.sh" — любой ssh вызовет только его
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=15 \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=3 \
               root@${{ secrets.VDS_HOST }} 2>&1
 
       - name: Cleanup key
