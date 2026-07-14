@@ -38,3 +38,15 @@ The following need a controlled disposable-session experiment before any transpo
 ## Decision
 
 Do not remove polling or introduce a custom client event sequence until the controlled replay experiment is complete. The next transport PR must use the observed contract, not assumptions.
+
+## Controlled session replay probe
+
+A disposable session was created on the production container with a temporary directory, then deleted and cleaned up.
+
+- The global `/api/event` stream emitted `session.created` and `session.deleted` with event IDs and durable sequence metadata.
+- A live request to `/api/session/{sessionID}/event?after=0` emitted no observable event for the create/delete probe.
+- Reconnecting to that endpoint after session deletion returned `SessionNotFoundError`.
+
+### Current conclusion
+
+Do not replace the global `/api/event` transport with the session-specific event route. Its replay semantics are not proven for the lifecycle used by this application. R1 must retain global SSE and polling/reconciliation until a non-destructive message-stream replay probe proves a compatible contract.

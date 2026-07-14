@@ -63,7 +63,7 @@ SSE is the primary hot-path writer. Polling is a controlled reconciliation backs
 
 ### P0.2 — OpenCode capability spikes
 
-**Status: in progress** — read-only OpenAPI discovery documented in `docs/opencode-capabilities.md`; controlled replay test remains pending.
+**Status: partial** — OpenAPI discovery and controlled create/delete probe documented in `docs/opencode-capabilities.md`. Global event IDs/durable sequence confirmed; session-specific replay remains unproven and must not replace global SSE.
 
 Run against a disposable, controlled OpenCode session on the VDS. Document findings in `docs/opencode-capabilities.md`.
 
