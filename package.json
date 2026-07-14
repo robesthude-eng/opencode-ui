@@ -66,7 +66,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^4.1.10",
     "babel-plugin-react-compiler": "^19.1.0-rc.2",
-    "jsdom": "^25.0.1",
+    "jsdom": "^29.1.1",
     "tailwindcss": "^4.1.14",
     "typescript": "5.9.3",
     "vite": "^7.0.0",
