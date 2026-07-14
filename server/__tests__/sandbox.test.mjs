@@ -1,6 +1,10 @@
 // @vitest-environment node
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  applySourceChangesTransaction,
   handleSandboxRequest,
   normalizeSandboxPath,
   releaseSandboxRun,
@@ -53,6 +57,32 @@ describe("sandbox path boundary", () => {
     expect(() =>
       validateSandboxFiles([{ path: "src/large.ts", content: "x".repeat(201 * 1024) }]),
     ).toThrow("200 KB");
+  });
+});
+
+describe("source transaction", () => {
+  const dirs = [];
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("restores modified files and removes newly created files on rollback", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "sandbox-transaction-"));
+    dirs.push(root);
+    fs.mkdirSync(path.join(root, "src"));
+    fs.writeFileSync(path.join(root, "src", "App.tsx"), "before");
+
+    const rollback = applySourceChangesTransaction(root, [
+      { path: "src/App.tsx", content: "after" },
+      { path: "src/New.tsx", content: "new" },
+    ]);
+    expect(fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8")).toBe("after");
+    expect(fs.existsSync(path.join(root, "src", "New.tsx"))).toBe(true);
+
+    rollback();
+    expect(fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8")).toBe("before");
+    expect(fs.existsSync(path.join(root, "src", "New.tsx"))).toBe(false);
   });
 });
 

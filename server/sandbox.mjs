@@ -48,6 +48,47 @@ export function resolveInside(rootDir, relativePath) {
   return resolved;
 }
 
+/**
+ * Apply a validated source batch in a reversible transaction. If a following
+ * checkpoint cannot be created, the returned rollback restores the exact
+ * pre-deploy contents (including removal of newly created files).
+ */
+export function applySourceChangesTransaction(activeUiDir, files) {
+  const previous = files.map((file) => {
+    const destination = resolveInside(activeUiDir, file.path);
+    const existed = fs.existsSync(destination);
+    return { destination, existed, content: existed ? fs.readFileSync(destination) : null };
+  });
+
+  try {
+    for (const [index, file] of files.entries()) {
+      const destination = previous[index].destination;
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.writeFileSync(destination, file.content, "utf8");
+    }
+  } catch (error) {
+    rollbackSourceChanges(previous);
+    throw error;
+  }
+
+  return () => rollbackSourceChanges(previous);
+}
+
+function rollbackSourceChanges(previous) {
+  for (const file of previous) {
+    try {
+      if (file.existed) {
+        fs.mkdirSync(path.dirname(file.destination), { recursive: true });
+        fs.writeFileSync(file.destination, file.content);
+      } else {
+        fs.rmSync(file.destination, { force: true });
+      }
+    } catch (error) {
+      console.error(`[Sandbox] rollback failed for ${file.destination}:`, error.message);
+    }
+  }
+}
+
 export function validateSandboxFiles(files) {
   if (!Array.isArray(files) || files.length === 0) {
     throw new Error("files array is required");
@@ -94,11 +135,7 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
     readBody(req, MAX_JSON_BODY_BYTES)
       .then((buf) => {
         try {
-          const {
-            files,
-            dryRun = true,
-            skipTests = false,
-          } = JSON.parse(buf.toString("utf8") || "{}");
+          const { files, dryRun = true } = JSON.parse(buf.toString("utf8") || "{}");
           let safeFiles;
           try {
             safeFiles = validateSandboxFiles(files);
@@ -143,7 +180,7 @@ export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
           };
 
           try {
-            runSandboxCheck(WORKDIR, safeFiles, dryRun, userEmail, finish, 2, { skipTests });
+            runSandboxCheck(WORKDIR, safeFiles, dryRun, userEmail, finish, 2);
           } catch (runError) {
             finish(runError);
           }
@@ -179,15 +216,7 @@ function parseTscOutput(err, stdout, stderr) {
   return combined.split("\n").filter(Boolean).slice(0, 10);
 }
 
-function runSandboxCheck(
-  workdir,
-  files,
-  dryRun,
-  userEmail,
-  callback,
-  attemptsLeft = 2,
-  options = {},
-) {
+function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLeft = 2) {
   const activeUiDir = path.join(workdir, "opencode-ui");
   const sandboxDir = "/tmp/opencode-ui-sandbox";
 
@@ -325,7 +354,6 @@ function runSandboxCheck(
                         callback(null, retryResult);
                       },
                       attemptsLeft - 1,
-                      options,
                     );
                   });
                 })
@@ -352,18 +380,7 @@ function runSandboxCheck(
 
           console.log("[Sandbox] Compilation check succeeded!");
 
-          // Step 5.5: Run vitest - fail deploy if tests break
-          // UX-fix: admin may explicitly skip tests via {skipTests: true}
-          if (options.skipTests) {
-            console.log("[Sandbox] Skipping vitest (skipTests=true requested).");
-            return callback(null, {
-              status: "success",
-              message: "TypeScript compiled. Tests skipped by user request. Ready to deploy.",
-              warning: "Tests were not run — deploy at your own risk.",
-              filesToApply: files,
-              dryRun,
-            });
-          }
+          // Step 5.5: Run vitest. Self-improve deploys may not bypass tests.
           console.log("[Sandbox] Running vitest...");
           execFile(
             "npx",
@@ -419,12 +436,9 @@ function runSandboxCheck(
                     `Deploying changes for ${files.length} files`,
                   );
 
+                  let rollbackSource;
                   try {
-                    for (const f of files) {
-                      const resolvedDest = resolveInside(activeUiDir, f.path);
-                      fs.mkdirSync(path.dirname(resolvedDest), { recursive: true });
-                      fs.writeFileSync(resolvedDest, f.content, "utf8");
-                    }
+                    rollbackSource = applySourceChangesTransaction(activeUiDir, files);
                   } catch (e) {
                     logAudit(workdir, userEmail, "SANDBOX_DEPLOY_FAILED", e.message);
                     return callback(
@@ -434,30 +448,43 @@ function runSandboxCheck(
 
                   createGitCheckpoint(activeUiDir, files, (gitErr, commitMessage) => {
                     if (gitErr) {
-                      logAudit(
-                        workdir,
-                        userEmail,
-                        "SANDBOX_DEPLOY_WARNING",
-                        `Code deployed but Git checkpoint failed: ${gitErr.message}`,
+                      rollbackSource();
+                      // The checkpoint stages this batch before commit. Unstage it after
+                      // rollback so the local self-improve repository stays consistent.
+                      execFile(
+                        "git",
+                        ["reset", "--", ...files.map((file) => file.path)],
+                        { cwd: activeUiDir, timeout: 10000 },
+                        () => {
+                          logAudit(
+                            workdir,
+                            userEmail,
+                            "SANDBOX_DEPLOY_ROLLED_BACK",
+                            `Git checkpoint failed; restored previous source: ${gitErr.message}`,
+                          );
+                          callback(
+                            new Error(
+                              `Git checkpoint failed; source changes were rolled back: ${gitErr.message}`,
+                            ),
+                          );
+                        },
                       );
-                      return callback(null, {
-                        status: "success",
-                        message: "Code successfully deployed, but Git checkpoint failed.",
-                        detail: gitErr.message,
-                      });
+                      return;
                     }
 
                     logAudit(
                       workdir,
                       userEmail,
                       "SANDBOX_DEPLOY_SUCCESS",
-                      `Code deployed. Git commit: ${commitMessage}`,
+                      `Source checkpoint: ${commitMessage}; rebuild required before release`,
                     );
                     callback(null, {
                       status: "success",
                       message:
-                        "Pre-flight compilation + tests + vite build succeeded and changes were successfully deployed!",
+                        "Source changes passed validation and were checkpointed. Run /api/rebuild to publish the new UI.",
                       commit: commitMessage,
+                      rebuildRequired: true,
+                      rebuildEndpoint: "/api/rebuild",
                     });
                   });
                 },
@@ -476,23 +503,28 @@ function createGitCheckpoint(repoDir, files, callback) {
   const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
   const msg = `Auto-Improve: Compile success at ${timeStr} (files: ${modifiedFiles})`;
 
-  execFile("git", ["add", "."], { cwd: repoDir, timeout: 10000 }, (err1) => {
-    if (err1) return callback(new Error("git add failed"));
+  execFile(
+    "git",
+    ["add", "--", ...files.map((file) => file.path)],
+    { cwd: repoDir, timeout: 10000 },
+    (err1) => {
+      if (err1) return callback(new Error("git add failed"));
 
-    execFile("git", ["commit", "-m", msg], { cwd: repoDir, timeout: 15000 }, (err2) => {
-      if (err2) {
-        return callback(err2);
-      }
-      execFile(
-        "git",
-        ["log", "-1", "--format=%h — %s"],
-        { cwd: repoDir, timeout: 10000 },
-        (_err3, commitOut) => {
-          callback(null, commitOut?.trim() || msg);
-        },
-      );
-    });
-  });
+      execFile("git", ["commit", "-m", msg], { cwd: repoDir, timeout: 15000 }, (err2) => {
+        if (err2) {
+          return callback(err2);
+        }
+        execFile(
+          "git",
+          ["log", "-1", "--format=%h — %s"],
+          { cwd: repoDir, timeout: 10000 },
+          (_err3, commitOut) => {
+            callback(null, commitOut?.trim() || msg);
+          },
+        );
+      });
+    },
+  );
 }
 
 function copyFolderRecursiveSync(src, dest, excludes = []) {
