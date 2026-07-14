@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 /**
  * E2E scaffold — run against a live server:
- *   PLAYWRIGHT_BASE_URL=https://opencode-ui-production.up.railway.app npx playwright test
+ *   PLAYWRIGHT_BASE_URL=https://your-timeweb-domain.example npx playwright test
  * or local:
  *   npm run preview & PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test
  */

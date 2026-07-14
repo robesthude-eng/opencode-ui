@@ -414,7 +414,6 @@ const SELF_IMPROVE_FS_BLOCKED_SEGMENTS = new Set([
   "backups",
   "audit.log",
   ".env",
-  ".railway",
 ]);
 
 function selfImproveFileAllowed(relPath) {
@@ -863,9 +862,7 @@ const server = http.createServer((req, res) => {
   }
   const isRequestAdmin = passwordModeAdmin || isAdmin(userEmail, USERS_FILE);
 
-  // NOTE: The /api/auth/custom endpoints are left intact for architectural completeness,
-  // but are currently NOT active or connected to any live custom providers (like the removed "aerolink").
-  // Do NOT use these to store or harvest client credentials unless a legitimate integration is explicitly configured.
+  // Legacy custom-provider key endpoints are retained for compatibility only.
   if (urlPath === "/api/auth/custom" && req.method === "GET") {
     if (!userEmail) {
       res.writeHead(401, { "Content-Type": "application/json" });

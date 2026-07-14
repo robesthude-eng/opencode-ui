@@ -15,7 +15,7 @@ mkdir -p "$HOME/.config"
 # Cleanup dead files from old buggy deployments that polluted workspace with server files
 echo "Cleaning up dead files from workspace (like Claude.ai clean workspace)..."
 rm -rf "$WORKDIR/.config_opencode_parent" "$WORKDIR/.data_opencode_parent" 2>/dev/null || true
-rm -f "$WORKDIR/server.mjs" "$WORKDIR/Dockerfile" "$WORKDIR/package.json" "$WORKDIR/package-lock.json" "$WORKDIR/index.html" "$WORKDIR/railway.json" "$WORKDIR/preview.html" "$WORKDIR/vite.config.ts" "$WORKDIR/vite.config.js" "$WORKDIR/tsconfig.json" "$WORKDIR/tsconfig.node.json" "$WORKDIR/vite.config.d.ts" "$WORKDIR/start.sh" 2>/dev/null || true
+rm -f "$WORKDIR/server.mjs" "$WORKDIR/Dockerfile" "$WORKDIR/package.json" "$WORKDIR/package-lock.json" "$WORKDIR/index.html" "$WORKDIR/vite.config.ts" "$WORKDIR/vite.config.js" "$WORKDIR/tsconfig.json" "$WORKDIR/tsconfig.node.json" "$WORKDIR/vite.config.d.ts" "$WORKDIR/start.sh" 2>/dev/null || true
 rm -rf "$WORKDIR/src" "$WORKDIR/.git" 2>/dev/null || true
 rm -f "$WORKDIR/.dockerignore" "$WORKDIR/.env.example" "$WORKDIR/.gitignore" 2>/dev/null || true
 rm -f "$WORKDIR"/hello.txt "$WORKDIR"/secret*.txt "$WORKDIR"/isolated*.txt "$WORKDIR"/inst*.txt "$WORKDIR"/patched*.txt "$WORKDIR"/about_cat.md "$WORKDIR"/project_isolated.txt "$WORKDIR"/*.md "$WORKDIR"/test*.txt "$WORKDIR"/isolation*.txt "$WORKDIR"/__tests__ 2>/dev/null || true

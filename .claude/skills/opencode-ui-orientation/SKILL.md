@@ -1,56 +1,54 @@
 ---
 name: opencode-ui-orientation
-description: "Use when starting work on the opencode-ui repository (a React web UI plus a Node/Express-style proxy server that wraps an OpenCode instance, deployed to Railway). Provides the architecture overview, file map, session-isolation model, credential-handling rules, and deploy conventions so you can navigate and edit the project correctly without breaking isolation or the deploy pipeline."
+description: "Use when editing opencode-ui. Describes the current React/Node.js ESM architecture, Timeweb VDS deployment, session isolation and self-improve safety invariants."
 ---
 
-# opencode-ui — Project Orientation
+# OpenCode UI — current project orientation
 
-> **OFFLINE NOTE:** This project is typically edited inside an assistant environment with **no internet access**. Rely on your built-in knowledge of the codebase and current best practices; do NOT fetch external docs, npm registry, or run `npm install`. The final deliverable is a ZIP of the corrected code (see `opencode-ui-modernize`).
+## Runtime
 
-## What this project is
-`opencode-ui` is a custom web chat UI for OpenCode (sst/opencode). It serves a *built* React frontend and proxies `/api/*` to a single OpenCode "system" instance on the loopback (`127.0.0.1:4096`). Each chat gets an **isolated workspace** so conversations do not share files or memory — like Claude.ai.
+- React 19 + Vite 7 frontend, TypeScript and Zustand.
+- Node.js 22 ESM proxy: `server.mjs` → `server/index.mjs`.
+- OpenCode runs once on `127.0.0.1:4096`; the UI/proxy listens on port 3000.
+- Docker Compose runs on a Timeweb VDS with persistent data in `/app/workspace`.
+- GitHub Actions deploys successful `main` builds through a pinned SSH host key. Verify `/health` after deploy.
 
-## Runtime model (Railway)
-- Docker multi-stage build: build React via `npm run build` (tsc + vite) → `dist/`.
-- Runtime image installs the `opencode-ai` CLI and copies the server modules + built frontend.
-- `start.sh` (sh) starts `node server.cjs` (UI/proxy) and `opencode serve` (system instance) on a Railway Volume mounted at `/app/workspace`.
-- Railway auto-deploys on every push to `main`. Healthcheck `/health`. Public domain e.g. `opencode-ui-production.up.railway.app`.
+## Important paths
 
-## Key files
-| Path | Role |
+| Path | Purpose |
 |---|---|
-| `server.cjs` | Entrypoint; requires `server/index.cjs`. |
-| `server/index.cjs` | HTTP server: static serving, proxy, auth, session lifecycle, self-improve routes. |
-| `server/auth.cjs` | Password hashing/verify, `checkAuth`, `isAdmin` (first registered user = admin, or `OPENCODE_ADMIN_EMAILS`). |
-| `server/db.cjs` | JSON load/save helpers for `.users.json`, `.sessions.json`. |
-| `server/middleware.cjs` | Security headers, body size limits, rate limits. |
-| `server/upload.cjs` | Multipart parser for file uploads. |
-| `server/self-improve.cjs` | Admin-only rebuild/reset/git checkpoint+rollback of the UI source. |
-| `src/api/client.ts` | Frontend API client (chat, files, git). `listDir/readFile/gitStatus` accept `sessionId`. |
-| `src/api/events.ts` | SSE event-bus client. |
-| `src/components/Workspace.tsx` | Side file browser; reads `currentID`, bails when no chat selected. |
-| `src/store/slices/*` | Zustand store slices (auth, messages, sessions, models, ui). |
-| `src/components/ChatView.tsx` | Main chat view (welcome screen, composer). |
-| `Dockerfile` | Multi-stage build + runtime (node:20-slim, opencode-ai@1.17.13). |
-| `start.sh` | Boot orchestration + workspace cleanup + OpenCode config. |
-| `railway.json` | Dockerfile builder, startCommand, healthcheck. |
+| `server.mjs` | ESM entrypoint |
+| `server/index.mjs` | HTTP proxy, auth, sessions and admin routes |
+| `server/auth.mjs` | Password hashing, sessions, CSRF and auth helpers |
+| `server/db.mjs` | SQLite-backed compatibility persistence layer |
+| `server/sandbox.mjs` | Validated self-improve source changes |
+| `server/self-improve.mjs` | Rebuild, snapshots, checkpoints and rollback |
+| `src/store/` | Zustand state slices |
+| `src/api/` | OpenCode REST/SSE client |
+| `src/components/` | React UI |
+| `.github/workflows/` | CI and Timeweb deployment |
 
-## Session-isolation model (critical)
-- New chat → `POST /api/session` creates a clean `sessions/{id}/workspace` (+ `uploads/`).
-- Every per-session proxied request appends `?directory=/app/workspace/sessions/{id}/workspace` so OpenCode operates only inside that chat's folder.
-- `extractSessionId(req)` reads from path, `?sessionId=`, or header `x-session-id`; temp `tmp_*` IDs are rejected.
-- Global routes (`/api/config/providers`, `/api/provider`, `/api/auth/`, `/api/global/`) never get `directory=`.
-- Delete chat → `DELETE /api/session/:id` removes the folder AND proxies the delete to OpenCode **with** `directory=` so OpenCode memory is cleared.
-- No per-session OpenCode process pool (it broke SSE); one system instance + global event bus + 500ms polling fallback.
+## Session isolation — do not weaken
 
-## Credential & token rules (HARD)
-- NEVER store GitHub/Railway tokens in `.git/config`, `.env`, or any committed file.
-- At runtime read them from `uploads/Github.txt` into shell variables; strip the token from the git remote URL after cloning.
-- Railway token is a Bearer token for GraphQL at `https://backboard.railway.app/graphql/v2`.
-- `OPENCODE_ZEN_API_KEY` and `OPENCODE_MODEL` are Railway env vars, NOT in the repo.
-- `OPENCODE_SERVER_PASSWORD` may be unset → app falls back to a random `.admin_password` on the volume, or to multi-user registration.
+- Every chat uses `sessions/<id>/workspace`.
+- Per-session proxy requests must preserve `?directory=` pointing at that workspace.
+- Global routes never receive `directory=`.
+- Deleting a session removes its local files and proxies deletion with the same `directory=`.
+- Keep one OpenCode system instance; the previous per-session pool broke SSE.
 
-## Conventions when editing
-- Frontend is TypeScript + React 18 (per package.json). Keep `tsc -b` passing.
-- Server is CommonJS (`.cjs`) even though `package.json` is `"type": "module"` — keep that split unless deliberately converting (see `opencode-ui-modernize`).
-- After any code change: commit, push to `main`, wait ~90s, verify the Railway deploy is SUCCESS (GraphQL `deployments`), then confirm behavior.
+## Security invariants
+
+- Never commit credentials, tokens or provider keys.
+- Password mode is single-operator Basic Auth; registration/login are disabled while it is active.
+- Multi-user mode uses HttpOnly cookies and admin-only self-improve routes.
+- Self-improve may modify only validated `src/**` paths.
+- The sandbox enforces path boundaries, a file/size limit, mandatory tests, serialized runs and rollback when the Git checkpoint fails.
+- A source checkpoint is not a release. `/api/rebuild` must publish a new UI build.
+
+## Before submitting a change
+
+```bash
+npm run ci
+```
+
+Then commit, push, wait for GitHub Actions CI and Timeweb deploy, and verify `/health`.

@@ -438,11 +438,11 @@ export function listDistSnapshots() {
  * All arguments are hardcoded constants — no user input reaches the command.
  */
 function runBuild(cwd, callback) {
-  // Railway trial has 512MB RAM. vite build of 2656 modules needs ~800MB
+  // Resource-constrained hosts can OOM during a full Vite build.
   // and gets OOM-killed. We try a minimal config (no PWA/react-compiler)
   // to reduce memory. If it still fails, we return an error and keep the
   // existing Docker-built dist intact — the user should git push for a
-  // proper rebuild (Railway's Docker builder has more RAM).
+  // proper rebuild in a sufficiently provisioned Docker environment.
   // DO NOT fall back to esbuild — its ESM output loads but React never
   // mounts (blank page), which is worse than keeping the old dist.
   const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=4096" };
@@ -500,7 +500,7 @@ export default defineConfig({
             return callback(
               new Error(
                 isOOM
-                  ? `vite build was killed (OOM). Railway trial (512MB RAM) cannot build ${"2656"} modules. Push to git for a Docker rebuild (Railway builder has more RAM), or upgrade to a paid plan.`
+                  ? `vite build was killed (OOM). Rebuild on a host with sufficient memory, or deploy through the Docker pipeline.`
                   : `vite build failed: ${stderr2 || err2.message}`,
               ),
             );

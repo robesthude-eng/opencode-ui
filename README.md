@@ -1,170 +1,151 @@
 # OpenCode UI
 
-A custom **web UI for [OpenCode](https://github.com/sst/opencode)** (the terminal AI coding agent by `sst`).
+A web interface for [OpenCode](https://github.com/sst/opencode), a headless AI coding agent. The browser talks to a Node.js proxy, which serves the React UI and forwards OpenCode API and event traffic to a local OpenCode system instance.
 
-OpenCode is designed so its engine can run headlessly as an HTTP/SSE server, and any
-client (the built-in TUI, `opencode web`, a VS Code extension — or **this app**) can
-drive it. This project is a React frontend that talks to that server.
-
-```
- Browser (React app)  ──HTTP + SSE──►  OpenCode headless server (opencode serve, :4096)
+```text
+Browser (React) ── HTTPS/HTTP + SSE ──> Node.js UI/proxy (:3000)
+                                          └──> OpenCode (:4096, loopback only)
 ```
 
 ## Features
 
-- 🗂️ **Minimal sidebar** — "New chat" button + chat list, settings at the bottom
-- 💬 **Streaming chat** — assistant tokens and message parts stream in real time
-- 🛠️ **Tool rendering** — tool calls shown as cards with state, input and output
-- 🧠 **Reasoning** — assistant reasoning is collapsible
-- 📝 **Markdown + code** — assistant text rendered with GFM markdown and code blocks
-- 🔐 **Permission prompts** — approve/deny tool execution in a dialog
-- 🔑 **API key management** — Settings panel to connect your own keys for popular
-  AI providers (Anthropic, OpenAI, Google, xAI, DeepSeek, Groq, Mistral, OpenRouter, …)
-- 🌗 **Light / dark theme** — toggle in the sidebar, respects OS preference, persisted
-- ⏹️ **Stop** — abort a running session
-- 🔌 **Live connection** status
-- 🤖 **Self-Improvement Mode** — the agent can inspect, edit, and rebuild its own React UI with 1-click controls in Settings (admin-only)
-- 🛡️ **Session Workspace Isolation** — per-chat folder sandboxes (`sessions/<ID>/`) and automatic file cleanup on chat deletion
+- Streaming chat with SSE and a resilient polling fallback.
+- Per-session isolated workspaces: `sessions/<session-id>/workspace`.
+- Session deletion removes the associated workspace and ownership metadata.
+- Markdown, code highlighting, reasoning, tool cards and permission prompts.
+- Provider-key management for supported OpenCode providers.
+- Light/dark theme, responsive layout and workspace browser.
+- Admin-only self-improvement workflow with validation, checkpoints and rollback tools.
+- SQLite-backed users, sessions and ownership records; scheduled/manual backups.
 
-## Architecture & Security (Production Cloud Edition)
+## Production model
 
-This deployment is hardened for public cloud hosting (Railway, Docker, etc.):
+The current production path is:
 
-### 1. Mandatory Basic Authentication
-By default, access to the UI, the REST API, and the WebSocket/SSE streams is protected.
-- If you set `OPENCODE_SERVER_PASSWORD` (or `OPENCODE_UI_PASSWORD`) in your environment variables, that password is required (HTTP Basic Auth, user `opencode` by default, override with `OPENCODE_SERVER_USER`) for every request — static assets, `/api/*`, and WebSocket upgrades alike — for as long as nobody has self-registered an account. This single operator is implicitly the admin (see Self-Improvement above).
-- If no password environment variable is set, the server automatically generates a secure 16-character hexadecimal password on first startup, prints it to the console, and persists it to `/app/workspace/.admin_password`.
-- If you'd rather use multi-user email/password accounts instead of (or in addition to) the shared password, register via the in-app login screen — the first account created becomes admin, and `OPENCODE_ADMIN_EMAILS` can grant admin to specific emails regardless of registration order.
-- To access the app without a password in local development, bind the server to `127.0.0.1`.
+```text
+GitHub main → GitHub Actions CI → SSH deploy → Timeweb VDS → Docker Compose
+```
 
-### 2. Self-Improvement OS-Level Sandbox
-In the Settings panel, you can toggle **Self-Improvement Mode**:
-- **When ENABLED:** The AI agent has write permissions (`chmod -R u+w`) to `/app/workspace/opencode-ui/` and can modify the UI code or trigger rebuilds.
-- **When DISABLED:** The Node server enforces read-only OS permissions (`chmod -R a-w`) on the UI directory. Even if prompt injection occurs, filesystem-level permissions prevent the agent from modifying the web app source code.
-- **Rate Limiting:** Endpoints `/api/rebuild` and `/api/reset-ui` are protected by a 10-second cooldown rate limit to prevent DoS.
-- **Admin only:** the self-improvement endpoints (`/api/settings/self-improve`, `/api/rebuild`, `/api/reset-ui`, `/api/git/checkpoint(s)`, `/api/git/rollback`) mutate the UI source shared by *every* user of this deployment, so they require an admin account. The first account ever registered on a fresh instance is automatically made admin; you can also grant admin to specific emails via `OPENCODE_ADMIN_EMAILS=alice@example.com,bob@example.com`. In single-operator "password mode" (see below, no self-registered accounts), the operator behind the Basic Auth password is always treated as admin. Any other logged-in user gets a 403 and the Settings panel hides/disables the controls for them.
+The deploy workflow pins the VDS SSH host key, runs only after CI succeeds, and checks the running service through the deploy script. The app is currently exposed on port 3000. HTTPS and `Secure` cookies should be enabled only after a public domain is connected to the VDS.
 
-### 3. Third-party model proxy ("Aerolink")
-If the `AEROLINK_API_KEY` environment variable is set, `start.sh` configures OpenCode to send Anthropic-style model
-requests (`ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL`) through `https://capi.aerolink.lat` instead of Anthropic's own
-`api.anthropic.com`. This is **not** an Anthropic endpoint — it's a third-party relay. Only set `AEROLINK_API_KEY` if
-you deliberately intend to route traffic (including the key itself) through that service. If you just want to use
-your own Anthropic key directly, configure it as a normal provider key in the Settings panel instead of setting
-`AEROLINK_API_KEY`.
+## Authentication and authorization
 
-### 4. Persistent Volume & Data Protection
-- OpenCode databases and keys live on the persistent disk (`/app/workspace/.opencode_data/` and `/app/workspace/.config_opencode/`) via symbolic links created in `start.sh`.
-- **Note on API Keys:** Provider API keys are saved by OpenCode in `/app/workspace/.opencode_data/auth.json`. Because this file contains sensitive credentials, ensure your Railway persistent volume is secured and backed up regularly.
-- **Network Isolation:** The background OpenCode server (`opencode serve`) listens strictly on loopback `127.0.0.1:4096`, ensuring it cannot be bypassed or accessed directly from external interfaces.
+### Password mode
 
-> Open `preview.html` in a browser for a static design preview (no server needed).
+If `OPENCODE_SERVER_PASSWORD` or `OPENCODE_UI_PASSWORD` is configured and no database users exist, the app uses single-operator HTTP Basic Auth. The Basic Auth user defaults to `opencode` and can be changed with `OPENCODE_SERVER_USER`.
 
-## How it works
+- Every non-health UI, API and WebSocket route requires Basic Auth.
+- Email/password login and registration are disabled in password mode.
+- `/auth/me` exposes a synthetic admin identity to the UI after Basic Auth succeeds.
 
-The app calls the OpenCode HTTP API (default base `/api`, proxied to the server to
-avoid CORS):
+If no password is configured, the server generates one on first start and writes it to the protected persistent workspace file `/app/workspace/.admin_password`.
 
-| Action | Endpoint |
-| --- | --- |
-| List / create / delete sessions | `GET/POST/DELETE /session` |
-| Load history | `GET /session/{id}/message` |
-| Send a prompt | `POST /session/{id}/prompt` |
-| Abort | `POST /session/{id}/abort` |
-| Respond to a permission | `POST /session/{id}/permissions/{permissionId}` |
-| Real-time updates | `GET /event` (Server-Sent Events) |
+### Multi-user mode
 
-Events used: `session.created`, `session.updated`, `session.removed`,
-`session.status`, `message.updated`, `message.part.updated`, `permission.asked`,
-`permission.responded`.
+When database users exist, the app uses email/password accounts and HttpOnly session cookies. The first registered account becomes an admin. Additional admins can be granted with:
 
-> Exact field shapes can vary by OpenCode version. Cross-check against the live
-> OpenAPI spec served by the server at **`http://localhost:4096/doc`** and adjust
-> `src/api/types.ts` if needed.
+```text
+OPENCODE_ADMIN_EMAILS=alice@example.com,bob@example.com
+```
 
-## Prerequisites
+Session cookies are `HttpOnly` and `SameSite=Lax`. Do not enable `Secure` until the service is served over HTTPS.
 
-1. **Node.js 18+**
-2. **OpenCode** installed — see [opencode.ai/docs](https://opencode.ai/docs/)
-3. An authenticated provider, e.g.:
-   ```bash
-   opencode auth login   # then choose a provider (Anthropic, OpenAI, Copilot, Ollama…)
-   ```
+## Self-improvement safety model
 
-## Run
+Self-improvement is admin-only and disabled by default.
 
-Start the OpenCode headless server in one terminal:
+- The only supported mutation endpoint is `/api/sandbox/apply`.
+- Only validated `src/**` paths may be changed; absolute paths, traversal, duplicate paths and oversized batches are rejected.
+- At most 20 files and 200 KB of source content are accepted per request.
+- Sandbox runs are serialized to avoid concurrent changes to the temporary build workspace.
+- Every change runs Biome, TypeScript, Vitest and Vite before source is applied. Tests cannot be skipped.
+- Applied source changes are checkpointed in the local Git repository. If checkpointing fails, the changed and newly created files are rolled back.
+- A successful source checkpoint is **not** a published UI release: the admin must run `/api/rebuild` to publish a new `dist` build.
+- The old AST-modifier endpoint was removed; it bypassed the standard validation pipeline.
+
+## Persistent data and backups
+
+OpenCode data, provider credentials and the application database are stored on the persistent VDS volume below `/app/workspace`.
+
+- SQLite database: `/app/workspace/opencode.db`
+- OpenCode provider credentials: `/app/workspace/.opencode_data/auth.json`
+- Backups: `/app/workspace/backups/`
+
+The volume contains sensitive data. Restrict VDS access, keep backup copies off the server, and rotate any token that was ever pasted into chat, logs or files.
+
+## Local development
+
+Requirements:
+
+1. Node.js **22 or newer**
+2. npm 10+
+3. OpenCode installed and configured with a provider
+
+Install dependencies:
+
+```bash
+npm ci --include=dev
+```
+
+Start OpenCode in one terminal:
 
 ```bash
 opencode serve --port 4096 --hostname 127.0.0.1
 ```
 
-In another terminal, from this folder:
+Start the frontend development server in another terminal:
 
 ```bash
-npm install
 npm run dev
 ```
 
-Open the printed URL (default `http://localhost:5173`). The dev server proxies `/api`
-to `http://localhost:4096`, so there are no CORS issues.
-
-### Point at a different server
+The Vite server listens on its printed URL, usually `http://localhost:5173`, and proxies `/api` to `http://localhost:4096` by default. Override the target when needed:
 
 ```bash
 OPENCODE_TARGET=http://host:4096 npm run dev
 ```
 
-### Password-protected server
+For local Basic Auth development, serve the UI and proxy from the same origin and use the browser's native Basic Auth prompt. Do not place production passwords in frontend source code.
 
-If you run `OPENCODE_SERVER_PASSWORD=secret opencode serve`, set credentials in
-`src/main.tsx` before render:
-
-```ts
-import { configure } from "./api/client";
-configure({ username: "opencode", password: "secret" });
-```
-
-> Note: the browser `EventSource` API can't set headers, so basic auth on the SSE
-> stream is only fully supported when the app is served same-origin from the
-> OpenCode server (i.e. via `opencode web`'s static serving). For local passworded
-> setups, prefer running without the proxy against an absolute same-origin URL.
-
-## Build
+## Quality commands
 
 ```bash
-npm run build      # outputs to dist/
-npm run preview    # serve the production build
+npm run lint       # Biome check
+npm run typecheck  # TypeScript project check
+npm run test:all   # Vitest suite
+npm run build      # TypeScript + Vite production build
+npm run ci         # lint + tests + build
+npm run test:e2e   # Playwright against PLAYWRIGHT_BASE_URL or local preview
 ```
 
-The contents of `dist/` are static and can be hosted anywhere (or served by the
-OpenCode server itself).
+## API overview
 
-## Project structure
+The frontend uses the proxy prefix `/api`:
 
+| Action | Endpoint |
+| --- | --- |
+| List/create sessions | `GET/POST /session` |
+| Read/delete session | `GET/DELETE /session/{id}` |
+| Load messages | `GET /session/{id}/message` |
+| Send a message | `POST /session/{id}/message` |
+| Abort a run | `POST /session/{id}/abort` |
+| Reply to a permission | `POST /session/{id}/permissions/{permissionId}` |
+| Stream events | `GET /event` |
+| Health | `GET /global/health` or `GET /health` |
+
+Exact OpenCode payload shapes can vary by OpenCode version. Check the local OpenCode API documentation at `http://localhost:4096/doc` before implementing a new integration.
+
+## Repository layout
+
+```text
+src/       React UI, API client, Zustand store and UI components
+server/    Node.js proxy, authentication, persistence, sandbox and backups
+e2e/       Playwright end-to-end tests
+.github/   CI and Timeweb VDS deployment workflow
+scripts/   Deployment and developer helper scripts
+docs/      Operational documentation
 ```
-src/
-├── api/
-│   ├── types.ts     # Session / Message / Part / Event types
-│   ├── client.ts    # thin REST client over the OpenCode API
-│   └── events.ts    # SSE EventStream manager (auto-reconnect)
-├── store/
-│   └── useStore.ts  # zustand store + event reducer
-├── components/
-│   ├── Sidebar.tsx          ChatView.tsx     MessageItem.tsx
-│   ├── Composer.tsx         StatusBar.tsx    PermissionDialog.tsx
-├── App.tsx
-├── main.tsx
-└── styles.css
-```
-
-## Extending it
-
-- **Model picker** — `POST /session/{id}/prompt` accepts `{ model: { providerID, modelID } }`.
-  Fetch available models with `GET /config/providers` and wire a `<select>`.
-- **Structured output** — pass `{ format: { type: "json_schema", schema } }` to the prompt.
-- **Fork / share** — `POST /session/{id}/fork`, `POST /session/{id}/share`.
-- **File views** — `GET /file` endpoints to browse the working directory.
 
 ## License
 
-MIT — this is an independent community UI. OpenCode is © its respective authors.
+MIT — this is an independent community UI. OpenCode is owned by its respective authors.
