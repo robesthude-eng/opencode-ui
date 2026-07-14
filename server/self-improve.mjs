@@ -677,6 +677,25 @@ export function createCheckpoint(workdir, callback) {
 }
 
 /**
+ * Return a bounded unified diff for the self-improve source workspace.
+ * Only src/** is mutable through the sandbox, so no secrets or runtime files are exposed.
+ */
+export function getWorkingDiff(workdir, callback) {
+  const uiDir = getUiDir(workdir);
+  if (!fs.existsSync(path.join(uiDir, ".git"))) return callback(null, { diff: "", changed: false });
+  execFile(
+    "git",
+    ["diff", "--no-ext-diff", "--", "src"],
+    { cwd: uiDir, timeout: 10000, maxBuffer: 512 * 1024 },
+    (err, stdout) => {
+      if (err) return callback(err);
+      const diff = (stdout || "").slice(0, 500 * 1024);
+      callback(null, { diff, changed: diff.length > 0 });
+    },
+  );
+}
+
+/**
  * List git checkpoints.
  */
 export function listCheckpoints(workdir, callback) {
