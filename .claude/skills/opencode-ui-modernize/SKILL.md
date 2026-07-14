@@ -5,7 +5,7 @@ description: "Use when the user asks to 'modernize', 'upgrade to latest', 'refac
 
 # Modernize opencode-ui (OFFLINE environment)
 
-**This environment has NO internet access.** You cannot run `npm install`, `npm ci`, `npm view`, reach the npm registry, GitHub, or Railway. You must:
+**This environment has NO internet access.** You cannot run `npm install`, `npm ci`, `npm view`, reach the npm registry, or GitHub. You must:
 - Make all edits from your own knowledge of current stable releases and best practices (as of your knowledge cutoff).
 - NEVER attempt network calls — they will fail and waste turns.
 - Preserve ALL invariants in the `opencode-ui-session-isolation` skill.

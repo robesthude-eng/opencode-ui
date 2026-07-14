@@ -1,6 +1,6 @@
 ---
 name: opencode-ui-orientation
-description: "Use when starting work on the opencode-ui repository (a React web UI plus a Node/Express-style proxy server that wraps an OpenCode instance, deployed to Railway). Provides the architecture overview, file map, session-isolation model, credential-handling rules, and deploy conventions so you can navigate and edit the project correctly without breaking isolation or the deploy pipeline."
+description: "Use when starting work on the opencode-ui repository (a React web UI plus a Node/Express-style proxy server that wraps an OpenCode instance, deployed to a Timeweb VDS). Provides the architecture overview, file map, session-isolation model, credential-handling rules, and deploy conventions so you can navigate and edit the project correctly without breaking isolation or the deploy pipeline."
 ---
 
 # opencode-ui — Project Orientation
@@ -10,11 +10,11 @@ description: "Use when starting work on the opencode-ui repository (a React web 
 ## What this project is
 `opencode-ui` is a custom web chat UI for OpenCode (sst/opencode). It serves a *built* React frontend and proxies `/api/*` to a single OpenCode "system" instance on the loopback (`127.0.0.1:4096`). Each chat gets an **isolated workspace** so conversations do not share files or memory — like Claude.ai.
 
-## Runtime model (Railway)
+## Runtime model (Timeweb VDS)
 - Docker multi-stage build: build React via `npm run build` (tsc + vite) → `dist/`.
 - Runtime image installs the `opencode-ai` CLI and copies the server modules + built frontend.
-- `start.sh` (sh) starts `node server.cjs` (UI/proxy) and `opencode serve` (system instance) on a Railway Volume mounted at `/app/workspace`.
-- Railway auto-deploys on every push to `main`. Healthcheck `/health`. Public domain e.g. `opencode-ui-production.up.railway.app`.
+- `start.sh` (sh) starts `node server.mjs` (UI/proxy) and `opencode serve` (system instance) on a persistent Docker volume mounted at `/app/workspace`.
+- GitHub Actions deploys successful `main` builds to the Timeweb VDS. Healthcheck: `/health`.
 
 ## Key files
 | Path | Role |
@@ -33,7 +33,6 @@ description: "Use when starting work on the opencode-ui repository (a React web 
 | `src/components/ChatView.tsx` | Main chat view (welcome screen, composer). |
 | `Dockerfile` | Multi-stage build + runtime (node:20-slim, opencode-ai@1.17.13). |
 | `start.sh` | Boot orchestration + workspace cleanup + OpenCode config. |
-| `railway.json` | Dockerfile builder, startCommand, healthcheck. |
 
 ## Session-isolation model (critical)
 - New chat → `POST /api/session` creates a clean `sessions/{id}/workspace` (+ `uploads/`).
@@ -44,13 +43,12 @@ description: "Use when starting work on the opencode-ui repository (a React web 
 - No per-session OpenCode process pool (it broke SSE); one system instance + global event bus + 500ms polling fallback.
 
 ## Credential & token rules (HARD)
-- NEVER store GitHub/Railway tokens in `.git/config`, `.env`, or any committed file.
+- NEVER store GitHub/Timeweb tokens in `.git/config`, `.env`, or any committed file.
 - At runtime read them from `uploads/Github.txt` into shell variables; strip the token from the git remote URL after cloning.
-- Railway token is a Bearer token for GraphQL at `https://backboard.railway.app/graphql/v2`.
-- `OPENCODE_ZEN_API_KEY` and `OPENCODE_MODEL` are Railway env vars, NOT in the repo.
+- - `OPENCODE_ZEN_API_KEY` and `OPENCODE_MODEL` are Timeweb environment variables, NOT in the repo.
 - `OPENCODE_SERVER_PASSWORD` may be unset → app falls back to a random `.admin_password` on the volume, or to multi-user registration.
 
 ## Conventions when editing
 - Frontend is TypeScript + React 18 (per package.json). Keep `tsc -b` passing.
 - Server is CommonJS (`.cjs`) even though `package.json` is `"type": "module"` — keep that split unless deliberately converting (see `opencode-ui-modernize`).
-- After any code change: commit, push to `main`, wait ~90s, verify the Railway deploy is SUCCESS (GraphQL `deployments`), then confirm behavior.
+- After any code change: commit, push to `main`, wait for GitHub Actions deploy and verify `/health` on Timeweb, then confirm behavior.

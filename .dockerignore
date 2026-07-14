@@ -2,7 +2,6 @@ node_modules
 dist
 .git
 .gitignore
-preview.html
 .arena
 .vite
 coverage

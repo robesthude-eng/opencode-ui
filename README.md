@@ -28,7 +28,7 @@ drive it. This project is a React frontend that talks to that server.
 
 ## Architecture & Security (Production Cloud Edition)
 
-This deployment is hardened for public cloud hosting (Railway, Docker, etc.):
+This deployment is hardened for public cloud hosting (Timeweb VDS, Docker, etc.):
 
 ### 1. Mandatory Basic Authentication
 By default, access to the UI, the REST API, and the WebSocket/SSE streams is protected.
@@ -44,20 +44,11 @@ In the Settings panel, you can toggle **Self-Improvement Mode**:
 - **Rate Limiting:** Endpoints `/api/rebuild` and `/api/reset-ui` are protected by a 10-second cooldown rate limit to prevent DoS.
 - **Admin only:** the self-improvement endpoints (`/api/settings/self-improve`, `/api/rebuild`, `/api/reset-ui`, `/api/git/checkpoint(s)`, `/api/git/rollback`) mutate the UI source shared by *every* user of this deployment, so they require an admin account. The first account ever registered on a fresh instance is automatically made admin; you can also grant admin to specific emails via `OPENCODE_ADMIN_EMAILS=alice@example.com,bob@example.com`. In single-operator "password mode" (see below, no self-registered accounts), the operator behind the Basic Auth password is always treated as admin. Any other logged-in user gets a 403 and the Settings panel hides/disables the controls for them.
 
-### 3. Third-party model proxy ("Aerolink")
-If the `AEROLINK_API_KEY` environment variable is set, `start.sh` configures OpenCode to send Anthropic-style model
-requests (`ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL`) through `https://capi.aerolink.lat` instead of Anthropic's own
-`api.anthropic.com`. This is **not** an Anthropic endpoint — it's a third-party relay. Only set `AEROLINK_API_KEY` if
-you deliberately intend to route traffic (including the key itself) through that service. If you just want to use
-your own Anthropic key directly, configure it as a normal provider key in the Settings panel instead of setting
-`AEROLINK_API_KEY`.
-
-### 4. Persistent Volume & Data Protection
+### 3. Persistent Volume & Data Protection
 - OpenCode databases and keys live on the persistent disk (`/app/workspace/.opencode_data/` and `/app/workspace/.config_opencode/`) via symbolic links created in `start.sh`.
-- **Note on API Keys:** Provider API keys are saved by OpenCode in `/app/workspace/.opencode_data/auth.json`. Because this file contains sensitive credentials, ensure your Railway persistent volume is secured and backed up regularly.
+- **Note on API Keys:** Provider API keys are saved by OpenCode in `/app/workspace/.opencode_data/auth.json`. Because this file contains sensitive credentials, ensure your Timeweb persistent volume is secured and backed up regularly.
 - **Network Isolation:** The background OpenCode server (`opencode serve`) listens strictly on loopback `127.0.0.1:4096`, ensuring it cannot be bypassed or accessed directly from external interfaces.
 
-> Open `preview.html` in a browser for a static design preview (no server needed).
 
 ## How it works
 
