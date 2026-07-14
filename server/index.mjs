@@ -966,27 +966,14 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    if (urlPath === "/api/sandbox/ast-modify") {
-      import("./ast-modifier.mjs")
-        .then((m) => {
-          m.handleASTModifyRequest(req, res, WORKDIR, userEmail);
-        })
-        .catch((err) => {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({ error: "Failed to load AST modifier module", detail: err.message }),
-          );
-        });
-    } else {
-      import("./sandbox.mjs")
-        .then((m) => {
-          m.handleSandboxRequest(req, res, WORKDIR, userEmail);
-        })
-        .catch((err) => {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Failed to load sandbox module", detail: err.message }));
-        });
-    }
+    import("./sandbox.mjs")
+      .then((m) => {
+        m.handleSandboxRequest(req, res, WORKDIR, userEmail);
+      })
+      .catch((err) => {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Failed to load sandbox module", detail: err.message }));
+      });
     return;
   }
 
@@ -2025,7 +2012,13 @@ const server = http.createServer((req, res) => {
 
 // WebSocket — always system for single event bus
 server.on("upgrade", (req, socket, head) => {
-  const token = extractToken(req);
+  const upgradePath = (req.url || "").split("?")[0];
+  // Cookies are the default. Keep the legacy URL-token fallback strictly to
+  // the event-stream upgrade endpoint; ordinary WebSocket routes must not
+  // accept credentials that can leak via browser history or server logs.
+  const token = extractToken(req, {
+    allowQueryToken: upgradePath === "/api/event" || upgradePath === "/event",
+  });
   const sessions = loadJson(SESSIONS_FILE, {});
   const users = loadJson(USERS_FILE, {});
   if (Object.keys(users).length > 0 && (!token || !sessions[token])) {

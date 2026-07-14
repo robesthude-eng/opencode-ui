@@ -115,6 +115,16 @@ describe("cookies / extractToken", () => {
     expect(extractToken(req)).toBe("header-token");
   });
 
+  test("does not accept a token in a normal HTTP URL", () => {
+    const req = { headers: {}, url: "/api/session?token=url-token" };
+    expect(extractToken(req)).toBe("");
+  });
+
+  test("accepts a URL token only when the caller explicitly allows it", () => {
+    const req = { headers: {}, url: "/api/event?token=url-token" };
+    expect(extractToken(req, { allowQueryToken: true })).toBe("url-token");
+  });
+
   test("buildSessionCookie is HttpOnly + SameSite=Lax", () => {
     const c = buildSessionCookie("tok", 1000);
     expect(c).toContain(`${SESSION_COOKIE}=tok`);
@@ -212,13 +222,13 @@ describe("getUserEmail", () => {
     expect(result).toBeNull();
   });
 
-  test("extracts token from query string", () => {
+  test("does not authenticate ordinary requests from a query-string token", () => {
     saveJson(sessionsFile, { token123: { email: "test@example.com", createdAt: Date.now() } });
 
     const req = { headers: {}, url: "/api/test?token=token123" };
     const result = getUserEmail(req, sessionsFile, 7 * 24 * 60 * 60 * 1000);
 
-    expect(result).toBe("test@example.com");
+    expect(result).toBeNull();
   });
 });
 
