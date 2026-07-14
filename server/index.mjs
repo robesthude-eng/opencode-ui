@@ -31,6 +31,7 @@ import {
   getUserEmail,
   hashPassword,
   isAdmin,
+  isPasswordMode,
   resetAuthRateLimit,
   verifyPassword,
 } from "./auth.mjs";
@@ -621,16 +622,19 @@ const server = http.createServer((req, res) => {
   // actually checked against AUTH_PASSWORD, so the "password required" guarantee
   // did not hold for the REST API. Multi-user (email/password) mode, once any
   // account exists, keeps using session tokens instead (see checkAuth below).
-  const noUsersYet = Object.keys(loadJson(USERS_FILE, {})).length === 0;
+  const userCount = Object.keys(loadJson(USERS_FILE, {})).length;
+  const passwordModeAdmin = isPasswordMode(AUTH_PASSWORD, userCount);
   const isAuthEndpoint =
     urlPath === "/auth/register" ||
     urlPath === "/api/auth/register" ||
     urlPath === "/auth/login" ||
     urlPath === "/api/auth/login";
+
+  // In password mode every application route, including auth routes, requires
+  // Basic Auth. Letting /auth/register bypass this gate allowed the first
+  // anonymous visitor to create an administrator account.
   if (
-    AUTH_PASSWORD &&
-    noUsersYet &&
-    !isAuthEndpoint &&
+    passwordModeAdmin &&
     urlPath !== "/health" &&
     urlPath !== "/global/health" &&
     urlPath !== "/api/global/health"
@@ -645,7 +649,20 @@ const server = http.createServer((req, res) => {
     }
   }
 
-  // Auth endpoints (no auth required)
+  // Password mode is deliberately single-operator. The Basic Auth identity
+  // below is represented by a synthetic admin user in /auth/me; registration
+  // and email/password login must not silently turn it into a public sign-up.
+  if (passwordModeAdmin && isAuthEndpoint) {
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        error: "Email/password registration is disabled while password mode is active.",
+      }),
+    );
+    return;
+  }
+
+  // Auth endpoints (available only in multi-user mode)
   if (urlPath === "/auth/register" || urlPath === "/api/auth/register") {
     if (req.method !== "POST") {
       res.writeHead(405);
@@ -759,6 +776,17 @@ const server = http.createServer((req, res) => {
   }
 
   if (urlPath === "/auth/me" || urlPath === "/api/auth/me") {
+    if (passwordModeAdmin) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "success",
+          user: { email: "admin@password-mode", role: "admin" },
+          passwordMode: true,
+        }),
+      );
+      return;
+    }
     const email = getUserEmail(req, SESSIONS_FILE, SESSION_TTL_MS);
     if (!email) {
       const users = loadJson(USERS_FILE, {});
@@ -803,7 +831,6 @@ const server = http.createServer((req, res) => {
   // already passed the Basic Auth gate above, so it's implicitly the sole
   // administrator — skip the session-token check that would otherwise force
   // the "no users yet" registration wall.
-  const passwordModeAdmin = AUTH_PASSWORD && noUsersYet;
   if (!passwordModeAdmin) {
     if (!checkAuth(req, res, USERS_FILE, SESSIONS_FILE, SESSION_TTL_MS)) return;
   }
@@ -1131,24 +1158,29 @@ const server = http.createServer((req, res) => {
     }
     readBody(req, MAX_JSON_BODY_BYTES)
       .then(async () => {
-        if (!isSelfImproveEnabled(WORKDIR)) {
-          res.writeHead(403, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
-          return;
-        }
         try {
+          if (!isSelfImproveEnabled(WORKDIR)) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+            return;
+          }
           const result = await syncUiSource(WORKDIR);
           logAudit(WORKDIR, userEmail, "SELF_IMPROVE_RESYNC", `source=${result.source}`);
-          releaseBuildLock();
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: true, ...result }));
         } catch (se) {
           logger.error("[self-improve] resync failed:", se?.message || se);
           res.writeHead(500, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "resync failed", detail: se?.message || String(se) }));
+        } finally {
+          // Every route after tryAcquireBuildLock() must release it, including
+          // disabled-mode and failed-sync paths, otherwise all future admin
+          // operations remain permanently locked.
+          releaseBuildLock();
         }
       })
       .catch(() => {
+        releaseBuildLock();
         res.writeHead(413, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Request body too large" }));
       });
