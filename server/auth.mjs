@@ -7,6 +7,15 @@ import { loadJson, saveAuthJson } from "./db.mjs";
 
 export const SESSION_COOKIE = "opencode_session";
 
+/**
+ * Password mode is active only for a fresh deployment that explicitly has a
+ * shared Basic Auth password and no registered users yet. Once users exist,
+ * the app switches to its regular session-based multi-user mode.
+ */
+export function isPasswordMode(authPassword, userCount) {
+  return typeof authPassword === "string" && authPassword.length > 0 && userCount === 0;
+}
+
 function pepperPassword(password) {
   const pepper = process.env.OPENCODE_PASSWORD_PEPPER || "";
   if (!pepper) return password;

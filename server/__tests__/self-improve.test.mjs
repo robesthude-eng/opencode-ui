@@ -7,7 +7,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { getUiDir, isSelfImproveEnabled, toggleSelfImprove } from "../self-improve.mjs";
+import {
+  getUiDir,
+  isSelfImproveEnabled,
+  releaseBuildLock,
+  toggleSelfImprove,
+  tryAcquireBuildLock,
+} from "../self-improve.mjs";
 
 let tmpDir;
 
@@ -16,6 +22,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  releaseBuildLock();
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
@@ -74,5 +81,14 @@ describe("toggleSelfImprove", () => {
     const subDir = path.join(tmpDir, "subdir");
     toggleSelfImprove(subDir, true);
     expect(fs.existsSync(path.join(subDir, ".self_improve_mode"))).toBe(true);
+  });
+});
+
+describe("build lock", () => {
+  test("is released after an operation and can be acquired again", () => {
+    expect(tryAcquireBuildLock()).toBe(true);
+    expect(tryAcquireBuildLock()).toBe(false);
+    releaseBuildLock();
+    expect(tryAcquireBuildLock()).toBe(true);
   });
 });
