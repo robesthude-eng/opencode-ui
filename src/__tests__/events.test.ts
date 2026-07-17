@@ -175,24 +175,34 @@ describe("EventStream", () => {
       }, 1100);
     }));
 
-  test("stops reconnecting after max attempts", () => {
+  test("switches to slow 60s retries after max fast attempts instead of giving up", () => {
     vi.useFakeTimers();
     try {
       const stream = new EventStream("http://localhost:3000/api/event");
       stream.connect();
 
-      // Drive 50 errors; advance fake timers so each scheduled reconnect fires.
+      // Drive 50 errors through the fast exponential-backoff window;
+      // cap each advance so we never tick past the scheduled delay.
       for (let i = 0; i < 50; i++) {
-        MockEventSource.instances[i].simulateError();
-        vi.advanceTimersByTime(60000);
+        const inst = MockEventSource.instances[i];
+        if (!inst) throw new Error(`missing instance at i=${i}`);
+        inst.simulateError();
+        // Advance by the scheduled delay for this attempt without
+        // skipping over the timer that fires the next connect().
+        vi.advanceTimersToNextTimer();
       }
 
-      const initialCount = MockEventSource.instances.length;
-      // One more error must NOT create a new instance (max reached).
-      MockEventSource.instances[initialCount - 1].simulateError();
-      vi.advanceTimersByTime(60000);
+      const afterFast = MockEventSource.instances.length;
+      expect(afterFast).toBe(51); // 1 initial + 50 fast retries
 
-      expect(MockEventSource.instances.length).toBe(initialCount);
+      // After the fast window is exhausted, errors should keep
+      // producing retries every 60s (never "giving up").
+      const slowInstance = MockEventSource.instances[afterFast - 1];
+      slowInstance.simulateError();
+      // Fast-exhausted retries wait 60s — advance that much and a new
+      // EventSource must have been created.
+      vi.advanceTimersByTime(60001);
+      expect(MockEventSource.instances.length).toBe(afterFast + 1);
     } finally {
       vi.useRealTimers();
     }

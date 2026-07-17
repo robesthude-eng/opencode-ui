@@ -396,9 +396,29 @@ async function runSandboxCheck(
         console.log(
           "[Sandbox] Re-running sandbox compilation check with auto-corrected files...",
         );
+        // P0-fix (безопасность): файлы от auto-correction пришли от LLM —
+        // обязательно прогоняем через ту же валидацию песочницы, что и
+        // файлы из HTTP-запроса: только src/**, без path traversal,
+        // с лимитами на кол-во и суммарный размер. Иначе авто-коррекция
+        // могла записать файл вне src/ и обойти изоляцию.
+        let safeCorrectedFiles;
+        try {
+          safeCorrectedFiles = validateSandboxFiles(correctedFiles);
+        } catch (valErr) {
+          console.warn(
+            "[Sandbox] Auto-corrected files failed sandbox validation, rejecting:",
+            valErr.message,
+          );
+          return callback(null, {
+            status: "compilation_failed",
+            errors: compileErrors,
+            message:
+              "Compilation failed. Auto-correction produced files outside the sandbox; changes were rejected for safety.",
+          });
+        }
         runSandboxCheck(
           workdir,
-          correctedFiles,
+          safeCorrectedFiles,
           dryRun,
           userEmail,
           (retryErr, retryResult) => {

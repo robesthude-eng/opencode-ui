@@ -52,10 +52,11 @@ export class EventStream {
   private es: EventSource | null = null;
   private handlers = new Set<Handler>();
   private retry: ReturnType<typeof setTimeout> | null = null;
+  private tokenRefreshDebounce: ReturnType<typeof setTimeout> | null = null;
   private url: string;
   private sessionId: string | null;
   private attempt = 0;
-  private maxAttempts = 50; // stop after ~50 attempts (several minutes of backoff)
+  private maxAttempts = 50; // после ~50 быстрых попыток — редкие ретраи раз в минуту
   // True after a real transport error — used to trigger a one-shot catch-up
   // refetch on the next successful open (SSE has no Last-Event-ID replay).
   private hadDrop = false;
@@ -80,14 +81,24 @@ export class EventStream {
 
   /** Rebuild the URL with a fresh token (call after re-login). */
   updateToken() {
+    // URL обновляем сразу — любой новый connect() уже пойдёт с свежим токеном.
     this.url = eventUrl(this.sessionId);
-    // Force reconnect with the new token
-    if (this.es) {
-      this.es.close();
-      this.es = null;
+    // P1-fix: дебаунс переподключения — несколько подряд обновлений
+    // токена (re-login, гонки рефреша в нескольких вкладках) больше
+    // не рвут стрим на каждый вызов; пересоединяемся один раз
+    // спустя 250 мс тишины.
+    if (!this.es && !this.tokenRefreshDebounce) return;
+    if (this.tokenRefreshDebounce) clearTimeout(this.tokenRefreshDebounce);
+    this.tokenRefreshDebounce = setTimeout(() => {
+      this.tokenRefreshDebounce = null;
+      this.url = eventUrl(this.sessionId);
+      if (this.es) {
+        this.es.close();
+        this.es = null;
+      }
       this.attempt = 0;
       this.connect();
-    }
+    }, 250);
   }
 
   /** Switch to a different session's event stream. */
@@ -112,6 +123,16 @@ export class EventStream {
   }
 
   connect() {
+    // P1-fix: защита от двойного вызова connect() — если соединение уже
+    // открыто или открывается, не создаём параллельный EventSource
+    // (двойная подписка = дубли событий и лишняя нагрузка на прокси).
+    if (this.es && this.es.readyState !== EventSource.CLOSED) return;
+    // Отменяем запланированный реконнект, чтобы его таймер не
+    // породил второй connect() поверх только что созданного.
+    if (this.retry) {
+      clearTimeout(this.retry);
+      this.retry = null;
+    }
     if (this.es) this.es.close();
     this.setStatus("connecting");
     try {
@@ -141,6 +162,12 @@ export class EventStream {
       this.hadDrop = true;
       this.setStatus("closed");
       this.es?.close();
+      // P1-fix: обнуляем ссылку ДО планирования реконнекта, иначе
+      // guard в connect() (`es && readyState !== CLOSED`) увидит
+      // ещё не-CLOSED (в настоящем EventSource после ошибки состояние
+      // может быть CONNECTING) и early-return'ит — второй EventSource
+      // не создастся, реконнект «теряется».
+      this.es = null;
       this.scheduleReconnect();
     };
 
@@ -199,13 +226,20 @@ export class EventStream {
 
   private scheduleReconnect() {
     if (this.retry) return;
+    // P1-fix: после исчерпания быстрого экспоненциального бэкоффа
+    // не сдаёмся навсегда (раньше вкладка оставалась «мёртвой» до
+    // ручной перезагрузки) — переходим на редкие попытки раз в
+    // минуту, пока сервер не вернётся.
+    let delay: number;
     if (this.attempt >= this.maxAttempts) {
-      console.warn("[SSE] Max reconnect attempts reached. Giving up.");
-      this.setStatus("closed");
-      return;
+      console.warn(
+        "[SSE] Max fast reconnect attempts reached. Retrying every 60s.",
+      );
+      delay = 60000;
+    } else {
+      // Exponential backoff: 1s, 2s, 4s, 8s, ... capped at 30s.
+      delay = Math.min(1000 * 2 ** this.attempt++, 30000);
     }
-    // Exponential backoff: 1s, 2s, 4s, 8s, ... capped at 30s.
-    const delay = Math.min(1000 * 2 ** this.attempt++, 30000);
     this.retry = setTimeout(() => {
       this.retry = null;
       this.connect();
@@ -230,6 +264,10 @@ export class EventStream {
 
   close() {
     if (this.retry) clearTimeout(this.retry);
+    if (this.tokenRefreshDebounce) {
+      clearTimeout(this.tokenRefreshDebounce);
+      this.tokenRefreshDebounce = null;
+    }
     this.es?.close();
     this.es = null;
     this.setStatus("closed");
