@@ -1,5 +1,5 @@
 // biome-ignore lint/suspicious/noExplicitAny: test file uses any for flexibility
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import type { Message, Part } from "../api/types";
 import {
   cleanSysText,
@@ -328,5 +328,94 @@ describe("patchPart() / patchPartDelta() — P3 edge cases", () => {
       } as any);
       expect((res[0]?.parts[0] as any).tool).toBeUndefined();
     });
+  });
+});
+
+// Semantic sanity checks for patchPart (Release 1 task 8 guarantees)
+describe("patchPart/patchPartDelta Release 1 semantic guarantees", () => {
+  const localUser: Message = {
+    id: "local_abc",
+    role: "user",
+    parts: [{ type: "text", text: "привет, сделай таск" } as Part],
+  };
+
+  test("assistant tokens for unknown ID never steal the local user bubble", () => {
+    const result = patchPart([localUser], "msg_real_1", {
+      type: "text",
+      text: "Конечно! Начинаю...",
+    } as Part);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      id: "local_abc",
+      role: "user",
+    });
+    expect((result[0]!.parts[0] as { text: string }).text).toBe(
+      "привет, сделай таск",
+    );
+    expect(result[1]).toMatchObject({
+      id: "msg_real_1",
+      role: "assistant",
+    });
+  });
+
+  test("exact text match adopts the local message without duplication", () => {
+    const result = patchPart([localUser], "msg_user_1", {
+      type: "text",
+      text: "привет, сделай таск",
+    } as Part);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      id: "msg_user_1",
+      role: "user",
+    });
+  });
+
+  test("unknown tool parts create assistant stub instead of touching user messages", () => {
+    const result = patchPart([localUser], "msg_real_2", {
+      id: "prt_1",
+      type: "tool",
+      tool: "bash",
+    } as unknown as Part);
+
+    expect(result).toHaveLength(2);
+    expect(result[1]!.role).toBe("assistant");
+    expect(result[0]!.id).toBe("local_abc");
+  });
+
+  test("applying identical part twice is idempotent (no duplicates)", () => {
+    const toolPart = {
+      id: "prt_2",
+      type: "tool",
+      tool: "bash",
+    } as unknown as Part;
+    const once = patchPart([], "msg_real_3", toolPart);
+    const twice = patchPart(once, "msg_real_3", toolPart);
+
+    expect(twice).toHaveLength(1);
+    expect(twice[0]!.parts).toHaveLength(1);
+  });
+
+  test("early metadata delta creates assistant stub without touching user message", () => {
+    const result = patchPartDelta(
+      [localUser],
+      "msg_real_4",
+      "prt_3",
+      "metadata",
+      { x: 1 },
+    );
+
+    expect(result).toHaveLength(2);
+    expect(result[1]!.role).toBe("assistant");
+    expect(result[0]!.id).toBe("local_abc");
+  });
+
+  test("early text delta creates an assistant stub with a text part", () => {
+    const result = patchPartDelta([], "msg_real_5", "prt_4", "text", "При");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.role).toBe("assistant");
+    expect(result[0]!.parts[0]!.type).toBe("text");
   });
 });
