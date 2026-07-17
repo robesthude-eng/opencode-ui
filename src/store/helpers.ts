@@ -1,3 +1,7 @@
+import {
+  findLocalUserMessageIndex,
+  userMessageTexts,
+} from "../api/messageMerge";
 import type { Message, Part, TextPart, ToolPart } from "../api/types";
 
 export function cleanSysText(t: string): string {
@@ -78,9 +82,9 @@ export function upsertMessage(messages: Message[], msg: Message): Message[] {
   const idx = messages.findIndex((m) => m.id === msg.id);
   if (idx === -1) {
     if (msg.role === "user" && !msg.id.startsWith("local_")) {
-      const localIdx = messages.findIndex(
-        (m) => m.id.startsWith("local_") && m.role === "user",
-      );
+      // Correlate by explicit text content (oldest match wins), never by
+      // "the first local_ found" — parallel sends must not swap counterparts.
+      const localIdx = findLocalUserMessageIndex(messages, msg);
       if (localIdx !== -1) {
         const copy = messages.slice();
         const existingLocal = copy[localIdx];
@@ -107,7 +111,16 @@ export function upsertMessage(messages: Message[], msg: Message): Message[] {
   const { parts: _omit, ...rest } = msg;
   copy[idx] = { ...existing, ...rest, parts } as Message;
   if (msg.role === "user" && !msg.id.startsWith("local_")) {
-    return copy.filter((m) => m.id === msg.id || !m.id.startsWith("local_"));
+    // Drop only the optimistic counterpart(s) of THIS confirmed message;
+    // other pending optimistic sends must survive.
+    const confirmedTexts = userMessageTexts(msg);
+    return copy.filter((m) => {
+      if (m.id === msg.id || !m.id.startsWith("local_")) return true;
+      for (const text of userMessageTexts(m)) {
+        if (confirmedTexts.has(text)) return false;
+      }
+      return true;
+    });
   }
   return copy;
 }
@@ -121,15 +134,22 @@ export function patchPart(
   const targetID = messageID;
   const exists = messages.some((m) => m.id === targetID);
   if (!exists) {
-    const localIdx = messages.findIndex(
-      (m) =>
-        m.id.startsWith("local_") && m.role === "user" && part.type === "text",
-    );
+    const cleanedPart = isTextPart(cleanedPart0)
+      ? { ...cleanedPart0, text: cleanSysText(cleanedPart0.text) }
+      : cleanedPart0;
+    // Adopt a local optimistic user message only on an explicit text match:
+    // an unknown messageID may just as well carry the first assistant tokens,
+    // and a positional/"single pending" guess would render them inside the
+    // user's bubble.
+    const localIdx = isTextPart(cleanedPart)
+      ? findLocalUserMessageIndex(
+          messages,
+          { id: targetID, role: "user", parts: [cleanedPart] },
+          { textMatchOnly: true },
+        )
+      : -1;
     if (localIdx !== -1) {
       const copy = messages.slice();
-      const cleanedPart = isTextPart(cleanedPart0)
-        ? { ...cleanedPart0, text: cleanSysText(cleanedPart0.text) }
-        : cleanedPart0;
       copy[localIdx] = {
         ...copy[localIdx],
         id: targetID,

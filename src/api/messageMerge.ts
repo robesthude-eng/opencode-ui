@@ -38,6 +38,56 @@ function toolStatus(p: unknown): string | undefined {
   return state?.status;
 }
 
+/**
+ * Collect the trimmed contents of a message's text parts.
+ * Used to correlate a server-confirmed user message with its local
+ * optimistic counterpart by explicit content instead of array position.
+ */
+export function userMessageTexts(msg: MergeMessage): Set<string> {
+  const texts = new Set<string>();
+  for (const p of msg.parts ?? []) {
+    const text = (p as { text?: unknown }).text;
+    if (p.type === "text" && typeof text === "string" && text.trim()) {
+      texts.add(text.trim());
+    }
+  }
+  return texts;
+}
+
+/**
+ * Deterministic correlation between a server user message and a local
+ * optimistic (`local_`) user message.
+ *
+ * Fixes the "first local_ found" mis-correlation (attachments sticking to
+ * the wrong message when several sends are in flight):
+ * 1. An exact text-part match wins; the oldest matching optimistic message
+ *    is chosen (the server confirms prompts in send order).
+ * 2. Without a text match, a single pending optimistic message is
+ *    unambiguous and is used as fallback — unless `textMatchOnly` is set
+ *    (callers that are not sure the server message is a user echo).
+ * 3. Otherwise returns -1 — never hijack an arbitrary optimistic message.
+ */
+export function findLocalUserMessageIndex(
+  messages: MergeMessage[],
+  serverMsg: MergeMessage,
+  opts?: { textMatchOnly?: boolean },
+): number {
+  const serverTexts = userMessageTexts(serverMsg);
+  let onlyPendingIdx = -1;
+  let pendingCount = 0;
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (!m || m.role !== "user" || !m.id.startsWith("local_")) continue;
+    pendingCount++;
+    if (pendingCount === 1) onlyPendingIdx = i;
+    for (const text of userMessageTexts(m)) {
+      if (serverTexts.has(text)) return i;
+    }
+  }
+  if (!opts?.textMatchOnly && pendingCount === 1) return onlyPendingIdx;
+  return -1;
+}
+
 export function mergeMessages(
   serverMsgs: MergeMessage[],
   localMsgs: MergeMessage[],
@@ -50,9 +100,10 @@ export function mergeMessages(
     if (!lMsg) {
       // No local counterpart — take server as-is, but preserve any local attachments if user message
       if (sMsg.role === "user") {
-        const localOptimistic = localMsgs.find(
-          (m) => m.id.startsWith("local_") && m.role === "user",
-        );
+        // Explicit content-based correlation instead of "first local_ found".
+        const localOptimisticIdx = findLocalUserMessageIndex(localMsgs, sMsg);
+        const localOptimistic =
+          localOptimisticIdx === -1 ? undefined : localMsgs[localOptimisticIdx];
         if (localOptimistic) {
           const localAtts = localOptimistic.parts.filter(
             (p) => p.type === "attachment",
