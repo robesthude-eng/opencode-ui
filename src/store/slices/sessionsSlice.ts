@@ -104,28 +104,17 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
     }
   },
 
-  // Claude-like new chat: optimistic, reuse empty, empty workspace, no memory overlap
+  // Claude-like new chat: optimistic, empty workspace, no memory overlap.
+  // P2-fix: убрана эвристика переиспользования «пустых» сессий: после
+  // перезагрузки страницы messages ещё не подгружены ни для одной
+  // сессии, поэтому «пустой» выглядела любая старая сессия и
+  // «New chat» молча открывал старый чат вместо нового.
   newSession: async () => {
     if (creatingSession) return;
     creatingSession = true;
     sessionCreationSettled = new Promise((resolve) => {
       settleSessionCreation = resolve;
     });
-
-    const { sessions, messages } = get();
-
-    // Check if there's already an empty session (no messages) — like Claude, don't create duplicate empty chats
-    const emptySession = sessions.find((s) => {
-      const msgs = messages[s.id];
-      return !msgs || msgs.length === 0;
-    });
-    if (emptySession) {
-      // Just select existing empty chat instead of creating new one
-      set({ currentID: emptySession.id });
-      creatingSession = false;
-      settleSessionCreation();
-      return;
-    }
 
     // Optimistic creation — show new chat instantly like Claude, without waiting for backend
     const tempId = `tmp_${Date.now()}`;
