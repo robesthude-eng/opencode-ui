@@ -15,3 +15,5 @@ vitest.config.d.ts
 # backup files from ad-hoc edits
 *.bak
 *.bak2
+test-results/
+playwright-report/
