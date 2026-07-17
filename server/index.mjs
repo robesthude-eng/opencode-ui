@@ -14,12 +14,9 @@ import {
   checkCsrf,
   extractToken,
   getUserEmail,
-  initAuthPassword,
   isAdmin,
-  isPasswordMode,
   loadUserKeys,
   saveUserKeys,
-  checkBasicAuth,
 } from "./auth.mjs";
 import { startBackupScheduler } from "./backup.mjs";
 import { closeDb, initDb, loadJson, saveAuthJson, saveJson } from "./db.mjs";
@@ -56,7 +53,6 @@ import {
   promoteDistSnapshot,
 } from "./self-improve.mjs";
 import {
-  AUTH_USER,
   MAX_JSON_BODY_BYTES,
   OWNERS_FILE,
   PORT,
@@ -75,12 +71,6 @@ const DIST = path.join(__dirname, "..", "dist");
 initDb(WORKDIR);
 const SESSION_TTL_MS =
   parseInt(process.env.OPENCODE_SESSION_TTL_MS || "", 10) || 7 * 24 * 60 * 60 * 1000;
-const AUTH_PASSWORD = initAuthPassword(WORKDIR);
-
-function checkBasicAuthWrapper(req) {
-  return checkBasicAuth(req, AUTH_PASSWORD);
-}
-
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
@@ -285,42 +275,6 @@ const server = http.createServer((req, res) => {
   }
   const urlPath = req.url.split("?")[0];
   const isSiInternal = isSiInternalRequest(WORKDIR, req, urlPath);
-  const userCount = Object.keys(loadJson(USERS_FILE, {})).length;
-  const passwordModeAdmin = isPasswordMode(AUTH_PASSWORD, userCount);
-  const isAuthEndpoint =
-    urlPath === "/auth/register" ||
-    urlPath === "/api/auth/register" ||
-    urlPath === "/auth/login" ||
-    urlPath === "/api/auth/login";
-  const isStaticRequest = !req.url.startsWith("/api/") && req.url !== "/api" && !urlPath.startsWith("/auth/");
-  if (
-    passwordModeAdmin &&
-    !isSiInternal &&
-    !isStaticRequest &&
-    urlPath !== "/health" &&
-    urlPath !== "/global/health" &&
-    urlPath !== "/api/global/health"
-  ) {
-    if (!checkBasicAuthWrapper(req)) {
-      res.writeHead(401, {
-        "Content-Type": "application/json",
-        "WWW-Authenticate": `Basic realm="OpenCode UI"`,
-      });
-      res.end(JSON.stringify({ error: "Unauthorized" }));
-      return;
-    }
-  }
-  const basicAuthPassed = checkBasicAuthWrapper(req);
-  const allowReg = process.env.OPENCODE_ALLOW_REGISTRATION === "1" || userCount === 0;
-  if (passwordModeAdmin && isAuthEndpoint && !basicAuthPassed && !allowReg) {
-    res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error: "Email/password registration is disabled while password mode is active.",
-      }),
-    );
-    return;
-  }
   if (urlPath === "/auth/register" || urlPath === "/api/auth/register") {
     handleAuthRegister(req, res, { USERS_FILE, SESSIONS_FILE, SESSION_TTL_MS });
     return;
@@ -334,7 +288,6 @@ const server = http.createServer((req, res) => {
       USERS_FILE,
       SESSIONS_FILE,
       SESSION_TTL_MS,
-      passwordModeAdmin,
       getUserEmail,
     });
     return;
@@ -353,12 +306,11 @@ const server = http.createServer((req, res) => {
     serveStatic(req, res);
     return;
   }
-  if (!passwordModeAdmin && !isSiInternal) {
+  if (!isSiInternal) {
     if (!checkAuth(req, res, USERS_FILE, SESSIONS_FILE, SESSION_TTL_MS)) return;
   }
   if (!isSiInternal && !checkCsrf(req, res)) return;
   let userEmail = getUserEmail(req, SESSIONS_FILE, SESSION_TTL_MS);
-  if (!userEmail && passwordModeAdmin) userEmail = "admin@password-mode";
   if (!userEmail && isSiInternal) userEmail = "si-agent@internal";
   const heavy =
     /\/message$|\/question\/[^/]+\/(reply|reject)$|\/sandbox\/|\/rebuild$|\/reset-ui$|\/git\/rollback$|\/workspace\/upload/.test(
@@ -374,7 +326,7 @@ const server = http.createServer((req, res) => {
     )
       return;
   }
-  const isRequestAdmin = passwordModeAdmin || isAdmin(userEmail, USERS_FILE) || isSiInternal;
+  const isRequestAdmin = isAdmin(userEmail, USERS_FILE) || isSiInternal;
 
   // Delegate to route modules — P1.2 multiple similar at once
   // Превью workspace сессии (auth/CSRF уже пройдены выше; ownership — внутри).
@@ -579,13 +531,6 @@ server.on("upgrade", (req, socket, head) => {
     socket.destroy();
     return;
   }
-  if (AUTH_PASSWORD && Object.keys(users).length === 0) {
-    if (!checkBasicAuthWrapper(req)) {
-      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-      socket.destroy();
-      return;
-    }
-  }
   const sessionId = extractSessionId(req);
   if (sessionId) {
     const userEmail = sessions[token]?.email || null;
@@ -629,11 +574,12 @@ setInterval(
 import { initTerminalServer } from "./terminal.mjs";
 
 void initSentryServer().finally(() => {
-  initTerminalServer(server, { authPassword: AUTH_PASSWORD, sessionTtlMs: SESSION_TTL_MS });
+  initTerminalServer(server, { sessionTtlMs: SESSION_TTL_MS });
   server.listen(PORT, "0.0.0.0", () => {
     logger.info({ port: PORT, systemPort: SYSTEM_PORT, workdir: WORKDIR }, "server listening");
-    if (AUTH_PASSWORD) logger.info("basic auth protection enabled");
-    else logger.warn("no OPENCODE_SERVER_PASSWORD set; unsecured until first user registers");
+    if (Object.keys(loadJson(USERS_FILE, {})).length === 0) {
+      logger.warn("no users registered yet; first registered account becomes admin");
+    }
     try {
       startBackupScheduler(WORKDIR);
     } catch (e) {

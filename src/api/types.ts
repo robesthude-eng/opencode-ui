@@ -124,7 +124,8 @@ export interface AppEvent {
     id?: string; // permission id
     delta?: string;
     field?: string;
-    tool?: string;
+    // Имя инструмента (строка) или объект-ссылка { messageID, callID } в новых версиях opencode
+    tool?: string | { messageID?: string; callID?: string };
     input?: unknown;
 
   };

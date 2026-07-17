@@ -5,42 +5,8 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { AUTH_USER, USER_KEYS_DIR } from "./config.mjs";
+import { USER_KEYS_DIR } from "./config.mjs";
 import { loadJson, saveAuthJson } from "./db.mjs";
-
-let AUTH_PASSWORD = process.env.OPENCODE_SERVER_PASSWORD || process.env.OPENCODE_UI_PASSWORD || "";
-
-export function initAuthPassword(workdir) {
-  const passFile = path.join(workdir, ".admin_password");
-  if (!AUTH_PASSWORD) {
-    if (fs.existsSync(passFile)) {
-      try {
-        AUTH_PASSWORD = fs.readFileSync(passFile, "utf8").trim();
-      } catch (e) {
-        console.warn("Ignored error:", e.message);
-      }
-    }
-    if (!AUTH_PASSWORD) {
-      AUTH_PASSWORD = crypto.randomBytes(16).toString("hex");
-      try {
-        fs.mkdirSync(workdir, { recursive: true });
-        fs.writeFileSync(passFile, AUTH_PASSWORD, { mode: 0o600 });
-      } catch (e) {
-        console.error(e.message);
-      }
-    }
-  }
-  return AUTH_PASSWORD;
-}
-
-export function checkBasicAuth(req, authPassword) {
-  if (!authPassword) return false;
-  const header = req.headers.authorization || "";
-  const expected = `Basic ${Buffer.from(`${AUTH_USER}:${authPassword}`).toString("base64")}`;
-  const hb = Buffer.from(header), eb = Buffer.from(expected);
-  if (hb.length !== eb.length) return false;
-  return crypto.timingSafeEqual(hb, eb);
-}
 
 export const SESSION_COOKIE = "opencode_session";
 
@@ -64,15 +30,6 @@ export function saveUserKeys(email, keys) {
   const f = getUserKeysFile(email);
   fs.mkdirSync(USER_KEYS_DIR, { recursive: true });
   fs.writeFileSync(f, JSON.stringify(keys, null, 2), { mode: 0o600 });
-}
-
-/**
- * Password mode is active only for a fresh deployment that explicitly has a
- * shared Basic Auth password and no registered users yet. Once users exist,
- * the app switches to its regular session-based multi-user mode.
- */
-export function isPasswordMode(authPassword, userCount) {
-  return typeof authPassword === "string" && authPassword.length > 0 && userCount === 0;
 }
 
 function pepperPassword(password) {

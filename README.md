@@ -30,19 +30,7 @@ The deploy workflow pins the VDS SSH host key, runs only after CI succeeds, and 
 
 ## Authentication and authorization
 
-### Password mode
-
-If `OPENCODE_SERVER_PASSWORD` or `OPENCODE_UI_PASSWORD` is configured and no database users exist, the app uses single-operator HTTP Basic Auth. The Basic Auth user defaults to `opencode` and can be changed with `OPENCODE_SERVER_USER`.
-
-- Every non-health UI, API and WebSocket route requires Basic Auth.
-- Email/password login and registration are disabled in password mode.
-- `/auth/me` exposes a synthetic admin identity to the UI after Basic Auth succeeds.
-
-If no password is configured, the server generates one on first start and writes it to the protected persistent workspace file `/app/workspace/.admin_password`.
-
-### Multi-user mode
-
-When database users exist, the app uses email/password accounts and HttpOnly session cookies. The first registered account becomes an admin. Additional admins can be granted with:
+The app uses email/password accounts and HttpOnly session cookies. The first registered account becomes an admin. On a fresh deployment, register the admin account immediately after the first start; registration can be restricted with an invite code (`OPENCODE_INVITE_CODE`) or an email allowlist. Additional admins can be granted with:
 
 ```text
 OPENCODE_ADMIN_EMAILS=alice@example.com,bob@example.com

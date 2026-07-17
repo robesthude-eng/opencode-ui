@@ -47,7 +47,9 @@ export default function PermissionDialog() {
             </p>
 
             <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
-              <span className="font-mono text-sm font-semibold">{req.tool ?? "tool"}</span>
+              <span className="font-mono text-sm font-semibold">
+                {typeof req.tool === "string" && req.tool ? req.tool : "tool"}
+              </span>
             </div>
 
             {req.input != null && (

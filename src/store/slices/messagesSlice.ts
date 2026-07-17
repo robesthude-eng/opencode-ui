@@ -486,7 +486,10 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       }
       case "permission.asked": {
         if (!sid || !p.id) break;
-        const req: PermissionRequest = { sessionID: sid, id: p.id, tool: p.tool, input: p.input };
+        // Новые версии opencode присылают в `tool` объект-ссылку {messageID, callID},
+        // а не имя инструмента. Нормализуем, чтобы React не рендерил объект (error #31).
+        const toolName = typeof p.tool === "string" ? p.tool : undefined;
+        const req: PermissionRequest = { sessionID: sid, id: p.id, tool: toolName, input: p.input };
         set((s) => ({
           permissions: s.permissions.some((x) => x.id === req.id)
             ? s.permissions

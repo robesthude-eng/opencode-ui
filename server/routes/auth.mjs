@@ -137,19 +137,8 @@ export async function handleLogin(req, res, { USERS_FILE, SESSIONS_FILE, SESSION
 export function handleMe(
   req,
   res,
-  { USERS_FILE, SESSIONS_FILE, SESSION_TTL_MS, passwordModeAdmin, getUserEmail },
+  { USERS_FILE, SESSIONS_FILE, SESSION_TTL_MS, getUserEmail },
 ) {
-  if (passwordModeAdmin) {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        status: "success",
-        user: { email: "admin@password-mode", role: "admin" },
-        passwordMode: true,
-      }),
-    );
-    return;
-  }
   const email = getUserEmail(req, SESSIONS_FILE, SESSION_TTL_MS);
   if (!email) {
     const users = loadJson(USERS_FILE, {});

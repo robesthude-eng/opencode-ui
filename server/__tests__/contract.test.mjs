@@ -110,7 +110,7 @@ describe("contract: admin route guard", () => {
   });
 
   test("removing admin gate would make auth tests fail — documented", () => {
-    // auth.test.mjs already covers isAdmin, passwordMode, CSRF
+    // auth.test.mjs already covers isAdmin and CSRF
     // This test documents that contract tests must exist before server modularization (P0.1)
     expect(true).toBe(true);
   });

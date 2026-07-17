@@ -14,9 +14,7 @@
  * Модель безопасности — зеркалит HTTP/upgrade-гейты из index.mjs:
  *  1. Origin-проверка: только same-origin (или запросы без Origin — не браузер).
  *  2. Auth на уровне handshake (allowRequest, до создания engine.io-сессии):
- *     multi-user → HttpOnly cookie-токен из .sessions.json с проверкой TTL;
- *     password-mode → HTTP Basic; open-mode (нет юзеров и пароля) — открыт,
- *     как и весь app до регистрации первого пользователя.
+ *     HttpOnly cookie-токен из .sessions.json с проверкой TTL.
  *  3. Ownership: query.workdir = ID сессии; чужие сессии
  *     (.session_owners.json) → отказ. Инвариант изоляции #2/#3.
  *  4. Shell получает env по белому списку — секреты процесса
@@ -26,8 +24,8 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import { Server as SocketIOServer } from "socket.io";
-import { checkBasicAuth, getUserEmail } from "./auth.mjs";
-import { OWNERS_FILE, SESSIONS_FILE, USERS_FILE } from "./config.mjs";
+import { getUserEmail } from "./auth.mjs";
+import { OWNERS_FILE, SESSIONS_FILE } from "./config.mjs";
 import { loadJson } from "./db.mjs";
 import { getSessionWorkspace, isValidSessionId } from "./isolation.mjs";
 import { logger } from "./logger.mjs";
@@ -168,7 +166,6 @@ function startPipeShell(socket, workdir) {
 }
 
 export function initTerminalServer(httpServer, options = {}) {
-  const authPassword = options.authPassword ?? null;
   const sessionTtlMs = options.sessionTtlMs ?? 7 * 24 * 60 * 60 * 1000;
 
   const io = new SocketIOServer(httpServer, {
@@ -180,12 +177,7 @@ export function initTerminalServer(httpServer, options = {}) {
     // Auth до завершения handshake — и для polling, и для websocket.
     allowRequest: (req, callback) => {
       if (!sameOrigin(req)) return callback("origin not allowed", false);
-      const users = loadJson(USERS_FILE, {});
-      if (Object.keys(users).length > 0) {
-        if (!getUserEmail(req, SESSIONS_FILE, sessionTtlMs)) {
-          return callback("unauthorized", false);
-        }
-      } else if (authPassword && !checkBasicAuth(req, authPassword)) {
+      if (!getUserEmail(req, SESSIONS_FILE, sessionTtlMs)) {
         return callback("unauthorized", false);
       }
       callback(null, true);
@@ -194,20 +186,14 @@ export function initTerminalServer(httpServer, options = {}) {
 
   io.on("connection", (socket) => {
     const req = socket.request;
-    const users = loadJson(USERS_FILE, {});
-    const multiUser = Object.keys(users).length > 0;
-    const email = multiUser
-      ? getUserEmail(req, SESSIONS_FILE, sessionTtlMs)
-      : authPassword
-        ? "admin@password-mode"
-        : null;
+    const email = getUserEmail(req, SESSIONS_FILE, sessionTtlMs);
 
     const fail = (msg) => {
       socket.emit("data", `\r\n\x1b[31m${msg}\x1b[0m\r\n`);
       socket.disconnect(true);
     };
 
-    if (multiUser && !email) {
+    if (!email) {
       fail("Сессия истекла — войдите заново.");
       return;
     }
@@ -217,12 +203,10 @@ export function initTerminalServer(httpServer, options = {}) {
       fail("Терминал работает внутри чата — откройте или создайте чат и повторите.");
       return;
     }
-    if (multiUser) {
-      const owners = loadJson(OWNERS_FILE, {});
-      if (owners[sid] && owners[sid] !== email) {
-        fail("Доступ запрещён: этот чат принадлежит другому пользователю.");
-        return;
-      }
+    const owners = loadJson(OWNERS_FILE, {});
+    if (owners[sid] && owners[sid] !== email) {
+      fail("Доступ запрещён: этот чат принадлежит другому пользователю.");
+      return;
     }
 
     let workdir;

@@ -17,7 +17,6 @@ import {
   getUserEmail,
   hashPassword,
   isAdmin,
-  isPasswordMode,
   parseCookies,
   resetAuthRateLimit,
   SESSION_COOKIE,
@@ -39,14 +38,6 @@ beforeEach(() => {
 
 afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
-});
-
-describe("password mode", () => {
-  test("is active only with a configured password and no registered users", () => {
-    expect(isPasswordMode("shared-secret", 0)).toBe(true);
-    expect(isPasswordMode("", 0)).toBe(false);
-    expect(isPasswordMode("shared-secret", 1)).toBe(false);
-  });
 });
 
 describe("hashPassword", () => {
