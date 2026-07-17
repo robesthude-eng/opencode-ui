@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import AdmZip from "adm-zip";
 import { MAX_BODY_BYTES, readBody } from "../middleware.mjs";
+import { hasRunner, RUNNER_WORKSPACE, RUNNERS_ENABLED } from "../runner.mjs";
 import { parseMultipart } from "../upload.mjs";
 
 export async function handleUploadFolder(
@@ -114,6 +115,16 @@ export async function handleUpload(
         uploadDir = path.join(WORKDIR, "uploads", "_orphan");
         relativePath = `uploads/_orphan/${safeName}`;
       }
+      // Абсолютный путь к файлу глазами opencode-инстанса этой сессии:
+      // в контейнере-раннере workspace смонтирован как /session/workspace,
+      // в legacy-режиме это <WORKDIR>/sessions/<sid>/workspace.
+      let agentPath = null;
+      if (sessionId) {
+        agentPath =
+          RUNNERS_ENABLED && hasRunner(sessionId)
+            ? `${RUNNER_WORKSPACE}/uploads/${safeName}`
+            : path.join(WORKDIR, relativePath);
+      }
       fs.mkdirSync(uploadDir, { recursive: true });
       const dest = path.join(uploadDir, safeName);
       fs.writeFileSync(dest, part.data);
@@ -135,6 +146,7 @@ export async function handleUpload(
         JSON.stringify({
           ok: true,
           path: relativePath,
+          agentPath,
           size: part.data.length,
           entryCount,
         }),

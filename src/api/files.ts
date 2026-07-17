@@ -14,6 +14,9 @@ export interface ProcessedFile {
   dataUrl?: string;
   // Server-assigned path after upload (set by api.uploadFile):
   uploadedPath?: string;
+  // Absolute file path as seen by the session's opencode instance
+  // (runner: /session/workspace/uploads/..., legacy: <WORKDIR>/sessions/...):
+  agentPath?: string;
   // For zip archives: number of entries inside (set by api.uploadFile):
   entryCount?: number;
 }

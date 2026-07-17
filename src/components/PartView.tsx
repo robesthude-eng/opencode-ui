@@ -117,7 +117,8 @@ const SAFE_MD_COMPONENTS = {
 
 // "stub" — synthetic placeholder created by patchPartDelta when a delta
 // arrives before its part; hidden until the real part type arrives.
-const HIDDEN_TYPES = new Set(["file", "stub"]);
+// "file" больше НЕ скрывается: вложения рендерятся как файл-чипы.
+const HIDDEN_TYPES = new Set(["stub"]);
 
 const KIND_ICONS: Record<string, ReactNode> = {
   image: <ImageIcon className="h-4 w-4" />,
@@ -298,14 +299,104 @@ const OptimizedPartView = ({
         </div>
       );
     }
-    case "text":
-      if (!p.text) return null;
+    case "file": {
+      // Полноценный file-part (data URL или file://) — рендерим как файл-чип.
+      const f = part as {
+        type: string;
+        filename?: string;
+        mime?: string;
+        url?: string;
+      };
+      const mime = f.mime || "";
+      const isImg =
+        mime.startsWith("image/") && (f.url || "").startsWith("data:");
+      const fileKind = mime.startsWith("image/")
+        ? "image"
+        : mime === "application/pdf"
+          ? "pdf"
+          : mime.startsWith("text/")
+            ? "text"
+            : mime.includes("zip")
+              ? "zip"
+              : "binary";
       return (
-        <div className="break-words text-[14.5px] leading-relaxed [&_p]:my-2 [&_pre]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2 [&_li]:my-1 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:my-3 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:my-2 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:my-2 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline">
-          {renderMarkdown(asText(p.text))}
-          {isLastStreaming && <span className="streaming-cursor" />}
+        <div className="flex items-center gap-2.5 rounded-lg bg-muted/35 px-2.5 py-2 text-sm not-prose">
+          {isImg ? (
+            <img
+              src={f.url}
+              alt={f.filename || "image"}
+              className="h-10 w-10 rounded-lg object-cover"
+            />
+          ) : (
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-background/60 text-muted-foreground">
+              {KIND_ICONS[fileKind] || <Paperclip className="h-4 w-4" />}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-medium">{f.filename || "file"}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {mime || "file"}
+            </div>
+          </div>
         </div>
       );
+    }
+    case "text": {
+      if (!p.text) return null;
+      const txt = asText(p.text);
+      // Строки вида «📎 name → path …» — вложения (zip/бинарники), отправленные
+      // агенту путём. Рендерим их файл-чипами; работает и для старых сообщений,
+      // где строка была приклеена к тексту пользователя.
+      const isAttLine = (l: string) => /^📎 .+ → \S+/.test(l.trim());
+      const lines = txt.split("\n");
+      const attLines = lines.filter(isAttLine);
+      const restText = attLines.length
+        ? lines
+            .filter((l) => !isAttLine(l))
+            .join("\n")
+            .trim()
+        : txt;
+      return (
+        <>
+          {attLines.length > 0 && (
+            <div className="my-1 flex flex-wrap gap-2">
+              {attLines.map((l, i) => {
+                const m = /^📎 (.+?) → (\S+)(.*)$/.exec(l.trim());
+                const name = m?.[1] ?? "file";
+                const meta = (m?.[3] ?? "").replace(/^[\s—-]+/, "").trim();
+                const chipKind = /zip/i.test(l) ? "zip" : "binary";
+                return (
+                  <div
+                    key={`attline-${i}`}
+                    className="flex items-center gap-2.5 rounded-lg bg-muted/35 px-2.5 py-2 text-sm not-prose"
+                  >
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-background/60 text-muted-foreground">
+                      {KIND_ICONS[chipKind] || (
+                        <Paperclip className="h-4 w-4" />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{name}</div>
+                      {meta && (
+                        <div className="truncate text-xs text-muted-foreground">
+                          {meta}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {restText && (
+            <div className="break-words text-[14.5px] leading-relaxed [&_p]:my-2 [&_pre]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2 [&_li]:my-1 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:my-3 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:my-2 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:my-2 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline">
+              {renderMarkdown(restText)}
+              {isLastStreaming && <span className="streaming-cursor" />}
+            </div>
+          )}
+        </>
+      );
+    }
     case "reasoning":
       if (!p.text) return null;
       return (

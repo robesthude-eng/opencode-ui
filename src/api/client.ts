@@ -247,6 +247,7 @@ export const api = {
   ): Promise<{
     ok: boolean;
     path: string;
+    agentPath?: string | null;
     size: number;
     entryCount?: number | null;
   }> =>

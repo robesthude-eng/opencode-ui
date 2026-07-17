@@ -117,16 +117,39 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       const systemInstruction = `You are in an isolated workspace for this chat, like Claude.ai. Files from other chats are NOT visible. Never use absolute paths from other chats. New chat = new memory + empty workspace.`;
 
       for (const att of attachments) {
-        const path = att.uploadedPath;
-        const entryCount = att.entryCount;
-        if (att.kind === "zip" && path) {
-          const hint =
-            typeof entryCount === "number"
-              ? ` (${entryCount} файлов внутри)`
-              : "";
-          promptText += `\n\n📎 ${att.name} → ${path}${hint} — это zip-архив, ещё не распакован`;
+        // Картинки и PDF — data-URL file-part (vision-модель видит содержимое).
+        if ((att.kind === "image" || att.kind === "pdf") && att.part) {
+          parts.push(att.part);
           continue;
         }
+        // Текстовые файлы — полноценный file-part с file://-путём:
+        // opencode сам прочитает содержимое из workspace сессии.
+        if (att.kind === "text" && att.agentPath) {
+          parts.push({
+            type: "file",
+            mime: "text/plain",
+            filename: att.name,
+            url: `file://${encodeURI(att.agentPath)}`,
+          });
+          continue;
+        }
+        // Zip и прочие бинарники уже лежат в workspace — отдаём агенту
+        // отдельную 📎-часть с путём (UI рендерит её как файл-чип,
+        // текст пользователя остаётся чистым).
+        if (att.uploadedPath) {
+          const hint =
+            typeof att.entryCount === "number"
+              ? ` (${att.entryCount} файлов внутри)`
+              : "";
+          const note =
+            att.kind === "zip" ? " — это zip-архив, ещё не распакован" : "";
+          parts.push({
+            type: "text",
+            text: `📎 ${att.name} → uploads/${att.name}${hint}${note}`,
+          });
+          continue;
+        }
+        // Fallback (загрузка на сервер не удалась): старое поведение.
         if (att.part) parts.push(att.part);
         else if (att.textPart) parts.push(att.textPart);
       }

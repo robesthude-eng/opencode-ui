@@ -177,10 +177,14 @@ function MessageItem({
               )}
               {(() => {
                 const attParts = items.filter(
-                  (item) => "type" in item && item.type === "attachment",
+                  (item) =>
+                    "type" in item &&
+                    (item.type === "attachment" || item.type === "file"),
                 );
                 const otherParts = items.filter(
-                  (item) => !("type" in item) || item.type !== "attachment",
+                  (item) =>
+                    !("type" in item) ||
+                    (item.type !== "attachment" && item.type !== "file"),
                 );
                 return (
                   <>

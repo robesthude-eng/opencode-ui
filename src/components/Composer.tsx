@@ -113,6 +113,7 @@ export default function Composer() {
         setUploadedPaths((p) => ({ ...p, [name]: result.path }));
         const processed = await processFile(file);
         processed.uploadedPath = result.path;
+        if (result.agentPath) processed.agentPath = result.agentPath;
         if (typeof result.entryCount === "number") {
           processed.entryCount = result.entryCount;
         }

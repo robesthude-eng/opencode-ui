@@ -42,6 +42,7 @@ export interface AttachmentPart extends BasePart {
   textPart?: Record<string, unknown>;
   part?: Record<string, unknown>;
   uploadedPath?: string;
+  agentPath?: string;
   entryCount?: number;
 }
 
