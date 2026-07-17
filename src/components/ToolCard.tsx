@@ -6,7 +6,7 @@ import {
   Copy,
   Terminal,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -50,13 +50,24 @@ function useDuration(
   running: boolean,
 ): string | null {
   const [, setTick] = useState(0);
+  // Если сервер не прислал time.end, фиксируем момент завершения сами:
+  // иначе значение либо «плывёт» (Date.now() при каждом рендере),
+  // либо зависает на устаревшем числе до следующего клика.
+  const frozenEndRef = useRef<number | null>(null);
+  if (running) {
+    frozenEndRef.current = null;
+  } else if (time.start && !time.end && frozenEndRef.current === null) {
+    frozenEndRef.current = Date.now();
+  }
   useEffect(() => {
     if (!running || !time.start) return;
     const id = setInterval(() => setTick((t) => t + 1), 500);
     return () => clearInterval(id);
   }, [running, time.start]);
   if (!time.start) return null;
-  const end = time.end && !running ? time.end : Date.now();
+  const end = running
+    ? Date.now()
+    : (time.end ?? frozenEndRef.current ?? Date.now());
   const secs = Math.max(0, (end - time.start) / 1000);
   return secs < 10 ? `${secs.toFixed(1)}s` : `${Math.round(secs)}s`;
 }
@@ -90,25 +101,35 @@ function getOutput(part: ToolPart): string {
   return String(out);
 }
 
+/** «/app/workspace/foo/bar.ts» → «bar.ts». */
+function baseName(p: string): string {
+  const trimmed = p.replace(/[\\/]+$/, "");
+  const segments = trimmed.split(/[\\/]/);
+  return segments[segments.length - 1] || trimmed;
+}
+
+/** Строка похожа на путь к файлу: есть разделители и нет пробелов. */
+function looksLikePath(v: string): boolean {
+  return /[\\/]/.test(v) && !/\s/.test(v);
+}
+
 function getSummary(part: ToolPart): string {
+  const clip = (v: string) => (v.length > 72 ? `${v.slice(0, 69)}…` : v);
   const s = part.state;
   if (s && typeof s === "object") {
     const title = (s as ToolState).title;
-    if (title) return title.length > 72 ? `${title.slice(0, 69)}…` : title;
+    // В строке действия показываем только имя файла, без полного пути.
+    if (title) return clip(looksLikePath(title) ? baseName(title) : title);
   }
   const input = getInput(part) as Record<string, unknown> | undefined;
   if (!input) return "";
-  for (const k of [
-    "filePath",
-    "path",
-    "command",
-    "pattern",
-    "query",
-    "description",
-  ]) {
+  for (const k of ["filePath", "path"]) {
     const v = input[k];
-    if (typeof v === "string" && v)
-      return v.length > 72 ? `${v.slice(0, 69)}…` : v;
+    if (typeof v === "string" && v) return clip(baseName(v));
+  }
+  for (const k of ["command", "pattern", "query", "description"]) {
+    const v = input[k];
+    if (typeof v === "string" && v) return clip(v);
   }
   return "";
 }
@@ -452,11 +473,10 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
           hasBody && "hover:bg-accent/30 cursor-pointer",
           !hasBody && "cursor-default",
         )}
-        onClick={
-          hasBody
-            ? () => setManuallyToggled((e) => (e === null ? false : !e))
-            : undefined
-        }
+        // Один клик всегда переключает относительно видимого состояния.
+        // Старая логика (null → false) требовала двойного клика после
+        // завершения действия: первый клик лишь фиксировал «свернуто».
+        onClick={hasBody ? () => setManuallyToggled(!expanded) : undefined}
       >
         <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground">
           {toolIcon(toolName) || <Terminal className="h-3 w-3" />}

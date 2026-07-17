@@ -176,7 +176,8 @@ function ReasoningCard({
       <button
         type="button"
         className="group/reason flex w-full items-center gap-2 px-2 py-1.5 text-left rounded-lg hover:bg-accent/30 transition cursor-pointer"
-        onClick={() => setManuallyToggled((e) => (e === null ? false : !e))}
+        // Один клик переключает относительно видимого состояния (фикс двойного клика).
+        onClick={() => setManuallyToggled(!expanded)}
       >
         <span
           className={cn(

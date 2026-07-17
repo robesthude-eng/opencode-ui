@@ -40,7 +40,8 @@ const ToolGroup = ({ tool, parts }: { tool: string; parts: ToolPart[] }) => {
       <button
         type="button"
         className="group/toolgrp flex w-full items-center gap-2 px-2 py-1.5 text-left rounded-lg hover:bg-accent/30 transition cursor-pointer"
-        onClick={() => setManuallyToggled((e) => (e === null ? false : !e))}
+        // Один клик переключает относительно видимого состояния (фикс двойного клика).
+        onClick={() => setManuallyToggled(!expanded)}
       >
         <span className="text-muted-foreground/50 shrink-0">
           {expanded ? (
