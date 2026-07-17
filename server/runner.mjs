@@ -37,8 +37,12 @@ export const RUNNER_WORKSPACE = "/session/workspace";
 
 const RUNNER_IMAGE = process.env.RUNNER_IMAGE || "opencode-runner:latest";
 const RUNNER_NETWORK = process.env.RUNNER_NETWORK || "opencode-runners";
-const RUNNER_MEMORY = process.env.RUNNER_MEMORY || "1g";
-const RUNNER_CPUS = process.env.RUNNER_CPUS || "1";
+const RUNNER_MEMORY = process.env.RUNNER_MEMORY || "512m";
+// Свап отключён: memory-swap == memory означает «памяти + 0 свапа».
+const RUNNER_MEMORY_SWAP = process.env.RUNNER_MEMORY_SWAP || RUNNER_MEMORY;
+const RUNNER_CPUS = process.env.RUNNER_CPUS || "0.5";
+// Процессы раннера не работают из-под root (node:24-slim => node = 1000:1000).
+const RUNNER_USER = process.env.RUNNER_USER || "1000:1000";
 const RUNNER_PIDS_LIMIT = process.env.RUNNER_PIDS_LIMIT || "512";
 const RUNNER_IDLE_STOP_MS =
   (parseInt(process.env.RUNNER_IDLE_STOP_MIN || "", 10) || 30) * 60 * 1000;
@@ -181,8 +185,42 @@ function runnerEnvArgs() {
   return args;
 }
 
-async function runRunnerContainer(name, hostSessionDir) {
+// Рекурсивный chown каталога сессии на пользователя раннера. Каталоги
+// создаёт прокси (root), а контейнер работает из-под RUNNER_USER — без
+// смены владельца не-root раннер не сможет писать в /session.
+function chownRecursive(dir, uid, gid) {
+  try {
+    fs.lchownSync(dir, uid, gid);
+  } catch {}
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      chownRecursive(p, uid, gid);
+    } else {
+      try {
+        fs.lchownSync(p, uid, gid);
+      } catch {}
+    }
+  }
+}
+
+function chownForRunner(localSessionDir) {
+  const [uidRaw, gidRaw] = RUNNER_USER.split(":");
+  const uid = parseInt(uidRaw, 10);
+  const gid = parseInt(gidRaw, 10);
+  if (!localSessionDir || !Number.isInteger(uid)) return;
+  chownRecursive(localSessionDir, uid, Number.isInteger(gid) ? gid : uid);
+}
+
+async function runRunnerContainer(name, hostSessionDir, localSessionDir) {
   requireHostDir();
+  chownForRunner(localSessionDir);
   const args = [
     "run",
     "-d",
@@ -192,8 +230,12 @@ async function runRunnerContainer(name, hostSessionDir) {
     RUNNER_NETWORK,
     "--memory",
     RUNNER_MEMORY,
+    "--memory-swap",
+    RUNNER_MEMORY_SWAP,
     "--cpus",
     RUNNER_CPUS,
+    "--user",
+    RUNNER_USER,
     "--pids-limit",
     RUNNER_PIDS_LIMIT,
     "--security-opt",
@@ -255,7 +297,7 @@ async function ensureRunnerInner(sid) {
       throw new Error(`session directory missing for ${sid}`);
     }
     logger.info({ sid }, "[runner] (re)creating container");
-    await runRunnerContainer(name, hostSessionDir(sid));
+    await runRunnerContainer(name, hostSessionDir(sid), sessDir);
     await waitHealthy(name);
   }
   const reg = loadRegistry();
@@ -305,6 +347,7 @@ export async function createSessionInNewRunner(rawBody) {
     await runRunnerContainer(
       tmpName,
       path.posix.join(HOST_WORKSPACE_DIR, "sessions", tmpId),
+      tmpDir,
     );
     await waitHealthy(tmpName);
 
@@ -343,7 +386,7 @@ export async function createSessionInNewRunner(rawBody) {
 
     const name = containerName(sid);
     await docker(["rm", "-f", name]).catch(() => {});
-    await runRunnerContainer(name, hostSessionDir(sid));
+    await runRunnerContainer(name, hostSessionDir(sid), finalDir);
     await waitHealthy(name);
 
     const reg = loadRegistry();

@@ -87,7 +87,8 @@ docker ps --format '{{.Names}}' | grep oc-ses-   # появился контей
 | RUNNER_ISOLATION | 1 (в compose) | 0 = старая схема, полный откат без правки кода |
 | OPENCODE_DATA_DIR | /srv/opencode-data | абсолютный каталог данных на хосте |
 | RUNNER_IMAGE | opencode-runner:latest | образ раннера |
-| RUNNER_MEMORY / RUNNER_CPUS / RUNNER_PIDS_LIMIT | 1g / 1 / 512 | лимиты контейнера |
+| RUNNER_MEMORY / RUNNER_CPUS / RUNNER_PIDS_LIMIT | 512m / 0.5 / 512 | лимиты контейнера (свап отключён: memory-swap = memory) |
+| RUNNER_USER | 1000:1000 | пользователь процессов раннера (не root) |
 | RUNNER_IDLE_STOP_MIN | 30 | через сколько минут простоя останавливать контейнер |
 | RUNNER_PUBLISH_PORTS | 3001 | какие порты приложений публиковать наружу |
 

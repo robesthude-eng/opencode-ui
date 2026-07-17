@@ -18,4 +18,8 @@ RUN chmod +x /usr/local/bin/runner-entry.sh
 ENV HOME=/session/.home
 EXPOSE 4096
 
+# Процессы раннера не работают из-под root; прокси дополнительно передаёт
+# --user при docker run (см. server/runner.mjs, RUNNER_USER).
+USER node
+
 CMD ["sh", "/usr/local/bin/runner-entry.sh"]
