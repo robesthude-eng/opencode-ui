@@ -15,6 +15,7 @@ import React, {
 } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
+import rehypeSanitize from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -144,7 +145,11 @@ const asText = (v: unknown): string => {
 };
 
 const markdownPlugins = [remarkGfm, remarkBreaks];
-const rehypePlugins = [rehypeHighlight];
+// P0-fix (XSS): rehype-sanitize вырезает опасные теги/атрибуты по
+// GitHub-схеме по умолчанию (сохраняя className="language-*" у code).
+// Порядок важен: сначала санитайзер, затем rehypeHighlight — его
+// hljs-классы добавляются после очистки и не страдают.
+const rehypePlugins = [rehypeSanitize, rehypeHighlight];
 
 function useThinkingDuration(streaming?: boolean): string {
   const [startedAt] = useState(() => Date.now());
