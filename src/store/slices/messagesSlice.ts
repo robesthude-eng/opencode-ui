@@ -1,5 +1,5 @@
 import { api, SessionGoneError } from "../../api/client";
-import { getActiveStreamStatus } from "../../api/events";
+import { isSseHealthyForSession } from "../../api/events";
 import { mergeMessages as mergeMessagesDeterministic } from "../../api/messageMerge";
 import type {
   Message,
@@ -231,7 +231,11 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             // мгновение отстаёт от SSE-дельт и откатывал стриминговые
             // reasoning/tool-части (дёргание карточек). Мержим в стор
             // только когда SSE реально не работает.
-            const sseHealthy = getActiveStreamStatus() === "open";
+            // P2-fix: проверяем здоровье SSE именно ДЛЯ ЭТОЙ сессии:
+            // глобальный «open» обманывал фоновый чат после переключения —
+            // стрим подписан на другую сессию, события сюда не идут,
+            // а поллер молчал — текст замирал до переключения обратно.
+            const sseHealthy = isSseHealthyForSession(sidStr);
             if (!sseHealthy && Array.isArray(msgs) && msgs.length > 0) {
               set((s) => {
                 const existing = s.messages[sidStr] ?? [];

@@ -34,6 +34,20 @@ export function getActiveStreamStatus(): StreamStatus {
   return activeStreamStatus;
 }
 
+// P2-fix: глобального статуса недостаточно — единственный EventStream
+// подписан на события ОДНОЙ (активной) сессии. Для фоновой сессии
+// SSE может быть «open», но её события в клиент не приходят. Поэтому
+// здоровье SSE нужно спрашивать per-session: стрим открыт И подписан
+// именно на эту сессию (null = глобальная шина без фильтра по сессии,
+// тогда события получают все сессии).
+let activeStreamSessionId: string | null = null;
+export function isSseHealthyForSession(sessionId: string): boolean {
+  return (
+    activeStreamStatus === "open" &&
+    (activeStreamSessionId === null || activeStreamSessionId === sessionId)
+  );
+}
+
 export class EventStream {
   private es: EventSource | null = null;
   private handlers = new Set<Handler>();
@@ -59,6 +73,7 @@ export class EventStream {
     namedTypes?: readonly string[],
   ) {
     this.sessionId = sessionId ?? null;
+    activeStreamSessionId = this.sessionId;
     this.url = url ?? eventUrl(this.sessionId);
     this.namedTypes = namedTypes ?? DEFAULT_NAMED_TYPES;
   }
@@ -81,6 +96,7 @@ export class EventStream {
     // churn (each reconnect drops in-flight token events for a moment).
     if (sessionId === this.sessionId) return;
     this.sessionId = sessionId;
+    activeStreamSessionId = sessionId;
     this.url = eventUrl(sessionId);
     this.attempt = 0;
     if (this.retry) {
