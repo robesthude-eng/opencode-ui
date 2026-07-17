@@ -595,6 +595,17 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         });
         break;
       }
+      case "stream.corrupted": {
+        // P0-fix: битый чанк из стрима — показываем плашку вместо
+        // непредсказуемого поведения/белого экрана. Пропущенное
+        // содержимое дотянет httpPoller / doFinalFetch.
+        set({
+          error:
+            "Стрим прерван: получен повреждённый фрагмент данных. " +
+            "Ответ мог отобразиться не полностью.",
+        });
+        break;
+      }
       case "stream.reconnected": {
         // P1-fix: SSE переподключился после разрыва — события за время
         // разрыва потеряны (нет Last-Event-ID replay). Один раз

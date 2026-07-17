@@ -118,19 +118,42 @@ describe("EventStream", () => {
       }, 10);
     }));
 
-  test("dispatches unnamed events as 'message'", () =>
+  test("dispatches unnamed valid-JSON events as 'message'", () =>
     new Promise<void>((done) => {
       const stream = new EventStream("http://localhost:3000/api/event");
 
       stream.on((event) => {
-        expect(event.type).toBe("message");
+        if (event.type === "message") {
+          expect(event.type).toBe("message");
+          expect((event.properties as any).hello).toBe("world");
+          done();
+        }
+      });
+
+      stream.connect();
+
+      setTimeout(() => {
+        MockEventSource.instances[0].simulateEvent(
+          "message",
+          JSON.stringify({ hello: "world" }),
+        );
+      }, 10);
+    }));
+
+  test("emits stream.corrupted on invalid JSON chunks instead of dispatching broken data", () =>
+    new Promise<void>((done) => {
+      const stream = new EventStream("http://localhost:3000/api/event");
+
+      stream.on((event) => {
+        expect(event.type).toBe("stream.corrupted");
+        expect((event.properties as any).raw).toBe("not json at all");
         done();
       });
 
       stream.connect();
 
       setTimeout(() => {
-        MockEventSource.instances[0].simulateEvent("message", "test data");
+        MockEventSource.instances[0].simulateEvent("message", "not json at all");
       }, 10);
     }));
 

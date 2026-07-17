@@ -140,7 +140,16 @@ export class EventStream {
     try {
       parsed = JSON.parse(rawData);
     } catch {
-      parsed = { raw: rawData };
+      // P0-fix: битый чанк не маскируем под нормальное событие —
+      // шлём выделенное stream.corrupted, по которому стор покажет
+      // плашку «Стрим прерван» вместо непредсказуемой обработки
+      // сырой строки всеми обработчиками.
+      const ev: AppEvent = {
+        type: "stream.corrupted",
+        properties: { raw: rawData, sourceType: namedType },
+      } as unknown as AppEvent;
+      for (const h of this.handlers) h(ev);
+      return;
     }
     const ev: AppEvent =
       parsed &&
