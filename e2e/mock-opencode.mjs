@@ -1,11 +1,11 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 /**
  * Minimal deterministic OpenCode HTTP/SSE double for CI E2E.
  * It exercises the UI proxy, auth, session ownership and chat paths without
  * installing or calling a real model provider.
  */
 import http from "node:http";
-import crypto from "node:crypto";
 
 const port = Number(process.env.MOCK_OPENCODE_PORT || 4096);
 const sessions = new Map();
@@ -47,10 +47,17 @@ const server = http.createServer(async (req, res) => {
       default: {},
     });
   }
-  if (pathname === "/provider") return sendJson(res, 200, { connected: [], all: [], default: {} });
-  if (pathname === "/experimental/control-plane/move-session") return sendJson(res, 204, {});
-  if (pathname === "/file" || pathname === "/file/status") return sendJson(res, 200, []);
-  if (pathname === "/file/content") return sendJson(res, 200, { path: url.searchParams.get("path") || "", content: "" });
+  if (pathname === "/provider")
+    return sendJson(res, 200, { connected: [], all: [], default: {} });
+  if (pathname === "/experimental/control-plane/move-session")
+    return sendJson(res, 204, {});
+  if (pathname === "/file" || pathname === "/file/status")
+    return sendJson(res, 200, []);
+  if (pathname === "/file/content")
+    return sendJson(res, 200, {
+      path: url.searchParams.get("path") || "",
+      content: "",
+    });
 
   if (pathname === "/event") {
     res.writeHead(200, {
@@ -64,19 +71,25 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (pathname === "/session" && req.method === "GET") return sendJson(res, 200, [...sessions.values()]);
+  if (pathname === "/session" && req.method === "GET")
+    return sendJson(res, 200, [...sessions.values()]);
   if (pathname === "/session" && req.method === "POST") {
     const body = await readJson(req);
     const id = `ses_${crypto.randomBytes(8).toString("hex")}`;
     const now = Date.now();
-    const session = { id, title: body.title || "New chat", time: { created: now, updated: now } };
+    const session = {
+      id,
+      title: body.title || "New chat",
+      time: { created: now, updated: now },
+    };
     sessions.set(id, session);
     messages.set(id, []);
     return sendJson(res, 200, session);
   }
 
   const sessionId = sessionIdFromPath(pathname);
-  if (sessionId && !sessions.has(sessionId)) return sendJson(res, 404, { error: "session not found" });
+  if (sessionId && !sessions.has(sessionId))
+    return sendJson(res, 404, { error: "session not found" });
   if (sessionId && pathname.endsWith("/message") && req.method === "GET") {
     return sendJson(res, 200, messages.get(sessionId) || []);
   }
@@ -84,8 +97,22 @@ const server = http.createServer(async (req, res) => {
     const body = await readJson(req);
     const text = body.parts?.find((part) => part.type === "text")?.text || "";
     const now = Date.now();
-    const user = { id: `msg_${crypto.randomBytes(6).toString("hex")}`, role: "user", sessionID: sessionId, parts: [{ id: "part_user", type: "text", text }], time: { created: now, completed: now } };
-    const assistant = { id: `msg_${crypto.randomBytes(6).toString("hex")}`, role: "assistant", sessionID: sessionId, parts: [{ id: "part_assistant", type: "text", text: "Mock OpenCode response" }], info: { finish: "stop", time: { created: now, completed: now } } };
+    const user = {
+      id: `msg_${crypto.randomBytes(6).toString("hex")}`,
+      role: "user",
+      sessionID: sessionId,
+      parts: [{ id: "part_user", type: "text", text }],
+      time: { created: now, completed: now },
+    };
+    const assistant = {
+      id: `msg_${crypto.randomBytes(6).toString("hex")}`,
+      role: "assistant",
+      sessionID: sessionId,
+      parts: [
+        { id: "part_assistant", type: "text", text: "Mock OpenCode response" },
+      ],
+      info: { finish: "stop", time: { created: now, completed: now } },
+    };
     messages.get(sessionId).push(user, assistant);
     return sendJson(res, 200, assistant);
   }
@@ -95,7 +122,11 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 204, {});
   }
   if (sessionId && pathname.endsWith("/abort")) return sendJson(res, 204, {});
-  if (sessionId && (pathname.includes("/permission") || pathname.includes("/question"))) return sendJson(res, 200, { data: [] });
+  if (
+    sessionId &&
+    (pathname.includes("/permission") || pathname.includes("/question"))
+  )
+    return sendJson(res, 200, { data: [] });
 
   return sendJson(res, 200, {});
 });

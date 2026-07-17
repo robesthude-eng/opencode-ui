@@ -1,5 +1,5 @@
+import { ExternalLink, RefreshCw } from "lucide-react";
 import React, { useState } from "react";
-import { RefreshCw, ExternalLink } from "lucide-react";
 import { Button } from "./ui/button";
 
 interface PreviewPanelProps {
@@ -28,10 +28,25 @@ export function PreviewPanel({ url }: PreviewPanelProps) {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleRefresh} title="Refresh">
-            <RefreshCw size={14} className={loading && url ? "animate-spin" : ""} />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={handleRefresh}
+            title="Refresh"
+          >
+            <RefreshCw
+              size={14}
+              className={loading && url ? "animate-spin" : ""}
+            />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleOpenExternal} title="Open in new tab">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={handleOpenExternal}
+            title="Open in new tab"
+          >
             <ExternalLink size={14} />
           </Button>
         </div>

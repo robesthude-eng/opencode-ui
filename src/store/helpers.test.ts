@@ -46,7 +46,10 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
         id: "msg_user_1",
         role: "user",
         parts: [
-          { type: "text", text: "Help me check bugs\n\n[SYSTEM: Режим саморазвития отключён...]" },
+          {
+            type: "text",
+            text: "Help me check bugs\n\n[SYSTEM: Режим саморазвития отключён...]",
+          },
         ],
       };
       const res = normalizeMessage(raw);
@@ -57,7 +60,9 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
       const raw: Message = {
         id: "msg_ai_1",
         role: "assistant",
-        parts: [{ type: "text", text: "Here is the code:\n\n[SYSTEM: something]" }],
+        parts: [
+          { type: "text", text: "Here is the code:\n\n[SYSTEM: something]" },
+        ],
       };
       const res = normalizeMessage(raw);
       expect((res.parts[0] as any).text).toContain("[SYSTEM: something]");
@@ -69,9 +74,14 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
       const input: any[] = [
         {
           info: { id: "m1", role: "user" },
-          parts: [{ type: "text", text: "Hi\n\n[SYSTEM: Режим саморазвития тест]" }],
+          parts: [
+            { type: "text", text: "Hi\n\n[SYSTEM: Режим саморазвития тест]" },
+          ],
         },
-        { info: { id: "m2", role: "assistant" }, parts: [{ type: "text", text: "Hello there" }] },
+        {
+          info: { id: "m2", role: "assistant" },
+          parts: [{ type: "text", text: "Hello there" }],
+        },
       ];
       const res = normalizeMessages(input);
       expect(res).toHaveLength(2);
@@ -96,7 +106,11 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
 
     it("9. replaces optimistic local_... user message with authoritative server message ID without duplication", () => {
       const existing: Message[] = [
-        { id: "local_1700000", role: "user", parts: [{ type: "text", text: "Fix this bug" }] },
+        {
+          id: "local_1700000",
+          role: "user",
+          parts: [{ type: "text", text: "Fix this bug" }],
+        },
       ];
       const serverMsg: Message = {
         id: "msg_server_888",
@@ -116,11 +130,17 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
           parts: [{ type: "text", text: "Accumulated streaming text..." }],
         },
       ];
-      const infoUpdate: Message = { id: "msg_ai_5", role: "assistant", parts: [] };
+      const infoUpdate: Message = {
+        id: "msg_ai_5",
+        role: "assistant",
+        parts: [],
+      };
       const res = upsertMessage(existing, infoUpdate);
       expect(res).toHaveLength(1);
       expect(res[0].parts).toHaveLength(1);
-      expect((res[0].parts[0] as any).text).toBe("Accumulated streaming text...");
+      expect((res[0].parts[0] as any).text).toBe(
+        "Accumulated streaming text...",
+      );
     });
   });
 
@@ -136,7 +156,11 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
 
     it("12. updates existing un-IDd text part in place instead of duplicating", () => {
       const existing: Message[] = [
-        { id: "msg_1", role: "assistant", parts: [{ type: "text", text: "Initial" }] },
+        {
+          id: "msg_1",
+          role: "assistant",
+          parts: [{ type: "text", text: "Initial" }],
+        },
       ];
       const newPart: Part = { type: "text", text: "Updated text" };
       const res = patchPart(existing, "msg_1", newPart);
@@ -153,7 +177,12 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
           parts: [{ id: "part_a", type: "tool", tool: "bash" } as any],
         },
       ];
-      const updatedPart: any = { id: "part_a", type: "tool", tool: "bash", status: "completed" };
+      const updatedPart: any = {
+        id: "part_a",
+        type: "tool",
+        tool: "bash",
+        status: "completed",
+      };
       const res = patchPart(existing, "msg_1", updatedPart);
       expect(res[0].parts).toHaveLength(1);
       expect((res[0].parts[0] as any).status).toBe("completed");
@@ -174,8 +203,16 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
     });
 
     it("15. handles non-string deltas and creates stub part if part ID does not exist yet", () => {
-      const existing: Message[] = [{ id: "msg_1", role: "assistant", parts: [] }];
-      const res = patchPartDelta(existing, "msg_1", "p_99", "status", "running");
+      const existing: Message[] = [
+        { id: "msg_1", role: "assistant", parts: [] },
+      ];
+      const res = patchPartDelta(
+        existing,
+        "msg_1",
+        "p_99",
+        "status",
+        "running",
+      );
       expect(res[0].parts).toHaveLength(1);
       expect((res[0].parts[0] as any).id).toBe("p_99");
       expect((res[0].parts[0] as any).status).toBe("running");

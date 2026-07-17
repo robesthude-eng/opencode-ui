@@ -8,7 +8,9 @@ test.describe("smoke", () => {
     await expect(body).toBeVisible();
     // Login card or chat shell
     const hasLogin = await page.getByText(/Вход|Регистрация|Login/i).count();
-    const hasApp = await page.getByText(/New chat|Новый|Чем могу помочь/i).count();
+    const hasApp = await page
+      .getByText(/New chat|Новый|Чем могу помочь/i)
+      .count();
     expect(hasLogin + hasApp).toBeGreaterThan(0);
   });
 

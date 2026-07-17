@@ -45,7 +45,8 @@ export function parseMultipart(buffer, boundary) {
 
     // Find the next boundary to determine body end
     const nextBoundaryIdx = bufferIndexOf(buffer, boundaryBuf, bodyStart);
-    const bodyEnd = nextBoundaryIdx !== -1 ? nextBoundaryIdx - 2 : buffer.length; // -2 for \r\n before boundary
+    const bodyEnd =
+      nextBoundaryIdx !== -1 ? nextBoundaryIdx - 2 : buffer.length; // -2 for \r\n before boundary
 
     const body = buffer.slice(bodyStart, bodyEnd);
 

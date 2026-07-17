@@ -36,7 +36,9 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
           if (p.models) {
             for (const [modelID, m] of Object.entries(p.models)) {
               if (!entries.some((e) => e.modelID === modelID)) {
-                const costObj = (m as { cost?: { input?: number; output?: number } }).cost;
+                const costObj = (
+                  m as { cost?: { input?: number; output?: number } }
+                ).cost;
                 const isFree =
                   !costObj ||
                   (costObj.input === 0 && costObj.output === 0) ||
@@ -75,7 +77,9 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
     let selected = get().selectedModel;
     if (!selected && entries.length > 0) {
       const deepseekV4 = entries.find(
-        (e) => e.modelID.includes("deepseek-v4") || e.modelName.toLowerCase().includes("deepseek"),
+        (e) =>
+          e.modelID.includes("deepseek-v4") ||
+          e.modelName.toLowerCase().includes("deepseek"),
       );
       const defaultEntry = entries.find((e) => def[e.providerID] === e.modelID);
       const first = deepseekV4 ?? defaultEntry ?? entries[0];

@@ -9,10 +9,22 @@ import fs from "node:fs";
 import https from "node:https";
 import path from "node:path";
 import { promisify } from "node:util";
-import { enableAutoMerge, openPullRequest, readRemoteInfo } from "../github-pr.mjs";
+import {
+  enableAutoMerge,
+  openPullRequest,
+  readRemoteInfo,
+} from "../github-pr.mjs";
 import { logger } from "../logger.mjs";
-import { checkRateLimit, MAX_JSON_BODY_BYTES, readBody } from "../middleware.mjs";
-import { getTestStatus, normalizeSandboxPath, resolveInside } from "../sandbox.mjs";
+import {
+  checkRateLimit,
+  MAX_JSON_BODY_BYTES,
+  readBody,
+} from "../middleware.mjs";
+import {
+  getTestStatus,
+  normalizeSandboxPath,
+  resolveInside,
+} from "../sandbox.mjs";
 import {
   createCheckpoint,
   ensureSiInternalToken,
@@ -65,19 +77,31 @@ export async function handleSettingsSelfImproveGet(
   );
 }
 
-export async function handleSettingsSelfImprovePost(req, res, { WORKDIR, userEmail }) {
+export async function handleSettingsSelfImprovePost(
+  req,
+  res,
+  { WORKDIR, userEmail },
+) {
   try {
     const buf = await readBody(req, MAX_JSON_BODY_BYTES);
     const { enabled } = JSON.parse(buf.toString("utf8") || "{}");
     const wasEnabled = isSelfImproveEnabled(WORKDIR);
     toggleSelfImprove(WORKDIR, enabled);
-    logAudit(WORKDIR, userEmail, "TOGGLE_SELF_IMPROVE", `Enabled: ${!!enabled}`);
+    logAudit(
+      WORKDIR,
+      userEmail,
+      "TOGGLE_SELF_IMPROVE",
+      `Enabled: ${!!enabled}`,
+    );
     let sync = null;
     if (enabled && !wasEnabled) {
       try {
         sync = await syncUiSource(WORKDIR);
       } catch (se) {
-        logger.error("[self-improve] resync on enable failed:", se?.message || se);
+        logger.error(
+          "[self-improve] resync on enable failed:",
+          se?.message || se,
+        );
         sync = { source: "error", githubOk: false };
       }
     }
@@ -96,7 +120,11 @@ export async function handleSettingsSelfImproveSessionPost(
 ) {
   if (!isSelfImproveEnabled(WORKDIR)) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    res.end(
+      JSON.stringify({
+        error: "Self-Improvement Mode is disabled on the server.",
+      }),
+    );
     return;
   }
   if (!isRequestAdmin) {
@@ -134,7 +162,11 @@ export async function handleSettingsSelfImproveSessionPost(
   }
 }
 
-export async function handleSelfImproveResync(req, res, { WORKDIR, userEmail }) {
+export async function handleSelfImproveResync(
+  req,
+  res,
+  { WORKDIR, userEmail },
+) {
   if (!tryAcquireBuildLock()) {
     res.writeHead(409, { "Content-Type": "application/json" });
     res.end(
@@ -149,17 +181,31 @@ export async function handleSelfImproveResync(req, res, { WORKDIR, userEmail }) 
     const _buf = await readBody(req, MAX_JSON_BODY_BYTES);
     if (!isSelfImproveEnabled(WORKDIR)) {
       res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+      res.end(
+        JSON.stringify({
+          error: "Self-Improvement Mode is disabled on the server.",
+        }),
+      );
       return;
     }
     const result = await syncUiSource(WORKDIR);
-    logAudit(WORKDIR, userEmail, "SELF_IMPROVE_RESYNC", `source=${result.source}`);
+    logAudit(
+      WORKDIR,
+      userEmail,
+      "SELF_IMPROVE_RESYNC",
+      `source=${result.source}`,
+    );
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ ok: true, ...result }));
   } catch (se) {
     logger.error("[self-improve] resync failed:", se?.message || se);
     res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "resync failed", detail: se?.message || String(se) }));
+    res.end(
+      JSON.stringify({
+        error: "resync failed",
+        detail: se?.message || String(se),
+      }),
+    );
   } finally {
     releaseBuildLock();
   }
@@ -181,18 +227,31 @@ export async function handleCreatePr(
 ) {
   if (!isSelfImproveEnabled(WORKDIR)) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    res.end(
+      JSON.stringify({
+        error: "Self-Improvement Mode is disabled on the server.",
+      }),
+    );
     return;
   }
   if (!(await checkRateLimit(res))) return;
   if (!tryAcquireBuildLock()) {
     res.writeHead(409, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Another build/PR/rollback is in progress. Wait and retry." }));
+    res.end(
+      JSON.stringify({
+        error: "Another build/PR/rollback is in progress. Wait and retry.",
+      }),
+    );
     return;
   }
   try {
     const buf = await readBody(req, MAX_JSON_BODY_BYTES);
-    const { files, title, body, autoMerge = true } = JSON.parse(buf.toString("utf8") || "{}");
+    const {
+      files,
+      title,
+      body,
+      autoMerge = true,
+    } = JSON.parse(buf.toString("utf8") || "{}");
     if (!Array.isArray(files) || files.length === 0) {
       releaseBuildLock();
       res.writeHead(400, { "Content-Type": "application/json" });
@@ -213,7 +272,12 @@ export async function handleCreatePr(
       `title="${title.slice(0, 60)}" files=${files.length}`,
     );
     const pr = await openPullRequest({ uiDir, files, title, body });
-    logAudit(WORKDIR, userEmail, "SI_CREATE_PR_OK", `PR #${pr.number} ${pr.url}`);
+    logAudit(
+      WORKDIR,
+      userEmail,
+      "SI_CREATE_PR_OK",
+      `PR #${pr.number} ${pr.url}`,
+    );
     let autoMergeResult = { enabled: false, requested: !!autoMerge };
     if (autoMerge) {
       autoMergeResult = {
@@ -221,21 +285,37 @@ export async function handleCreatePr(
         requested: true,
       };
       if (autoMergeResult.enabled)
-        logAudit(WORKDIR, userEmail, "SI_AUTO_MERGE_ENABLED", `PR #${pr.number}`);
+        logAudit(
+          WORKDIR,
+          userEmail,
+          "SI_AUTO_MERGE_ENABLED",
+          `PR #${pr.number}`,
+        );
     }
     releaseBuildLock();
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "success", ...pr, autoMerge: autoMergeResult }));
+    res.end(
+      JSON.stringify({ status: "success", ...pr, autoMerge: autoMergeResult }),
+    );
   } catch (e) {
     releaseBuildLock();
     logAudit(WORKDIR, userEmail, "SI_CREATE_PR_FAIL", String(e?.message || e));
     logger.error("[create-pr] error:", e?.message || e);
     res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "create-pr failed", detail: String(e?.message || e) }));
+    res.end(
+      JSON.stringify({
+        error: "create-pr failed",
+        detail: String(e?.message || e),
+      }),
+    );
   }
 }
 
-export async function handlePrs(req, res, { WORKDIR, isRequestAdmin, readRemoteInfo }) {
+export async function handlePrs(
+  req,
+  res,
+  { WORKDIR, isRequestAdmin, readRemoteInfo },
+) {
   if (!isRequestAdmin) {
     res.writeHead(403, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Admin access required." }));
@@ -301,20 +381,37 @@ export async function handlePrs(req, res, { WORKDIR, isRequestAdmin, readRemoteI
     res.end(JSON.stringify({ prs: filtered }));
   } catch (e) {
     res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "failed to list PRs", detail: String(e?.message || e) }));
+    res.end(
+      JSON.stringify({
+        error: "failed to list PRs",
+        detail: String(e?.message || e),
+      }),
+    );
   }
 }
 
-export async function handleRebuild(_req, res, { WORKDIR, userEmail, checkRateLimit }) {
+export async function handleRebuild(
+  _req,
+  res,
+  { WORKDIR, userEmail, checkRateLimit },
+) {
   if (!isSelfImproveEnabled(WORKDIR)) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    res.end(
+      JSON.stringify({
+        error: "Self-Improvement Mode is disabled on the server.",
+      }),
+    );
     return;
   }
   if (!(await checkRateLimit(res))) return;
   if (!tryAcquireBuildLock()) {
     res.writeHead(409, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress." }));
+    res.end(
+      JSON.stringify({
+        error: "Another build/reset/rollback is already in progress.",
+      }),
+    );
     return;
   }
   logAudit(WORKDIR, userEmail, "REBUILD_UI_START", "Starting UI build process");
@@ -332,22 +429,39 @@ export async function handleRebuild(_req, res, { WORKDIR, userEmail, checkRateLi
   }
 }
 
-export async function handleResetUi(_req, res, { WORKDIR, userEmail, checkRateLimit }) {
+export async function handleResetUi(
+  _req,
+  res,
+  { WORKDIR, userEmail, checkRateLimit },
+) {
   if (!isSelfImproveEnabled(WORKDIR)) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    res.end(
+      JSON.stringify({
+        error: "Self-Improvement Mode is disabled on the server.",
+      }),
+    );
     return;
   }
   if (!(await checkRateLimit(res))) return;
   if (!tryAcquireBuildLock()) {
     res.writeHead(409, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress." }));
+    res.end(
+      JSON.stringify({
+        error: "Another build/reset/rollback is already in progress.",
+      }),
+    );
     return;
   }
   logAudit(WORKDIR, userEmail, "RESET_UI_START", "Starting UI factory reset");
   try {
     const stdout = await resetUi(WORKDIR);
-    logAudit(WORKDIR, userEmail, "RESET_UI_SUCCESS", "UI reset and rebuilt successfully");
+    logAudit(
+      WORKDIR,
+      userEmail,
+      "RESET_UI_SUCCESS",
+      "UI reset and rebuilt successfully",
+    );
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "success", stdout }));
   } catch (err) {
@@ -362,18 +476,32 @@ export async function handleResetUi(_req, res, { WORKDIR, userEmail, checkRateLi
 export async function handleCheckpoint(_req, res, { WORKDIR, userEmail }) {
   if (!isSelfImproveEnabled(WORKDIR)) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    res.end(
+      JSON.stringify({
+        error: "Self-Improvement Mode is disabled on the server.",
+      }),
+    );
     return;
   }
   try {
     const result = await createCheckpoint(WORKDIR);
-    logAudit(WORKDIR, userEmail, "CHECKPOINT_SUCCESS", `Commit: ${result.commit || ""}`);
+    logAudit(
+      WORKDIR,
+      userEmail,
+      "CHECKPOINT_SUCCESS",
+      `Commit: ${result.commit || ""}`,
+    );
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(result));
   } catch (err) {
     logAudit(WORKDIR, userEmail, "CHECKPOINT_FAILED", err.message);
     res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Failed to create checkpoint", detail: err.message }));
+    res.end(
+      JSON.stringify({
+        error: "Failed to create checkpoint",
+        detail: err.message,
+      }),
+    );
   }
 }
 
@@ -410,7 +538,11 @@ export async function handleInstantRollback(
   }
   if (!isSelfImproveEnabled(WORKDIR)) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    res.end(
+      JSON.stringify({
+        error: "Self-Improvement Mode is disabled on the server.",
+      }),
+    );
     return;
   }
   if (!(await checkRateLimit(res))) return;
@@ -429,10 +561,14 @@ export async function handleInstantRollback(
           /only one snapshot|no (older )?(dist )?snapshot|invalid index|out of range|nothing to roll/i.test(
             msg,
           );
-        res.writeHead(isUserError ? 400 : 500, { "Content-Type": "application/json" });
+        res.writeHead(isUserError ? 400 : 500, {
+          "Content-Type": "application/json",
+        });
         res.end(
           JSON.stringify({
-            error: isUserError ? "Nothing to roll back to" : "Instant rollback failed",
+            error: isUserError
+              ? "Nothing to roll back to"
+              : "Instant rollback failed",
             detail: msg,
           }),
         );
@@ -444,16 +580,28 @@ export async function handleInstantRollback(
     });
 }
 
-export async function handleRollback(req, res, { WORKDIR, userEmail, checkRateLimit, readBody }) {
+export async function handleRollback(
+  req,
+  res,
+  { WORKDIR, userEmail, checkRateLimit, readBody },
+) {
   if (!isSelfImproveEnabled(WORKDIR)) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    res.end(
+      JSON.stringify({
+        error: "Self-Improvement Mode is disabled on the server.",
+      }),
+    );
     return;
   }
   if (!(await checkRateLimit(res))) return;
   if (!tryAcquireBuildLock()) {
     res.writeHead(409, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress." }));
+    res.end(
+      JSON.stringify({
+        error: "Another build/reset/rollback is already in progress.",
+      }),
+    );
     return;
   }
   try {
@@ -472,16 +620,33 @@ export async function handleRollback(req, res, { WORKDIR, userEmail, checkRateLi
       res.end(JSON.stringify({ error: "Invalid commit hash format." }));
       return;
     }
-    logAudit(WORKDIR, userEmail, "ROLLBACK_START", `Rolling back UI to commit: ${hash}`);
+    logAudit(
+      WORKDIR,
+      userEmail,
+      "ROLLBACK_START",
+      `Rolling back UI to commit: ${hash}`,
+    );
     try {
       const result = await rollbackToCommit(WORKDIR, hash);
-      logAudit(WORKDIR, userEmail, "ROLLBACK_SUCCESS", `Successfully rolled back UI to commit: ${hash}`);
+      logAudit(
+        WORKDIR,
+        userEmail,
+        "ROLLBACK_SUCCESS",
+        `Successfully rolled back UI to commit: ${hash}`,
+      );
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: "success", message: result.message }));
     } catch (err) {
-      logAudit(WORKDIR, userEmail, "ROLLBACK_FAILED", `Hash ${hash}: ${err.message}`);
+      logAudit(
+        WORKDIR,
+        userEmail,
+        "ROLLBACK_FAILED",
+        `Hash ${hash}: ${err.message}`,
+      );
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Rollback failed", detail: err.message }));
+      res.end(
+        JSON.stringify({ error: "Rollback failed", detail: err.message }),
+      );
     }
   } catch {
     res.writeHead(413, { "Content-Type": "application/json" });
@@ -504,14 +669,20 @@ export async function handleProposalsList(req, res, { WORKDIR }) {
     res.end(JSON.stringify({ proposals }));
   } catch (e) {
     res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Failed to list proposals", detail: e.message }));
+    res.end(
+      JSON.stringify({ error: "Failed to list proposals", detail: e.message }),
+    );
   }
 }
 
 export async function handleProposalCreate(req, res, { WORKDIR, userEmail }) {
   if (!isSelfImproveEnabled(WORKDIR)) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    res.end(
+      JSON.stringify({
+        error: "Self-Improvement Mode is disabled on the server.",
+      }),
+    );
     return;
   }
   try {
@@ -543,7 +714,9 @@ export async function handleProposalGet(_req, res, { WORKDIR, proposalId }) {
     res.end(JSON.stringify(proposal));
   } catch (e) {
     res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Failed to get proposal", detail: e.message }));
+    res.end(
+      JSON.stringify({ error: "Failed to get proposal", detail: e.message }),
+    );
   }
 }
 
@@ -559,7 +732,11 @@ export async function handleProposalConfirm(
   }
   if (!isSelfImproveEnabled(WORKDIR)) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    res.end(
+      JSON.stringify({
+        error: "Self-Improvement Mode is disabled on the server.",
+      }),
+    );
     return;
   }
   try {
@@ -575,7 +752,9 @@ export async function handleProposalConfirm(
     res.end(JSON.stringify(proposal));
   } catch (e) {
     res.writeHead(400, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Confirmation failed", detail: e.message }));
+    res.end(
+      JSON.stringify({ error: "Confirmation failed", detail: e.message }),
+    );
   }
 }
 
@@ -591,7 +770,11 @@ export async function handleProposalExecute(
   }
   if (!isSelfImproveEnabled(WORKDIR)) {
     res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+    res.end(
+      JSON.stringify({
+        error: "Self-Improvement Mode is disabled on the server.",
+      }),
+    );
     return;
   }
   if (!(await checkRateLimit(res))) return;
@@ -599,7 +782,8 @@ export async function handleProposalExecute(
     res.writeHead(409, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
-        error: "Another build/PR/rollback/execution is in progress. Wait and retry.",
+        error:
+          "Another build/PR/rollback/execution is in progress. Wait and retry.",
       }),
     );
     return;
@@ -610,7 +794,9 @@ export async function handleProposalExecute(
     const deps = {
       getCurrentCommit: async () => {
         try {
-          const { stdout } = await execFileP("git", ["rev-parse", "HEAD"], { cwd: uiDir });
+          const { stdout } = await execFileP("git", ["rev-parse", "HEAD"], {
+            cwd: uiDir,
+          });
           return (stdout || "").trim();
         } catch {
           return "unknown";
@@ -650,13 +836,19 @@ export async function handleProposalExecute(
         // script, and every referenced /assets/* file actually exists.
         try {
           const distDir = "/app/dist";
-          const html = await fs.promises.readFile(path.join(distDir, "index.html"), "utf8");
+          const html = await fs.promises.readFile(
+            path.join(distDir, "index.html"),
+            "utf8",
+          );
           if (!html.trim() || !html.includes("<script")) return false;
-          const refs = [...html.matchAll(/(?:src|href)="\/(assets\/[^"?#]+)"/g)].map((m) => m[1]);
+          const refs = [
+            ...html.matchAll(/(?:src|href)="\/(assets\/[^"?#]+)"/g),
+          ].map((m) => m[1]);
           if (refs.length === 0) return false;
           for (const rel of refs) {
             const asset = path.join(distDir, rel);
-            if (!fs.existsSync(asset) || fs.statSync(asset).size === 0) return false;
+            if (!fs.existsSync(asset) || fs.statSync(asset).size === 0)
+              return false;
           }
           return true;
         } catch {
@@ -671,7 +863,10 @@ export async function handleProposalExecute(
       },
     };
 
-    const result = await executeProposalTransaction(WORKDIR, proposalId, { userEmail, deps });
+    const result = await executeProposalTransaction(WORKDIR, proposalId, {
+      userEmail,
+      deps,
+    });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(result));
   } catch (e) {
@@ -702,7 +897,8 @@ export async function handleSelfImproveRoute(
   // project or exposes its history and must be 403 for non-admins.
   // Individual handlers keep their own checks as defense in depth.
   // ---------------------------------------------------------------------
-  const isPublicRead = urlPath === "/api/settings/self-improve" && req.method === "GET";
+  const isPublicRead =
+    urlPath === "/api/settings/self-improve" && req.method === "GET";
   if (!isPublicRead && !isRequestAdmin && !isInternalRequest) {
     logAudit(WORKDIR, userEmail, "SI_ADMIN_DENIED", `${req.method} ${urlPath}`);
     res.writeHead(403, { "Content-Type": "application/json" });
@@ -725,8 +921,15 @@ export async function handleSelfImproveRoute(
   }
 
   // 2. Settings Session POST
-  if (urlPath === "/api/settings/self-improve/session" && req.method === "POST") {
-    return handleSettingsSelfImproveSessionPost(req, res, { WORKDIR, userEmail, isRequestAdmin });
+  if (
+    urlPath === "/api/settings/self-improve/session" &&
+    req.method === "POST"
+  ) {
+    return handleSettingsSelfImproveSessionPost(req, res, {
+      WORKDIR,
+      userEmail,
+      isRequestAdmin,
+    });
   }
 
   // 3. Resync POST
@@ -791,7 +994,12 @@ export async function handleSelfImproveRoute(
 
   // 12. Rollback POST
   if (urlPath === "/api/git/rollback" && req.method === "POST") {
-    return handleRollback(req, res, { WORKDIR, userEmail, checkRateLimit, readBody });
+    return handleRollback(req, res, {
+      WORKDIR,
+      userEmail,
+      checkRateLimit,
+      readBody,
+    });
   }
 
   // 13. Proposals list & create
@@ -816,7 +1024,12 @@ export async function handleSelfImproveRoute(
       return handleProposalGet(req, res, { WORKDIR, proposalId });
     }
     if (action === "confirm" && req.method === "POST") {
-      return handleProposalConfirm(req, res, { WORKDIR, proposalId, userEmail, isRequestAdmin });
+      return handleProposalConfirm(req, res, {
+        WORKDIR,
+        proposalId,
+        userEmail,
+        isRequestAdmin,
+      });
     }
     if (action === "execute" && req.method === "POST") {
       return handleProposalExecute(req, res, {

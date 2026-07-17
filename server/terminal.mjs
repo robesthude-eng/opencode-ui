@@ -37,10 +37,22 @@ try {
   ptySpawn = mod.spawn ?? mod.default?.spawn ?? null;
   if (ptySpawn) logger.info("node-pty loaded: terminal runs in PTY mode");
 } catch (e) {
-  logger.warn({ err: e?.message }, "node-pty unavailable: terminal falls back to pipe mode");
+  logger.warn(
+    { err: e?.message },
+    "node-pty unavailable: terminal falls back to pipe mode",
+  );
 }
 
-const ENV_ALLOWLIST = ["PATH", "HOME", "USER", "SHELL", "LANG", "LC_ALL", "TZ", "NODE_ENV"];
+const ENV_ALLOWLIST = [
+  "PATH",
+  "HOME",
+  "USER",
+  "SHELL",
+  "LANG",
+  "LC_ALL",
+  "TZ",
+  "NODE_ENV",
+];
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -89,7 +101,10 @@ function startPtyShell(socket, workdir) {
 
   shell.onData((data) => socket.emit("data", data));
   shell.onExit(({ exitCode, signal }) => {
-    socket.emit("data", `\r\n\x1b[33m*** shell завершился (${signal || exitCode}) ***\x1b[0m\r\n`);
+    socket.emit(
+      "data",
+      `\r\n\x1b[33m*** shell завершился (${signal || exitCode}) ***\x1b[0m\r\n`,
+    );
     socket.disconnect(true);
   });
 
@@ -145,11 +160,17 @@ function startPipeShell(socket, workdir) {
   };
 
   shell.on("error", (err) => {
-    socket.emit("data", `\r\n\x1b[31mОшибка запуска shell: ${err.message}\x1b[0m\r\n`);
+    socket.emit(
+      "data",
+      `\r\n\x1b[31mОшибка запуска shell: ${err.message}\x1b[0m\r\n`,
+    );
     socket.disconnect(true);
   });
   shell.on("exit", (code, signal) => {
-    socket.emit("data", `\r\n\x1b[33m*** shell завершился (${signal || code}) ***\x1b[0m\r\n`);
+    socket.emit(
+      "data",
+      `\r\n\x1b[33m*** shell завершился (${signal || code}) ***\x1b[0m\r\n`,
+    );
     socket.disconnect(true);
   });
 
@@ -200,7 +221,9 @@ export function initTerminalServer(httpServer, options = {}) {
 
     const sid = String(socket.handshake.query.workdir || "");
     if (!isValidSessionId(sid)) {
-      fail("Терминал работает внутри чата — откройте или создайте чат и повторите.");
+      fail(
+        "Терминал работает внутри чата — откройте или создайте чат и повторите.",
+      );
       return;
     }
     const owners = loadJson(OWNERS_FILE, {});
@@ -225,7 +248,9 @@ export function initTerminalServer(httpServer, options = {}) {
 
     let shell;
     try {
-      shell = ptySpawn ? startPtyShell(socket, workdir) : startPipeShell(socket, workdir);
+      shell = ptySpawn
+        ? startPtyShell(socket, workdir)
+        : startPipeShell(socket, workdir);
     } catch (e) {
       fail(`Ошибка запуска shell: ${e.message}`);
       return;

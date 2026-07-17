@@ -26,7 +26,11 @@ const OWNERS_BASENAME = ".session_owners.json";
 
 function isAuthFile(file) {
   const base = path.basename(file);
-  return base === USERS_BASENAME || base === SESSIONS_BASENAME || base === OWNERS_BASENAME;
+  return (
+    base === USERS_BASENAME ||
+    base === SESSIONS_BASENAME ||
+    base === OWNERS_BASENAME
+  );
 }
 
 function openSqlite(workdir) {
@@ -88,8 +92,12 @@ function migrateFromJson(workdir) {
   const ownersFile = path.join(workdir, OWNERS_BASENAME);
 
   const userCount = sqlite.prepare("SELECT COUNT(*) AS c FROM users").get().c;
-  const sessionCount = sqlite.prepare("SELECT COUNT(*) AS c FROM sessions").get().c;
-  const ownerCount = sqlite.prepare("SELECT COUNT(*) AS c FROM session_owners").get().c;
+  const sessionCount = sqlite
+    .prepare("SELECT COUNT(*) AS c FROM sessions")
+    .get().c;
+  const ownerCount = sqlite
+    .prepare("SELECT COUNT(*) AS c FROM session_owners")
+    .get().c;
 
   const migrateUsers = userCount === 0 && fs.existsSync(usersFile);
   const migrateSessions = sessionCount === 0 && fs.existsSync(sessionsFile);
@@ -120,14 +128,18 @@ function migrateFromJson(workdir) {
             u.createdAt || Date.now(),
           );
         }
-        console.log(`[DB] Migrated ${Object.keys(users || {}).length} users from JSON → SQLite`);
+        console.log(
+          `[DB] Migrated ${Object.keys(users || {}).length} users from JSON → SQLite`,
+        );
       } catch (e) {
         console.error("[DB] User migration failed:", e.message);
       }
     }
     if (migrateSessions) {
       try {
-        const sessions = JSON.parse(fs.readFileSync(sessionsFile, "utf8") || "{}");
+        const sessions = JSON.parse(
+          fs.readFileSync(sessionsFile, "utf8") || "{}",
+        );
         const ins = sqlite.prepare(
           "INSERT OR IGNORE INTO sessions (token, email, created_at) VALUES (?, ?, ?)",
         );
@@ -177,7 +189,9 @@ function ensureDbForFile(file) {
 }
 
 function loadUsersObject() {
-  const rows = sqlite.prepare("SELECT email, password_hash, role, created_at FROM users").all();
+  const rows = sqlite
+    .prepare("SELECT email, password_hash, role, created_at FROM users")
+    .all();
   const out = {};
   for (const r of rows) {
     out[r.email] = {
@@ -221,7 +235,9 @@ function saveUsersObject(data) {
 }
 
 function loadSessionsObject() {
-  const rows = sqlite.prepare("SELECT token, email, created_at FROM sessions").all();
+  const rows = sqlite
+    .prepare("SELECT token, email, created_at FROM sessions")
+    .all();
   const out = {};
   for (const r of rows) {
     out[r.token] = { email: r.email, createdAt: r.created_at };
@@ -255,7 +271,9 @@ function saveSessionsObject(data) {
 }
 
 function loadOwnersObject() {
-  const rows = sqlite.prepare("SELECT session_id, email FROM session_owners").all();
+  const rows = sqlite
+    .prepare("SELECT session_id, email FROM session_owners")
+    .all();
   const out = {};
   for (const r of rows) {
     out[r.session_id] = r.email;
@@ -273,7 +291,9 @@ function saveOwnersObject(data) {
     const deleted = existing.filter((s) => !incomingSids.includes(s));
 
     if (deleted.length > 0) {
-      const delStmt = sqlite.prepare("DELETE FROM session_owners WHERE session_id = ?");
+      const delStmt = sqlite.prepare(
+        "DELETE FROM session_owners WHERE session_id = ?",
+      );
       for (const sid of deleted) delStmt.run(sid);
     }
 

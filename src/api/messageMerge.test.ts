@@ -44,17 +44,26 @@ describe("mergeMessages deterministic", () => {
 
   test("preserves local attachment when server has none", () => {
     const server = [
-      { id: "msg_1", role: "user" as const, parts: [{ type: "text", text: "hi" } as any] },
+      {
+        id: "msg_1",
+        role: "user" as const,
+        parts: [{ type: "text", text: "hi" } as any],
+      },
     ];
     const local = [
       {
         id: "msg_1",
         role: "user" as const,
-        parts: [{ type: "attachment", name: "a.txt" } as any, { type: "text", text: "hi" } as any],
+        parts: [
+          { type: "attachment", name: "a.txt" } as any,
+          { type: "text", text: "hi" } as any,
+        ],
       },
     ];
     const merged = mergeMessages(server, local);
-    expect(merged[0].parts.some((p: any) => p.type === "attachment")).toBe(true);
+    expect(merged[0].parts.some((p: any) => p.type === "attachment")).toBe(
+      true,
+    );
   });
 
   test("scenario harness with delta", () => {

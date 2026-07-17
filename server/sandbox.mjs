@@ -2,7 +2,11 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkRateLimit, MAX_JSON_BODY_BYTES, readBody } from "./middleware.mjs";
+import {
+  checkRateLimit,
+  MAX_JSON_BODY_BYTES,
+  readBody,
+} from "./middleware.mjs";
 import { logAudit } from "./self-improve.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -11,10 +15,14 @@ const __dirname = path.dirname(__filename);
 const MAX_SANDBOX_FILES = 20;
 // JSON bodies are capped at 256 KB by middleware; leave room for path and JSON overhead.
 const MAX_SANDBOX_CONTENT_BYTES = 200 * 1024;
-const SANDBOX_BIOME_TIMEOUT_MS = Number(process.env.SELF_IMPROVE_BIOME_TIMEOUT_MS) || 60_000;
-const SANDBOX_TSC_TIMEOUT_MS = Number(process.env.SELF_IMPROVE_TSC_TIMEOUT_MS) || 120_000;
-const SANDBOX_TEST_TIMEOUT_MS = Number(process.env.SELF_IMPROVE_TEST_TIMEOUT_MS) || 120_000;
-const SANDBOX_VITE_TIMEOUT_MS = Number(process.env.SELF_IMPROVE_VITE_TIMEOUT_MS) || 300_000;
+const SANDBOX_BIOME_TIMEOUT_MS =
+  Number(process.env.SELF_IMPROVE_BIOME_TIMEOUT_MS) || 60_000;
+const SANDBOX_TSC_TIMEOUT_MS =
+  Number(process.env.SELF_IMPROVE_TSC_TIMEOUT_MS) || 120_000;
+const SANDBOX_TEST_TIMEOUT_MS =
+  Number(process.env.SELF_IMPROVE_TEST_TIMEOUT_MS) || 120_000;
+const SANDBOX_VITE_TIMEOUT_MS =
+  Number(process.env.SELF_IMPROVE_VITE_TIMEOUT_MS) || 300_000;
 let sandboxRunInProgress = false;
 
 /**
@@ -61,7 +69,11 @@ export function applySourceChangesTransaction(activeUiDir, files) {
   const previous = files.map((file) => {
     const destination = resolveInside(activeUiDir, file.path);
     const existed = fs.existsSync(destination);
-    return { destination, existed, content: existed ? fs.readFileSync(destination) : null };
+    return {
+      destination,
+      existed,
+      content: existed ? fs.readFileSync(destination) : null,
+    };
   });
 
   try {
@@ -88,7 +100,10 @@ function rollbackSourceChanges(previous) {
         fs.rmSync(file.destination, { force: true });
       }
     } catch (error) {
-      console.error(`[Sandbox] rollback failed for ${file.destination}:`, error.message);
+      console.error(
+        `[Sandbox] rollback failed for ${file.destination}:`,
+        error.message,
+      );
     }
   }
 }
@@ -98,7 +113,9 @@ export function validateSandboxFiles(files) {
     throw new Error("files array is required");
   }
   if (files.length > MAX_SANDBOX_FILES) {
-    throw new Error(`at most ${MAX_SANDBOX_FILES} files may be changed per request`);
+    throw new Error(
+      `at most ${MAX_SANDBOX_FILES} files may be changed per request`,
+    );
   }
 
   let totalBytes = 0;
@@ -139,7 +156,9 @@ export async function handleSandboxRequest(req, res, WORKDIR, userEmail) {
     readBody(req, MAX_JSON_BODY_BYTES)
       .then((buf) => {
         try {
-          const { files, dryRun = true } = JSON.parse(buf.toString("utf8") || "{}");
+          const { files, dryRun = true } = JSON.parse(
+            buf.toString("utf8") || "{}",
+          );
           let safeFiles;
           try {
             safeFiles = validateSandboxFiles(files);
@@ -158,7 +177,10 @@ export async function handleSandboxRequest(req, res, WORKDIR, userEmail) {
           if (!tryAcquireSandboxRun()) {
             res.writeHead(409, { "Content-Type": "application/json" });
             res.end(
-              JSON.stringify({ error: "A sandbox run is already in progress. Try again shortly." }),
+              JSON.stringify({
+                error:
+                  "A sandbox run is already in progress. Try again shortly.",
+              }),
             );
             return;
           }
@@ -207,20 +229,32 @@ export async function handleSandboxRequest(req, res, WORKDIR, userEmail) {
 // UX-fix: tsc-b может выводить ошибки в stdout ИЛИ stderr — склеиваем обоих
 // и убираем шум (progress lines, empty lines), оставляя только настоящие diagnostics.
 function parseTscOutput(err, stdout, stderr) {
-  const combined = [stdout, stderr, err?.message || ""].filter(Boolean).join("\n").trim();
+  const combined = [stdout, stderr, err?.message || ""]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
   if (!combined) {
     return [
       "No output from tsc. Check that files are inside src/ and match tsconfig.json include glob.",
     ];
   }
   // строки, похожие на настоящие TS-диагностики: содержат ".ts(line,col): error TSxxxx"
-  const diagLines = combined.split("\n").filter((l) => /\.tsx?\(\d+,\d+\)|error TS\d+/.test(l));
+  const diagLines = combined
+    .split("\n")
+    .filter((l) => /\.tsx?\(\d+,\d+\)|error TS\d+/.test(l));
   if (diagLines.length > 0) return diagLines.slice(0, 20);
   // fallback: любые непустые строки, но не более 10
   return combined.split("\n").filter(Boolean).slice(0, 10);
 }
 
-async function runSandboxCheck(workdir, files, dryRun, userEmail, callback, attemptsLeft = 2) {
+async function runSandboxCheck(
+  workdir,
+  files,
+  dryRun,
+  userEmail,
+  callback,
+  attemptsLeft = 2,
+) {
   setTestStatus(workdir, "running");
   const activeUiDir = path.join(workdir, "opencode-ui");
   const sandboxDir = "/tmp/opencode-ui-sandbox";
@@ -231,10 +265,16 @@ async function runSandboxCheck(workdir, files, dryRun, userEmail, callback, atte
     }
     fs.mkdirSync(sandboxDir, { recursive: true });
   } catch (e) {
-    return callback(new Error(`Failed to initialize sandbox directory: ${e.message}`));
+    return callback(
+      new Error(`Failed to initialize sandbox directory: ${e.message}`),
+    );
   }
 
-  copyFolderRecursiveSync(activeUiDir, sandboxDir, ["node_modules", ".git", "dist"]);
+  copyFolderRecursiveSync(activeUiDir, sandboxDir, [
+    "node_modules",
+    ".git",
+    "dist",
+  ]);
 
   try {
     const activeNodeModules = path.join(activeUiDir, "node_modules");
@@ -253,7 +293,9 @@ async function runSandboxCheck(workdir, files, dryRun, userEmail, callback, atte
       fs.symlinkSync(source, sandboxNodeModules);
       console.log(`[Sandbox] node_modules → ${source}`);
     } else {
-      console.warn("[Sandbox] no node_modules found — tsc/vitest/biome will fail");
+      console.warn(
+        "[Sandbox] no node_modules found — tsc/vitest/biome will fail",
+      );
     }
   } catch (e) {
     return callback(new Error(`Failed to symlink node_modules: ${e.message}`));
@@ -265,22 +307,27 @@ async function runSandboxCheck(workdir, files, dryRun, userEmail, callback, atte
       resolvedPath = resolveInside(sandboxDir, f.path);
     } catch (e) {
       return callback(
-        new Error(`Security violation: path ${f.path} escapes sandbox: ${e.message}`),
+        new Error(
+          `Security violation: path ${f.path} escapes sandbox: ${e.message}`,
+        ),
       );
     }
     try {
       fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
       fs.writeFileSync(resolvedPath, f.content, "utf8");
     } catch (e) {
-      return callback(new Error(`Failed to write file ${f.path} in sandbox: ${e.message}`));
+      return callback(
+        new Error(`Failed to write file ${f.path} in sandbox: ${e.message}`),
+      );
     }
   }
 
-  const execFileAsync = (cmd, args, opts) => new Promise((resolve) => {
-    execFile(cmd, args, opts, (err, stdout, stderr) => {
-      resolve({ err, stdout, stderr });
+  const execFileAsync = (cmd, args, opts) =>
+    new Promise((resolve) => {
+      execFile(cmd, args, opts, (err, stdout, stderr) => {
+        resolve({ err, stdout, stderr });
+      });
     });
-  });
 
   // Step 4.5: Run Biome to auto-format files in sandbox
   const filesToFormat = files.map((f) => path.join(sandboxDir, f.path));
@@ -288,11 +335,14 @@ async function runSandboxCheck(workdir, files, dryRun, userEmail, callback, atte
   const { err: biomeErr, stderr: biomeStderr } = await execFileAsync(
     "npx",
     ["biome", "check", "--write", "--unsafe", ...filesToFormat],
-    { cwd: sandboxDir, timeout: SANDBOX_BIOME_TIMEOUT_MS }
+    { cwd: sandboxDir, timeout: SANDBOX_BIOME_TIMEOUT_MS },
   );
 
   if (biomeErr) {
-    console.warn("[Sandbox] Biome format warning:", biomeStderr || biomeErr.message);
+    console.warn(
+      "[Sandbox] Biome format warning:",
+      biomeStderr || biomeErr.message,
+    );
     // Non-fatal for format; tsc/vitest remain hard gates
   } else {
     console.log("[Sandbox] Files successfully formatted with Biome!");
@@ -302,49 +352,76 @@ async function runSandboxCheck(workdir, files, dryRun, userEmail, callback, atte
         const filePath = path.join(sandboxDir, f.path);
         f.content = fs.readFileSync(filePath, "utf8");
       } catch (e) {
-        console.warn(`[Sandbox] Failed to read formatted content for ${f.path}:`, e.message);
+        console.warn(
+          `[Sandbox] Failed to read formatted content for ${f.path}:`,
+          e.message,
+        );
       }
     }
   }
 
   // Step 5: Run TypeScript compilation check
   console.log("[Sandbox] Starting pre-flight compilation check...");
-  const { err: tscErr, stdout: tscStdout, stderr: tscStderr } = await execFileAsync(
-    "./node_modules/.bin/tsc",
-    ["-b"],
-    { cwd: sandboxDir, timeout: SANDBOX_TSC_TIMEOUT_MS }
-  );
+  const {
+    err: tscErr,
+    stdout: tscStdout,
+    stderr: tscStderr,
+  } = await execFileAsync("./node_modules/.bin/tsc", ["-b"], {
+    cwd: sandboxDir,
+    timeout: SANDBOX_TSC_TIMEOUT_MS,
+  });
 
   if (tscErr) {
     const compileErrors = parseTscOutput(tscErr, tscStdout, tscStderr);
     console.log("[Sandbox] Compilation check failed.");
 
     if (attemptsLeft > 0) {
-      console.log(`[Sandbox] Attempting autonomous self-correction (${3 - attemptsLeft + 1}/2)...`);
+      console.log(
+        `[Sandbox] Attempting autonomous self-correction (${3 - attemptsLeft + 1}/2)...`,
+      );
       try {
         const acModule = await import("./auto-correct.mjs");
         const correctedFiles = await new Promise((resolve, reject) => {
-          acModule.runAutoCorrection(files, compileErrors, (acErr, resFiles) => {
-            if (acErr || !resFiles) reject(acErr || new Error("No output"));
-            else resolve(resFiles);
-          }, { directory: sandboxDir });
+          acModule.runAutoCorrection(
+            files,
+            compileErrors,
+            (acErr, resFiles) => {
+              if (acErr || !resFiles) reject(acErr || new Error("No output"));
+              else resolve(resFiles);
+            },
+            { directory: sandboxDir },
+          );
         });
 
-        console.log("[Sandbox] Re-running sandbox compilation check with auto-corrected files...");
-        runSandboxCheck(workdir, correctedFiles, dryRun, userEmail, (retryErr, retryResult) => {
-          if (retryErr) return callback(retryErr);
-          if (retryResult.status === "success") {
-            retryResult.autoCorrected = true;
-            retryResult.message = "Initial compilation failed, but we automatically corrected the errors in the sandbox and successfully deployed the clean code!";
-          }
-          callback(null, retryResult);
-        }, attemptsLeft - 1);
+        console.log(
+          "[Sandbox] Re-running sandbox compilation check with auto-corrected files...",
+        );
+        runSandboxCheck(
+          workdir,
+          correctedFiles,
+          dryRun,
+          userEmail,
+          (retryErr, retryResult) => {
+            if (retryErr) return callback(retryErr);
+            if (retryResult.status === "success") {
+              retryResult.autoCorrected = true;
+              retryResult.message =
+                "Initial compilation failed, but we automatically corrected the errors in the sandbox and successfully deployed the clean code!";
+            }
+            callback(null, retryResult);
+          },
+          attemptsLeft - 1,
+        );
         return;
       } catch (acModuleErr) {
-        console.warn("[Sandbox] Failed to load auto-correct module:", acModuleErr.message);
+        console.warn(
+          "[Sandbox] Failed to load auto-correct module:",
+          acModuleErr.message,
+        );
         return callback(null, {
           status: "compilation_failed",
-          message: "TypeScript compilation failed. Auto-correction module not available.",
+          message:
+            "TypeScript compilation failed. Auto-correction module not available.",
           errors: compileErrors,
         });
       }
@@ -353,7 +430,8 @@ async function runSandboxCheck(workdir, files, dryRun, userEmail, callback, atte
     setTestStatus(workdir, "failure", compileErrors);
     return callback(null, {
       status: "compilation_failed",
-      message: "TypeScript compilation failed. Fix the errors below and try again.",
+      message:
+        "TypeScript compilation failed. Fix the errors below and try again.",
       errors: compileErrors,
     });
   }
@@ -362,19 +440,26 @@ async function runSandboxCheck(workdir, files, dryRun, userEmail, callback, atte
 
   // Step 5.5: Run vitest. Self-improve deploys may not bypass tests.
   console.log("[Sandbox] Running vitest...");
-  const { err: testErr, stdout: testStdout, stderr: testStderr } = await execFileAsync(
-    "npx",
-    ["vitest", "run", "--reporter=dot"],
-    { cwd: sandboxDir, timeout: SANDBOX_TEST_TIMEOUT_MS }
-  );
+  const {
+    err: testErr,
+    stdout: testStdout,
+    stderr: testStderr,
+  } = await execFileAsync("npx", ["vitest", "run", "--reporter=dot"], {
+    cwd: sandboxDir,
+    timeout: SANDBOX_TEST_TIMEOUT_MS,
+  });
 
   if (testErr) {
-    const testOutput = `${testStdout}\n${testStderr}`.trim().split("\n").slice(-30);
+    const testOutput = `${testStdout}\n${testStderr}`
+      .trim()
+      .split("\n")
+      .slice(-30);
     console.log("[Sandbox] Tests failed.");
     setTestStatus(workdir, "failure", testOutput);
     return callback(null, {
       status: "tests_failed",
-      message: "TypeScript compiled, but tests failed. Fix failing tests before deploy.",
+      message:
+        "TypeScript compiled, but tests failed. Fix failing tests before deploy.",
       errors: testOutput,
     });
   }
@@ -382,14 +467,21 @@ async function runSandboxCheck(workdir, files, dryRun, userEmail, callback, atte
 
   // Step 5.75: vite build in sandbox (catches Vite-specific errors)
   console.log("[Sandbox] Running vite build (pre-deploy)...");
-  const { err: buildErr, stdout: buildStdout, stderr: buildStderr } = await execFileAsync(
+  const {
+    err: buildErr,
+    stdout: buildStdout,
+    stderr: buildStderr,
+  } = await execFileAsync(
     "npx",
     ["vite", "build", "--outDir", path.join(sandboxDir, "dist-check")],
-    { cwd: sandboxDir, timeout: SANDBOX_VITE_TIMEOUT_MS }
+    { cwd: sandboxDir, timeout: SANDBOX_VITE_TIMEOUT_MS },
   );
 
   if (buildErr) {
-    const out = `${buildStdout || ""}\n${buildStderr || ""}`.trim().split("\n").slice(-40);
+    const out = `${buildStdout || ""}\n${buildStderr || ""}`
+      .trim()
+      .split("\n")
+      .slice(-40);
     console.log("[Sandbox] vite build failed.");
     setTestStatus(workdir, "failure", out);
     return callback(null, {
@@ -404,39 +496,68 @@ async function runSandboxCheck(workdir, files, dryRun, userEmail, callback, atte
     setTestStatus(workdir, "success");
     return callback(null, {
       status: "success",
-      message: "Pre-flight compilation + tests + vite build succeeded! Code is clean and safe to deploy.",
+      message:
+        "Pre-flight compilation + tests + vite build succeeded! Code is clean and safe to deploy.",
     });
   }
 
   console.log("[Sandbox] Deploying code from sandbox to active repository...");
-  logAudit(workdir, userEmail, "SANDBOX_DEPLOY_START", `Deploying changes for ${files.length} files`);
+  logAudit(
+    workdir,
+    userEmail,
+    "SANDBOX_DEPLOY_START",
+    `Deploying changes for ${files.length} files`,
+  );
 
   let rollbackSource;
   try {
     rollbackSource = applySourceChangesTransaction(activeUiDir, files);
   } catch (e) {
     logAudit(workdir, userEmail, "SANDBOX_DEPLOY_FAILED", e.message);
-    return callback(new Error(`Failed to deploy files to active codebase: ${e.message}`));
+    return callback(
+      new Error(`Failed to deploy files to active codebase: ${e.message}`),
+    );
   }
 
-  const { err: gitErr, stdout: commitMessage } = await new Promise((resolve) => {
-    createGitCheckpoint(activeUiDir, files, (err, msg) => {
-      resolve({ err, stdout: msg });
-    });
-  });
+  const { err: gitErr, stdout: commitMessage } = await new Promise(
+    (resolve) => {
+      createGitCheckpoint(activeUiDir, files, (err, msg) => {
+        resolve({ err, stdout: msg });
+      });
+    },
+  );
 
   if (gitErr) {
     rollbackSource();
-    await execFileAsync("git", ["reset", "--", ...files.map((file) => file.path)], { cwd: activeUiDir, timeout: 10000 });
-    logAudit(workdir, userEmail, "SANDBOX_DEPLOY_ROLLED_BACK", `Git checkpoint failed; restored previous source: ${gitErr.message}`);
-    return callback(new Error(`Git checkpoint failed; source changes were rolled back: ${gitErr.message}`));
+    await execFileAsync(
+      "git",
+      ["reset", "--", ...files.map((file) => file.path)],
+      { cwd: activeUiDir, timeout: 10000 },
+    );
+    logAudit(
+      workdir,
+      userEmail,
+      "SANDBOX_DEPLOY_ROLLED_BACK",
+      `Git checkpoint failed; restored previous source: ${gitErr.message}`,
+    );
+    return callback(
+      new Error(
+        `Git checkpoint failed; source changes were rolled back: ${gitErr.message}`,
+      ),
+    );
   }
 
-  logAudit(workdir, userEmail, "SANDBOX_DEPLOY_SUCCESS", `Source checkpoint: ${commitMessage}; rebuild required before release`);
+  logAudit(
+    workdir,
+    userEmail,
+    "SANDBOX_DEPLOY_SUCCESS",
+    `Source checkpoint: ${commitMessage}; rebuild required before release`,
+  );
   setTestStatus(workdir, "success");
   callback(null, {
     status: "success",
-    message: "Source changes passed validation and were checkpointed. Run /api/rebuild to publish the new UI.",
+    message:
+      "Source changes passed validation and were checkpointed. Run /api/rebuild to publish the new UI.",
     commit: commitMessage,
     rebuildRequired: true,
     rebuildEndpoint: "/api/rebuild",
@@ -456,19 +577,24 @@ function createGitCheckpoint(repoDir, files, callback) {
     (err1) => {
       if (err1) return callback(new Error("git add failed"));
 
-      execFile("git", ["commit", "-m", msg], { cwd: repoDir, timeout: 15000 }, (err2) => {
-        if (err2) {
-          return callback(err2);
-        }
-        execFile(
-          "git",
-          ["log", "-1", "--format=%h — %s"],
-          { cwd: repoDir, timeout: 10000 },
-          (_err3, commitOut) => {
-            callback(null, commitOut?.trim() || msg);
-          },
-        );
-      });
+      execFile(
+        "git",
+        ["commit", "-m", msg],
+        { cwd: repoDir, timeout: 15000 },
+        (err2) => {
+          if (err2) {
+            return callback(err2);
+          }
+          execFile(
+            "git",
+            ["log", "-1", "--format=%h — %s"],
+            { cwd: repoDir, timeout: 10000 },
+            (_err3, commitOut) => {
+              callback(null, commitOut?.trim() || msg);
+            },
+          );
+        },
+      );
     },
   );
 }
@@ -483,7 +609,11 @@ function copyFolderRecursiveSync(src, dest, excludes = []) {
 
     fs.mkdirSync(dest, { recursive: true });
     fs.readdirSync(src).forEach((child) => {
-      copyFolderRecursiveSync(path.join(src, child), path.join(dest, child), excludes);
+      copyFolderRecursiveSync(
+        path.join(src, child),
+        path.join(dest, child),
+        excludes,
+      );
     });
   } else {
     fs.copyFileSync(src, dest);
@@ -506,7 +636,11 @@ export function getTestStatus(workdir) {
 export function setTestStatus(workdir, status, errors = []) {
   const file = path.join(workdir, ".self_improve_test_status");
   try {
-    fs.writeFileSync(file, JSON.stringify({ status, errors, timestamp: Date.now() }), "utf8");
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ status, errors, timestamp: Date.now() }),
+      "utf8",
+    );
   } catch (e) {
     console.error("[Sandbox] Failed to write test status:", e.message);
   }

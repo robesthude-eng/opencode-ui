@@ -1,6 +1,12 @@
 import { api, SessionGoneError } from "../../api/client";
 import { mergeMessages as mergeMessagesDeterministic } from "../../api/messageMerge";
-import type { Message, Part, PermissionRequest, SessionInfo, SessionStatus } from "../../api/types";
+import type {
+  Message,
+  Part,
+  PermissionRequest,
+  SessionInfo,
+  SessionStatus,
+} from "../../api/types";
 import {
   normalizeMessage,
   normalizeMessages,
@@ -28,7 +34,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
   messages: {},
   attachments: [],
 
-  addAttachments: (files) => set((s) => ({ attachments: [...s.attachments, ...files] })),
+  addAttachments: (files) =>
+    set((s) => ({ attachments: [...s.attachments, ...files] })),
 
   removeAttachment: (name) =>
     set((s) => ({ attachments: s.attachments.filter((a) => a.name !== name) })),
@@ -114,7 +121,10 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         const path = att.uploadedPath;
         const entryCount = att.entryCount;
         if (att.kind === "zip" && path) {
-          const hint = typeof entryCount === "number" ? ` (${entryCount} файлов внутри)` : "";
+          const hint =
+            typeof entryCount === "number"
+              ? ` (${entryCount} файлов внутри)`
+              : "";
           promptText += `\n\n📎 ${att.name} → ${path}${hint} — это zip-архив, ещё не распакован`;
           continue;
         }
@@ -180,14 +190,20 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             if (Array.isArray(msgs) && msgs.length > 0) {
               set((s) => {
                 const existing = s.messages[sidStr] ?? [];
-                const merged = mergeMessages(normalizeMessages(msgs as Message[]), existing);
+                const merged = mergeMessages(
+                  normalizeMessages(msgs as Message[]),
+                  existing,
+                );
                 return { messages: { ...s.messages, [sidStr]: merged } };
               });
             }
-            const lastAsst = [...(msgs as Message[])].reverse().find((m) => m.role === "assistant");
+            const lastAsst = [...(msgs as Message[])]
+              .reverse()
+              .find((m) => m.role === "assistant");
             const finish = lastAsst?.info?.finish;
             const completedAt = lastAsst?.info?.time?.completed;
-            const isDone = finish === "stop" || finish === "error" || !!completedAt;
+            const isDone =
+              finish === "stop" || finish === "error" || !!completedAt;
             // сигнатура состояния: id последнего + время завершения + счётчик parts
             const sig = `${lastAsst?.id || ""}|${completedAt || 0}|${lastAsst?.parts?.length || 0}|${finish || ""}`;
             if (isDone && sig === lastSignature) {
@@ -228,7 +244,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         // --- Страховочный таймаут (короче, чем было — 90 сек без активности) ---
         const timeoutId = setTimeout(() => {
           if (settled) return;
-          console.warn(`[send] hard timeout after ${SEND_HARD_TIMEOUT_MS}ms — forcing completion`);
+          console.warn(
+            `[send] hard timeout after ${SEND_HARD_TIMEOUT_MS}ms — forcing completion`,
+          );
           clearInterval(httpPoller);
           __idleResolvers.delete(sidStr);
           done("hard-timeout");
@@ -243,7 +261,11 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               clearInterval(httpPoller);
               clearTimeout(timeoutId);
               __idleResolvers.delete(sidStr);
-              done(finish === "error" ? "prompt:finish-error" : "prompt:finish-stop");
+              done(
+                finish === "error"
+                  ? "prompt:finish-error"
+                  : "prompt:finish-stop",
+              );
             }
           })
           .catch((e) => {
@@ -262,7 +284,10 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     } catch (e) {
       __locallyBusy.delete(sidStr);
       if (e instanceof SessionGoneError) {
-        console.warn("[send] session gone on backend, recreating:", e.sessionId);
+        console.warn(
+          "[send] session gone on backend, recreating:",
+          e.sessionId,
+        );
         set((s) => {
           const messages = { ...s.messages };
           delete messages[sidStr];
@@ -289,7 +314,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         status: { ...s.status, [sidStr]: "error" },
         messages: {
           ...s.messages,
-          [sidStr]: (s.messages[sidStr] ?? []).filter((m) => m.id !== userMsg.id),
+          [sidStr]: (s.messages[sidStr] ?? []).filter(
+            (m) => m.id !== userMsg.id,
+          ),
         },
       }));
       return;
@@ -299,7 +326,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     set((s) => {
       const currentStatus = s.status[sidStr];
       __locallyBusy.delete(sidStr);
-      const finalStatus: SessionStatus = currentStatus === "error" ? "error" : "idle";
+      const finalStatus: SessionStatus =
+        currentStatus === "error" ? "error" : "idle";
       return {
         status: { ...s.status, [sidStr]: finalStatus },
       };
@@ -344,7 +372,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       case "session.status": {
         if (!sid || !p.status) break;
         const st =
-          typeof p.status === "string" ? p.status : (p.status as { type?: string }).type || "idle";
+          typeof p.status === "string"
+            ? p.status
+            : (p.status as { type?: string }).type || "idle";
         // Fix Stop button hang: when locallyBusy and st===idle (real end), resolve AND set idle immediately
         // Previously it only resolved and broke without setting status, causing Stop to hang until http polling stable
         if (__locallyBusy.has(sid) && st === "idle") {
@@ -354,7 +384,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             resolve();
           }
           // P0.4: Set idle immediately, not waiting for http polling
-          set((s) => ({ status: { ...s.status, [sid]: "idle" as SessionStatus } }));
+          set((s) => ({
+            status: { ...s.status, [sid]: "idle" as SessionStatus },
+          }));
           break;
         }
         set((s) => ({ status: { ...s.status, [sid]: st as SessionStatus } }));
@@ -369,10 +401,14 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             resolve();
           }
           // Fix: set idle immediately on session.idle even during send() — was previously breaking without status update
-          set((s) => ({ status: { ...s.status, [sid]: "idle" as SessionStatus } }));
+          set((s) => ({
+            status: { ...s.status, [sid]: "idle" as SessionStatus },
+          }));
           break;
         }
-        set((s) => ({ status: { ...s.status, [sid]: "idle" as SessionStatus } }));
+        set((s) => ({
+          status: { ...s.status, [sid]: "idle" as SessionStatus },
+        }));
         break;
       }
       case "message.removed": {
@@ -398,15 +434,20 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
           set((s) => ({
             messages: {
               ...s.messages,
-              [sid]: upsertMessage(s.messages[sid] ?? [], normalizeMessage(msg)),
+              [sid]: upsertMessage(
+                s.messages[sid] ?? [],
+                normalizeMessage(msg),
+              ),
             },
           }));
-          const finish = msg?.info?.finish || (msg as { finish?: string })?.finish;
+          const finish =
+            msg?.info?.finish || (msg as { finish?: string })?.finish;
           const completed = msg?.info?.time?.completed;
           if (finish === "stop" || finish === "error" || completed) {
             // Fix Stop button: if message is final (has completed time or finish stop), set idle even during send()
             // Previously it prevented busy reset when locallyBusy, causing Stop to hang 2-4s until http polling
-            const isFinal = !!completed || finish === "stop" || finish === "error";
+            const isFinal =
+              !!completed || finish === "stop" || finish === "error";
             if (isFinal) {
               const resolve = __idleResolvers.get(sid);
               if (__locallyBusy.has(sid) && resolve) {
@@ -416,7 +457,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               set((s) => ({
                 status: {
                   ...s.status,
-                  [sid]: (finish === "error" ? "error" : "idle") as SessionStatus,
+                  [sid]: (finish === "error"
+                    ? "error"
+                    : "idle") as SessionStatus,
                 },
               }));
             } else if (!__locallyBusy.has(sid)) {
@@ -424,7 +467,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               set((s) => {
                 const current = s.status[sid];
                 if (current === "busy") {
-                  return { status: { ...s.status, [sid]: "idle" as SessionStatus } };
+                  return {
+                    status: { ...s.status, [sid]: "idle" as SessionStatus },
+                  };
                 }
                 return {};
               });
@@ -438,7 +483,10 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             info: info as Message["info"],
           };
           set((s) => ({
-            messages: { ...s.messages, [sid]: upsertMessage(s.messages[sid] ?? [], shell) },
+            messages: {
+              ...s.messages,
+              [sid]: upsertMessage(s.messages[sid] ?? [], shell),
+            },
           }));
         }
         break;
@@ -477,7 +525,13 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
           break;
         }
         set((s) => {
-          const updated = patchPartDelta(s.messages[sid] ?? [], messageID, partID, field, delta);
+          const updated = patchPartDelta(
+            s.messages[sid] ?? [],
+            messageID,
+            partID,
+            field,
+            delta,
+          );
           return { messages: { ...s.messages, [sid]: updated } };
         });
         break;
@@ -487,7 +541,12 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         // Новые версии opencode присылают в `tool` объект-ссылку {messageID, callID},
         // а не имя инструмента. Нормализуем, чтобы React не рендерил объект (error #31).
         const toolName = typeof p.tool === "string" ? p.tool : undefined;
-        const req: PermissionRequest = { sessionID: sid, id: p.id, tool: toolName, input: p.input };
+        const req: PermissionRequest = {
+          sessionID: sid,
+          id: p.id,
+          tool: toolName,
+          input: p.input,
+        };
         set((s) => ({
           permissions: s.permissions.some((x) => x.id === req.id)
             ? s.permissions
@@ -497,7 +556,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       }
       case "permission.responded": {
         if (!p.id) break;
-        set((s) => ({ permissions: s.permissions.filter((x) => x.id !== p.id) }));
+        set((s) => ({
+          permissions: s.permissions.filter((x) => x.id !== p.id),
+        }));
         break;
       }
       default:

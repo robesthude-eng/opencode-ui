@@ -10,6 +10,7 @@ import { loadJson, saveJson } from "../db.mjs";
 import { isValidSessionId } from "../isolation.mjs";
 
 const require = createRequire(import.meta.url);
+
 import { SYSTEM_PORT } from "../config.mjs";
 
 export function handleSessionList(_req, res, { userEmail, OWNERS_FILE }) {
@@ -24,7 +25,9 @@ export function handleSessionList(_req, res, { userEmail, OWNERS_FILE }) {
           const filtered = userEmail
             ? sessions.filter((s) => owners[s.id] === userEmail)
             : sessions;
-          res.writeHead(ocRes.statusCode, { "Content-Type": "application/json" });
+          res.writeHead(ocRes.statusCode, {
+            "Content-Type": "application/json",
+          });
           res.end(JSON.stringify(filtered));
         } catch (_e) {
           res.writeHead(500, { "Content-Type": "application/json" });
@@ -38,7 +41,11 @@ export function handleSessionList(_req, res, { userEmail, OWNERS_FILE }) {
     });
 }
 
-export function handleSessionCreate(req, res, { WORKDIR, OWNERS_FILE, userEmail }) {
+export function handleSessionCreate(
+  req,
+  res,
+  { WORKDIR, OWNERS_FILE, userEmail },
+) {
   let body = "";
   req.on("data", (chunk) => {
     body += chunk;
@@ -52,7 +59,9 @@ export function handleSessionCreate(req, res, { WORKDIR, OWNERS_FILE, userEmail 
     try {
       fs.mkdirSync(preIsolationDir, { recursive: true });
       fs.mkdirSync(path.join(preIsolationDir, "uploads"), { recursive: true });
-    } catch (e) { console.warn("Ignored error:", e); }
+    } catch (e) {
+      console.warn("Ignored error:", e);
+    }
 
     const opts = {
       hostname: "127.0.0.1",
@@ -74,7 +83,12 @@ export function handleSessionCreate(req, res, { WORKDIR, OWNERS_FILE, userEmail 
           const session = JSON.parse(respBody);
           const sid = session.id;
           if (sid && isValidSessionId(sid)) {
-            const sessionWorkspace = path.join(WORKDIR, "sessions", sid, "workspace");
+            const sessionWorkspace = path.join(
+              WORKDIR,
+              "sessions",
+              sid,
+              "workspace",
+            );
             try {
               fs.mkdirSync(path.dirname(sessionWorkspace), { recursive: true });
               if (fs.existsSync(sessionWorkspace)) {
@@ -84,7 +98,9 @@ export function handleSessionCreate(req, res, { WORKDIR, OWNERS_FILE, userEmail 
                 fs.renameSync(preIsolationDir, sessionWorkspace);
               } else {
                 fs.mkdirSync(sessionWorkspace, { recursive: true });
-                fs.mkdirSync(path.join(sessionWorkspace, "uploads"), { recursive: true });
+                fs.mkdirSync(path.join(sessionWorkspace, "uploads"), {
+                  recursive: true,
+                });
               }
               const moveBody = JSON.stringify({
                 sessionID: sid,
@@ -115,12 +131,18 @@ export function handleSessionCreate(req, res, { WORKDIR, OWNERS_FILE, userEmail 
                 },
               );
               moveReq.on("error", (e) =>
-                console.error(`[New Chat] move-session failed for ${sid}:`, e.message),
+                console.error(
+                  `[New Chat] move-session failed for ${sid}:`,
+                  e.message,
+                ),
               );
               moveReq.write(moveBody);
               moveReq.end();
             } catch (e) {
-              console.error(`[New Chat] Failed to setup workspace for ${sid}:`, e.message);
+              console.error(
+                `[New Chat] Failed to setup workspace for ${sid}:`,
+                e.message,
+              );
             }
             if (userEmail) {
               const owners = loadJson(OWNERS_FILE, {});
@@ -129,15 +151,25 @@ export function handleSessionCreate(req, res, { WORKDIR, OWNERS_FILE, userEmail 
             }
           }
         } catch (e) {
-          console.error("[New Chat] Failed to parse session creation response:", e.message);
+          console.error(
+            "[New Chat] Failed to parse session creation response:",
+            e.message,
+          );
         }
-        res.writeHead(proxyRes.statusCode, { "Content-Type": "application/json" });
+        res.writeHead(proxyRes.statusCode, {
+          "Content-Type": "application/json",
+        });
         res.end(respBody);
       });
     });
     proxyReq.on("error", (e) => {
       res.writeHead(502, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Failed to create session", detail: e.message }));
+      res.end(
+        JSON.stringify({
+          error: "Failed to create session",
+          detail: e.message,
+        }),
+      );
     });
     proxyReq.write(body);
     proxyReq.end();
@@ -147,7 +179,14 @@ export function handleSessionCreate(req, res, { WORKDIR, OWNERS_FILE, userEmail 
 export function handleSessionDelete(
   req,
   res,
-  { WORKDIR, OWNERS_FILE, userEmail, sessionMatch, selfImproveDir, systemProxy },
+  {
+    WORKDIR,
+    OWNERS_FILE,
+    userEmail,
+    sessionMatch,
+    selfImproveDir,
+    systemProxy,
+  },
 ) {
   const sid = decodeURIComponent(sessionMatch[1]);
   if (!isValidSessionId(sid)) {
@@ -158,9 +197,14 @@ export function handleSessionDelete(
   try {
     const auditLine = `${new Date().toISOString()} DELETE session=${sid} user=${userEmail || "anon"} ip=${req.socket.remoteAddress || "?"}\n`;
     fs.appendFileSync(path.join(WORKDIR, "audit.log"), auditLine);
-  } catch (e) { console.warn("Ignored error:", e); }
+  } catch (e) {
+    console.warn("Ignored error:", e);
+  }
 
-  const pathsToClean = [path.join(WORKDIR, "sessions", sid), path.join(WORKDIR, "uploads", sid)];
+  const pathsToClean = [
+    path.join(WORKDIR, "sessions", sid),
+    path.join(WORKDIR, "uploads", sid),
+  ];
   const removeAll = () => {
     for (const p of pathsToClean) {
       if (fs.existsSync(p)) {
@@ -178,7 +222,9 @@ export function handleSessionDelete(
     const owners = loadJson(OWNERS_FILE, {});
     delete owners[sid];
     saveJson(OWNERS_FILE, owners);
-  } catch (e) { console.warn("Ignored error:", e); }
+  } catch (e) {
+    console.warn("Ignored error:", e);
+  }
   try {
     const dbPath = path.join(WORKDIR, "opencode.db");
     if (fs.existsSync(dbPath)) {
@@ -200,10 +246,14 @@ export function handleSessionDelete(
           const fp = path.join(backupsDir, f);
           const st = fs.statSync(fp);
           if (st.isFile() && st.mtimeMs < cutoff) fs.unlinkSync(fp);
-        } catch (e) { console.warn("Ignored error:", e); }
+        } catch (e) {
+          console.warn("Ignored error:", e);
+        }
       }
     }
-  } catch (e) { console.warn("Ignored error:", e); }
+  } catch (e) {
+    console.warn("Ignored error:", e);
+  }
 
   const sessionWorkspace = path.join(WORKDIR, "sessions", sid, "workspace");
   const strippedUrl = req.url.startsWith("/api") ? req.url.slice(4) : req.url;
@@ -215,7 +265,9 @@ export function handleSessionDelete(
     setTimeout(() => {
       try {
         removeAll();
-      } catch (e) { console.warn("Ignored error:", e); }
+      } catch (e) {
+        console.warn("Ignored error:", e);
+      }
     }, 500);
   });
 

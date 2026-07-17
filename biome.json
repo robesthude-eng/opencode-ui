@@ -1,14 +1,22 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.3/schema.json",
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": false
-    }
-  },
+  "linter": { "enabled": false },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2
+  },
+  "css": {
+    "parser": { "tailwindDirectives": true, "cssModules": false },
+    "linter": { "enabled": false },
+    "formatter": { "enabled": true, "quoteStyle": "single" }
+  },
+  "files": {
+    "ignoreUnknown": true
+  },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
   }
 }

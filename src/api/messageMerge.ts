@@ -37,7 +37,9 @@ export function mergeMessages(
           (m) => m.id.startsWith("local_") && m.role === "user",
         );
         if (localOptimistic) {
-          const localAtts = localOptimistic.parts.filter((p) => p.type === "attachment");
+          const localAtts = localOptimistic.parts.filter(
+            (p) => p.type === "attachment",
+          );
           if (localAtts.length > 0) {
             const hasAtts = sMsg.parts.some((p) => p.type === "attachment");
             if (!hasAtts) {
@@ -118,7 +120,11 @@ export function mergeMessages(
       const lastUser = [...merged].reverse().find((m) => m.role === "user");
       const localText = lMsg.parts.find((p) => p.type === "text") as any;
       const serverText = lastUser?.parts.find((p) => p.type === "text") as any;
-      if (localText?.text && serverText?.text && localText.text === serverText.text) {
+      if (
+        localText?.text &&
+        serverText?.text &&
+        localText.text === serverText.text
+      ) {
         continue;
       }
       merged.push(lMsg);
@@ -150,7 +156,12 @@ export function createScenarioHarness(
       server = [...newServer];
       return mergeMessages(server, local);
     },
-    applyLocalDelta(_sessionId: string, messageId: string, partId: string, delta: string) {
+    applyLocalDelta(
+      _sessionId: string,
+      messageId: string,
+      partId: string,
+      delta: string,
+    ) {
       // Simulate message.part.delta applied to local
       local = local.map((m) => {
         if (m.id !== messageId) return m;

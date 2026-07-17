@@ -1,4 +1,10 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,10 +15,10 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
+  DownloadIcon,
   FileIcon,
   FolderIcon,
   FolderUploadIcon,
-  DownloadIcon,
   GitBranchIcon,
   RefreshIcon,
   SearchIcon,
@@ -26,7 +32,9 @@ interface TreeNode {
   loaded?: boolean;
 }
 
-function toTree(nodes: { path: string; type?: string; isDirectory?: boolean }[]): TreeNode[] {
+function toTree(
+  nodes: { path: string; type?: string; isDirectory?: boolean }[],
+): TreeNode[] {
   const root: TreeNode = { name: "", path: "", isDir: true, children: [] };
   for (const n of nodes) {
     const parts = n.path.split("/").filter(Boolean);
@@ -51,7 +59,9 @@ function toTree(nodes: { path: string; type?: string; isDirectory?: boolean }[])
     }
   }
   const sort = (nodes: TreeNode[]): TreeNode[] => {
-    nodes.sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
+    nodes.sort((a, b) =>
+      a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1,
+    );
     for (const n of nodes) if (n.children) sort(n.children);
     return nodes;
   };
@@ -131,9 +141,14 @@ export default function Workspace() {
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set([""]));
   const expandedRef = useRef<Set<string>>(expanded);
-  const [activeFile, setActiveFile] = useState<{ path: string; content: string } | null>(null);
+  const [activeFile, setActiveFile] = useState<{
+    path: string;
+    content: string;
+  } | null>(null);
   const [filter, setFilter] = useState("");
-  const [gitFiles, setGitFiles] = useState<{ path: string; status?: string }[]>([]);
+  const [gitFiles, setGitFiles] = useState<{ path: string; status?: string }[]>(
+    [],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -147,16 +162,20 @@ export default function Workspace() {
   // Show the synthetic "opencode-ui" node for any session EXCEPT the dedicated
   // Self-Improvement chat — that chat's agent already operates directly on the
   // project source, so its own root IS the project (no duplicate node needed).
-  const showSynthetic = selfImproveEnabled && currentID !== selfImproveSessionId;
+  const showSynthetic =
+    selfImproveEnabled && currentID !== selfImproveSessionId;
   const withSelfImproveRoot = useCallback(
-    (nodes: TreeNode[]): TreeNode[] => (showSynthetic ? [SELF_IMPROVE_NODE, ...nodes] : nodes),
+    (nodes: TreeNode[]): TreeNode[] =>
+      showSynthetic ? [SELF_IMPROVE_NODE, ...nodes] : nodes,
     [showSynthetic],
   );
 
   const filterNodes = useCallback(
     (nodes: { path: string; type?: string; isDirectory?: boolean }[]) => {
       if (!Array.isArray(nodes)) return [];
-      const mySessionIds = new Set(useStore.getState().sessions.map((s) => s.id));
+      const mySessionIds = new Set(
+        useStore.getState().sessions.map((s) => s.id),
+      );
       return nodes.filter((n) => {
         const raw = (n.path || "").replace(/\\/g, "/");
         const parts = raw.split("/").filter(Boolean);
@@ -184,7 +203,10 @@ export default function Workspace() {
           if (!allowedTop.has(parts[1])) return false;
         }
 
-        if ((p === "sessions" || p === "uploads" || p === "temp") && parts.length > 1) {
+        if (
+          (p === "sessions" || p === "uploads" || p === "temp") &&
+          parts.length > 1
+        ) {
           const sid = parts[1];
           if (sid?.startsWith("ses_") && !mySessionIds.has(sid)) return false;
         }
@@ -200,7 +222,13 @@ export default function Workspace() {
       try {
         const nodes = await api.listDir(path, currentID);
         let tree = Array.isArray(nodes)
-          ? toTree(filterNodes(nodes) as { path: string; type?: string; isDirectory?: boolean }[])
+          ? toTree(
+              filterNodes(nodes) as {
+                path: string;
+                type?: string;
+                isDirectory?: boolean;
+              }[],
+            )
           : [];
         // Сервер возвращает пути от корня workspace — спускаемся до запрошенной
         // папки, чтобы не дублировать её как собственного ребёнка (checkers/checkers/…).
@@ -231,10 +259,18 @@ export default function Workspace() {
   const loadTreeDeep = useCallback(async (): Promise<TreeNode[]> => {
     const rootNodes = await loadDir(".");
     const expandedPaths = expandedRef.current;
-    const fill = async (nodes: TreeNode[], depth: number): Promise<TreeNode[]> =>
+    const fill = async (
+      nodes: TreeNode[],
+      depth: number,
+    ): Promise<TreeNode[]> =>
       Promise.all(
         nodes.map(async (n) => {
-          if (!n.isDir || !expandedPaths.has(n.path) || depth >= DEEP_RELOAD_MAX_DEPTH) return n;
+          if (
+            !n.isDir ||
+            !expandedPaths.has(n.path) ||
+            depth >= DEEP_RELOAD_MAX_DEPTH
+          )
+            return n;
           try {
             const children = await fill(await loadDir(n.path), depth + 1);
             return { ...n, children, loaded: true };
@@ -292,7 +328,9 @@ export default function Workspace() {
     }
     try {
       const files = await api.gitStatus(currentID);
-      const list = Array.isArray(files) ? (files as { path: string; status?: string }[]) : [];
+      const list = Array.isArray(files)
+        ? (files as { path: string; status?: string }[])
+        : [];
       setGitFiles(filterNodes(list));
     } catch {
       setGitFiles([]);
@@ -327,7 +365,8 @@ export default function Workspace() {
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
         const relPath =
-          (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+          (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
+          file.name;
         files.push({ path: relPath, file });
       }
       setUploading(true);
@@ -435,14 +474,22 @@ export default function Workspace() {
           className={cn(
             "group flex cursor-pointer select-none items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-[#a3a3a3] transition hover:bg-[#2a2a2a] hover:text-white",
             node.isDir && "text-[#b8b8b8]",
-            !node.isDir && activeFile?.path === node.path && "bg-[#303030] text-white",
+            !node.isDir &&
+              activeFile?.path === node.path &&
+              "bg-[#303030] text-white",
           )}
           style={{ paddingLeft: 8 + depth * 14 }}
-          onClick={() => (node.isDir ? void toggleDir(node) : void openFile(node.path))}
+          onClick={() =>
+            node.isDir ? void toggleDir(node) : void openFile(node.path)
+          }
         >
           {node.isDir ? (
             <>
-              {isOpen ? <ChevronDownIcon size={14} /> : <ChevronRightIcon size={14} />}
+              {isOpen ? (
+                <ChevronDownIcon size={14} />
+              ) : (
+                <ChevronRightIcon size={14} />
+              )}
               <FolderIcon size={15} />
             </>
           ) : (
@@ -451,7 +498,9 @@ export default function Workspace() {
               <FileIcon size={15} />
             </>
           )}
-          <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{node.name}</span>
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
+            {node.name}
+          </span>
           {status && (
             <span
               className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -470,7 +519,9 @@ export default function Workspace() {
             <DownloadIcon size={14} />
           </button>
         </div>
-        {node.isDir && isOpen && node.children?.map((c) => renderNode(c, depth + 1))}
+        {node.isDir &&
+          isOpen &&
+          node.children?.map((c) => renderNode(c, depth + 1))}
       </div>
     );
   };
@@ -493,7 +544,9 @@ export default function Workspace() {
           />
           <div className="fixed left-1/2 top-1/2 z-[65] flex h-[min(560px,85dvh)] w-[min(720px,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <span className="truncate font-mono text-sm">{toRelPath(activeFile.path)}</span>
+              <span className="truncate font-mono text-sm">
+                {toRelPath(activeFile.path)}
+              </span>
               <Button
                 variant="ghost"
                 size="icon"
@@ -553,7 +606,8 @@ export default function Workspace() {
           <div className="border-b border-border px-3 pb-2">
             <div className="mb-1 flex items-center gap-2 py-1 text-xs text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              {gitFiles.length} changed {gitFiles.length === 1 ? "file" : "files"}
+              {gitFiles.length} changed{" "}
+              {gitFiles.length === 1 ? "file" : "files"}
             </div>
             <div className="flex max-h-40 flex-col gap-0.5 overflow-y-auto">
               {gitFiles.slice(0, 8).map((f) => (
@@ -566,7 +620,9 @@ export default function Workspace() {
                 >
                   <span
                     className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white"
-                    style={{ background: STATUS_COLORS[f.status ?? ""] || "#6b7280" }}
+                    style={{
+                      background: STATUS_COLORS[f.status ?? ""] || "#6b7280",
+                    }}
                   >
                     {(f.status ?? "?").charAt(0).toUpperCase()}
                   </span>
@@ -590,12 +646,18 @@ export default function Workspace() {
                 {loading && tree.length === 0 && (
                   <div className="px-2 py-6 text-center">
                     <div className="mx-auto mb-2 h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-                    <p className="text-xs text-muted-foreground">Загрузка файлов…</p>
+                    <p className="text-xs text-muted-foreground">
+                      Загрузка файлов…
+                    </p>
                   </div>
                 )}
                 {error && (
                   <div className="mx-1 mb-2 space-y-2 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-2 text-xs text-red-400">
-                    <div>{typeof error === "string" ? error : JSON.stringify(error)}</div>
+                    <div>
+                      {typeof error === "string"
+                        ? error
+                        : JSON.stringify(error)}
+                    </div>
                     <Button
                       size="sm"
                       variant="outline"
@@ -610,7 +672,8 @@ export default function Workspace() {
                   <div className="px-2 py-4 text-xs text-muted-foreground space-y-2">
                     <p>Файлов пока нет в workspace этого чата.</p>
                     <p className="text-[11px] opacity-80">
-                      Загрузите папку кнопкой выше или попросите агента создать файлы.
+                      Загрузите папку кнопкой выше или попросите агента создать
+                      файлы.
                     </p>
                     <Button
                       size="sm"

@@ -35,7 +35,10 @@ const SAFE_MD_COMPONENTS = {
       </a>
     );
   },
-  pre: ({ children, ...props }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => {
+  pre: ({
+    children,
+    ...props
+  }: ComponentPropsWithoutRef<"pre"> & { children?: ReactNode }) => {
     let codeText = "";
     let language = "plaintext";
     try {
@@ -71,7 +74,11 @@ const SAFE_MD_COMPONENTS = {
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 px-1.5 py-0.5 rounded bg-background/50 border border-border">
               {language}
             </span>
-            <CopyButton text={codeText || String(children)} title="Copy code" className="h-6 w-6" />
+            <CopyButton
+              text={codeText || String(children)}
+              title="Copy code"
+              className="h-6 w-6"
+            />
           </div>
         </div>
         <pre
@@ -83,8 +90,13 @@ const SAFE_MD_COMPONENTS = {
       </div>
     );
   },
-  code: ({ className, children, ...props }: ComponentPropsWithoutRef<"code">) => {
-    const isBlock = typeof className === "string" && className.includes("language-");
+  code: ({
+    className,
+    children,
+    ...props
+  }: ComponentPropsWithoutRef<"code">) => {
+    const isBlock =
+      typeof className === "string" && className.includes("language-");
     if (isBlock) {
       return (
         <code className={cn("font-mono text-[13px]", className)} {...props}>
@@ -147,7 +159,13 @@ function useThinkingDuration(streaming?: boolean): string {
   return secs <= 1 ? "1 секунду" : `${secs} секунд`;
 }
 
-function ReasoningCard({ text, streaming }: { text: string; streaming?: boolean }) {
+function ReasoningCard({
+  text,
+  streaming,
+}: {
+  text: string;
+  streaming?: boolean;
+}) {
   const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
   const expanded = manuallyToggled ?? !!streaming;
   const duration = useThinkingDuration(streaming);
@@ -175,7 +193,9 @@ function ReasoningCard({ text, streaming }: { text: string; streaming?: boolean 
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
         )}
         {!streaming && duration && (
-          <span className="text-[11.5px] text-muted-foreground/70">{duration}</span>
+          <span className="text-[11.5px] text-muted-foreground/70">
+            {duration}
+          </span>
         )}
         <span className="flex-1" />
         <span className="text-muted-foreground/50 shrink-0">
@@ -190,7 +210,9 @@ function ReasoningCard({ text, streaming }: { text: string; streaming?: boolean 
       {expanded && (
         <div
           className="mt-1.5 ml-6 rounded-lg border border-border px-3 py-2 text-[12.5px] leading-relaxed text-muted-foreground/90 prose prose-sm max-w-none prose-p:my-1.5 [&_*]:text-muted-foreground/90"
-          style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 4%)" }}
+          style={{
+            background: "color-mix(in srgb, var(--color-card) 100%, white 4%)",
+          }}
         >
           <ReactMarkdown
             remarkPlugins={markdownPlugins}
@@ -248,11 +270,17 @@ const OptimizedPartView = ({
         path?: string;
         dataUrl?: string;
       };
-      const icon = KIND_ICONS[att.kind || ""] || <Paperclip className="h-4 w-4" />;
+      const icon = KIND_ICONS[att.kind || ""] || (
+        <Paperclip className="h-4 w-4" />
+      );
       return (
         <div className="flex items-center gap-2.5 rounded-lg bg-muted/35 px-2.5 py-2 text-sm not-prose">
           {att.kind === "image" && att.dataUrl ? (
-            <img src={att.dataUrl} alt={att.name} className="h-10 w-10 rounded-lg object-cover" />
+            <img
+              src={att.dataUrl}
+              alt={att.name}
+              className="h-10 w-10 rounded-lg object-cover"
+            />
           ) : (
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-background/60 text-muted-foreground">
               {icon}
@@ -260,7 +288,9 @@ const OptimizedPartView = ({
           )}
           <div className="min-w-0 flex-1">
             <div className="truncate font-medium">{att.name || "file"}</div>
-            <div className="text-xs text-muted-foreground">{formatSize(att.size || 0)}</div>
+            <div className="text-xs text-muted-foreground">
+              {formatSize(att.size || 0)}
+            </div>
           </div>
         </div>
       );
@@ -275,7 +305,9 @@ const OptimizedPartView = ({
       );
     case "reasoning":
       if (!p.text) return null;
-      return <ReasoningCard text={asText(p.text)} streaming={isLastStreaming} />;
+      return (
+        <ReasoningCard text={asText(p.text)} streaming={isLastStreaming} />
+      );
     case "tool":
       return <ToolCard part={part as ToolPart} />;
     default:

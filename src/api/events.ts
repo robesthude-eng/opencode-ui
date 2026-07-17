@@ -91,7 +91,8 @@ export class EventStream {
 
     this.es.onmessage = (m) => this.dispatch("message", m.data);
     for (const t of NAMED_TYPES) {
-      this.es.addEventListener(t, ((e: MessageEvent) => this.dispatch(t, e.data)) as EventListener);
+      this.es.addEventListener(t, ((e: MessageEvent) =>
+        this.dispatch(t, e.data)) as EventListener);
     }
   }
 
@@ -103,11 +104,17 @@ export class EventStream {
       parsed = { raw: rawData };
     }
     const ev: AppEvent =
-      parsed && typeof parsed === "object" && "type" in parsed && "properties" in parsed
+      parsed &&
+      typeof parsed === "object" &&
+      "type" in parsed &&
+      "properties" in parsed
         ? (parsed as unknown as AppEvent)
         : { type: namedType, properties: parsed };
     // Debug logging disabled in production — enable via localStorage.setItem("opencode_debug", "1")
-    if (typeof window !== "undefined" && localStorage.getItem("opencode_debug") === "1") {
+    if (
+      typeof window !== "undefined" &&
+      localStorage.getItem("opencode_debug") === "1"
+    ) {
       console.log("[SSE] event:", namedType, "data:", parsed, "ev:", ev);
     }
     for (const h of this.handlers) h(ev);

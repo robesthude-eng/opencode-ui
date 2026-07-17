@@ -20,7 +20,12 @@ function getMessageText(message: Message): string {
             ? stateOut
             : ((stateOut as ToolOutput | undefined) ?? toolP.output);
         if (typeof out === "string") return out;
-        if (out && typeof out === "object" && "text" in out && typeof out.text === "string")
+        if (
+          out &&
+          typeof out === "object" &&
+          "text" in out &&
+          typeof out.text === "string"
+        )
           return out.text;
       }
       return "";
@@ -82,7 +87,8 @@ function MessageItem({
 }) {
   const msgArray = Array.isArray(messages) ? messages : [messages];
   const firstMsg = msgArray[0];
-  const role = firstMsg.role || (firstMsg.info?.role as string | undefined) || "assistant";
+  const role =
+    firstMsg.role || (firstMsg.info?.role as string | undefined) || "assistant";
   const isUser = role === "user";
 
   const combinedText = msgArray
@@ -96,13 +102,22 @@ function MessageItem({
         {msgArray.map((message, idx) => {
           const msgText = getMessageText(message);
           return (
-            <div key={message.id || idx} className="max-w-[85%] md:max-w-[70%] group relative">
+            <div
+              key={message.id || idx}
+              className="max-w-[85%] md:max-w-[70%] group relative"
+            >
               <div className="rounded-2xl rounded-br-md border border-[#454545] bg-[#343434] px-3.5 py-2.5 text-[14.5px] leading-relaxed text-[#f1f1f1] shadow-sm">
-                <div className="whitespace-pre-wrap break-words">{msgText || "…"}</div>
+                <div className="whitespace-pre-wrap break-words">
+                  {msgText || "…"}
+                </div>
               </div>
               {idx === msgArray.length - 1 && combinedText && (
                 <div className="flex justify-end mt-0.5 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
-                  <CopyButton text={combinedText} title="Copy" className="h-7 w-7" />
+                  <CopyButton
+                    text={combinedText}
+                    title="Copy"
+                    className="h-7 w-7"
+                  />
                 </div>
               )}
             </div>
@@ -125,11 +140,16 @@ function MessageItem({
             >
               {message.info?.error && (
                 <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400 mb-2">
-                  {typeof message.info.error === "string" 
+                  {typeof message.info.error === "string"
                     ? message.info.error
-                    : typeof (message.info.error as Record<string, unknown>).message === "string" 
-                      ? String((message.info.error as Record<string, unknown>).message)
-                      : typeof (message.info.error as any)?.data?.message === "string"
+                    : typeof (message.info.error as Record<string, unknown>)
+                          .message === "string"
+                      ? String(
+                          (message.info.error as Record<string, unknown>)
+                            .message,
+                        )
+                      : typeof (message.info.error as any)?.data?.message ===
+                          "string"
                         ? String((message.info.error as any).data.message)
                         : "Ошибка API: проверьте тариф модели или ключ"}
                 </div>
@@ -153,7 +173,9 @@ function MessageItem({
                     {otherParts.map((item, i) => {
                       const g = item as ToolGroupData;
                       if ("kind" in g && g.kind === "group") {
-                        return <ToolGroup key={i} tool={g.tool} parts={g.parts} />;
+                        return (
+                          <ToolGroup key={i} tool={g.tool} parts={g.parts} />
+                        );
                       }
                       return (
                         <PartView
@@ -188,7 +210,11 @@ function MessageItem({
         </div>
         {combinedText && (
           <div className="opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100">
-            <CopyButton text={combinedText} title="Copy message" className="h-7 w-7" />
+            <CopyButton
+              text={combinedText}
+              title="Copy message"
+              className="h-7 w-7"
+            />
           </div>
         )}
       </div>
@@ -201,10 +227,15 @@ function sameMessageItems(
   next: { messages: Message | Message[]; isWorking?: boolean },
 ): boolean {
   if (prev.isWorking !== next.isWorking) return false;
-  const prevList = Array.isArray(prev.messages) ? prev.messages : [prev.messages];
-  const nextList = Array.isArray(next.messages) ? next.messages : [next.messages];
+  const prevList = Array.isArray(prev.messages)
+    ? prev.messages
+    : [prev.messages];
+  const nextList = Array.isArray(next.messages)
+    ? next.messages
+    : [next.messages];
   return (
-    prevList.length === nextList.length && prevList.every((message, i) => message === nextList[i])
+    prevList.length === nextList.length &&
+    prevList.every((message, i) => message === nextList[i])
   );
 }
 

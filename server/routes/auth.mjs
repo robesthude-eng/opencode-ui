@@ -16,7 +16,11 @@ import { loadJson, saveAuthJson } from "../db.mjs";
 import { logger } from "../logger.mjs";
 import { readBody } from "../middleware.mjs";
 
-export async function handleRegister(req, res, { USERS_FILE, SESSIONS_FILE, SESSION_TTL_MS }) {
+export async function handleRegister(
+  req,
+  res,
+  { USERS_FILE, SESSIONS_FILE, SESSION_TTL_MS },
+) {
   if (req.method !== "POST") {
     res.writeHead(405);
     res.end();
@@ -29,7 +33,11 @@ export async function handleRegister(req, res, { USERS_FILE, SESSIONS_FILE, SESS
     const { email, password, inviteCode } = body;
     if (!email?.includes("@") || !password || password.length < 6) {
       res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Enter a valid email and password (min 6 characters)." }));
+      res.end(
+        JSON.stringify({
+          error: "Enter a valid email and password (min 6 characters).",
+        }),
+      );
       return;
     }
 
@@ -55,14 +63,18 @@ export async function handleRegister(req, res, { USERS_FILE, SESSIONS_FILE, SESS
     );
     if (adminEmails.size > 0 && !adminEmails.has(cleanEmail)) {
       res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Your email is not on the admin allowlist." }));
+      res.end(
+        JSON.stringify({ error: "Your email is not on the admin allowlist." }),
+      );
       return;
     }
 
     const users = loadJson(USERS_FILE, {});
     if (users[cleanEmail]) {
       res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "User with this email already exists." }));
+      res.end(
+        JSON.stringify({ error: "User with this email already exists." }),
+      );
       return;
     }
     const role = Object.keys(users).length === 0 ? "admin" : "user";
@@ -83,14 +95,24 @@ export async function handleRegister(req, res, { USERS_FILE, SESSIONS_FILE, SESS
       "Content-Type": "application/json",
       "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS, req),
     });
-    res.end(JSON.stringify({ status: "success", token, user: { email: cleanEmail, role } }));
+    res.end(
+      JSON.stringify({
+        status: "success",
+        token,
+        user: { email: cleanEmail, role },
+      }),
+    );
   } catch (_e) {
     res.writeHead(400, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Registration failed" }));
   }
 }
 
-export async function handleLogin(req, res, { USERS_FILE, SESSIONS_FILE, SESSION_TTL_MS }) {
+export async function handleLogin(
+  req,
+  res,
+  { USERS_FILE, SESSIONS_FILE, SESSION_TTL_MS },
+) {
   if (req.method !== "POST") {
     res.writeHead(405);
     res.end();
@@ -163,7 +185,13 @@ export function handleMe(
 export function handleLogout(
   req,
   res,
-  { SESSIONS_FILE, extractToken, saveAuthJson, buildClearSessionCookie, loadJson },
+  {
+    SESSIONS_FILE,
+    extractToken,
+    saveAuthJson,
+    buildClearSessionCookie,
+    loadJson,
+  },
 ) {
   // Note: saveAuthJson and loadJson passed for testability, but we use db.mjs directly inside if not provided
   const token = extractToken(req);

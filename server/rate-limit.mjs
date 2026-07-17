@@ -28,8 +28,15 @@ export async function checkUserRateLimit(req, res, userKey, opts = {}) {
   const key = `u:${userKey || "anon"}|ip:${ip}|${opts.bucket || "default"}`;
   const result = await take(key, { limit, windowMs });
   if (result.unavailable) {
-    res.writeHead(503, { "Content-Type": "application/json", "Retry-After": "1" });
-    res.end(JSON.stringify({ error: "Rate-limit service unavailable. Retry shortly." }));
+    res.writeHead(503, {
+      "Content-Type": "application/json",
+      "Retry-After": "1",
+    });
+    res.end(
+      JSON.stringify({
+        error: "Rate-limit service unavailable. Retry shortly.",
+      }),
+    );
     return false;
   }
   if (!result.allowed) {
@@ -37,7 +44,11 @@ export async function checkUserRateLimit(req, res, userKey, opts = {}) {
       "Content-Type": "application/json",
       "Retry-After": String(result.retryAfterSec),
     });
-    res.end(JSON.stringify({ error: `Rate limit exceeded. Retry in ${result.retryAfterSec}s.` }));
+    res.end(
+      JSON.stringify({
+        error: `Rate limit exceeded. Retry in ${result.retryAfterSec}s.`,
+      }),
+    );
     return false;
   }
   return true;

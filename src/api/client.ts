@@ -1,4 +1,10 @@
-import type { FileNode, Message, ProvidersResponse, SessionInfo, TrackedFile } from "./types";
+import type {
+  FileNode,
+  Message,
+  ProvidersResponse,
+  SessionInfo,
+  TrackedFile,
+} from "./types";
 
 export interface ClientConfig {
   baseUrl: string;
@@ -37,13 +43,17 @@ async function req<T>(
   }
 
   const controller = new AbortController();
-  const timeout = timeoutMs === null ? null : setTimeout(() => controller.abort(), timeoutMs);
+  const timeout =
+    timeoutMs === null ? null : setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${config.baseUrl}${path}`, {
       ...init,
       credentials: "include",
       signal: controller.signal,
-      headers: { ...headers(), ...(init?.headers as Record<string, string> | undefined) },
+      headers: {
+        ...headers(),
+        ...(init?.headers as Record<string, string> | undefined),
+      },
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -72,12 +82,17 @@ async function req<T>(
           .text()
           .catch(() => "")
       ).slice(0, 80);
-      throw new Error(`Request to ${path} → non-JSON (${ct || "no ct"}): ${preview}`);
+      throw new Error(
+        `Request to ${path} → non-JSON (${ct || "no ct"}): ${preview}`,
+      );
     }
     return res.json() as Promise<T>;
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === "AbortError") {
-      const seconds = timeoutMs === null ? "the request limit" : `${Math.round(timeoutMs / 1000)}s`;
+      const seconds =
+        timeoutMs === null
+          ? "the request limit"
+          : `${Math.round(timeoutMs / 1000)}s`;
       throw new Error(`Request to ${path} timed out after ${seconds}`);
     }
     throw err;
@@ -127,8 +142,10 @@ export const api = {
       body: JSON.stringify({ id }),
     }),
   getSession: (id: string) => req<SessionInfo>(`/session/${id}`),
-  deleteSession: (id: string) => req<void>(`/session/${id}`, { method: "DELETE" }),
-  abortSession: (id: string) => req<void>(`/session/${id}/abort`, { method: "POST" }),
+  deleteSession: (id: string) =>
+    req<void>(`/session/${id}`, { method: "DELETE" }),
+  abortSession: (id: string) =>
+    req<void>(`/session/${id}/abort`, { method: "POST" }),
   listMessages: (id: string) => req<Message[]>(`/session/${id}/message`),
 
   prompt: (id: string, text: string, model?: PromptModel) =>
@@ -163,7 +180,11 @@ export const api = {
       PROMPT_REQUEST_TIMEOUT_MS,
     ),
 
-  respondPermission: (id: string, permissionId: string, response: "allow" | "deny") =>
+  respondPermission: (
+    id: string,
+    permissionId: string,
+    response: "allow" | "deny",
+  ) =>
     req<void>(`/session/${id}/permissions/${permissionId}`, {
       method: "POST",
       body: JSON.stringify({ response }),
@@ -171,9 +192,9 @@ export const api = {
 
   // v2 question API — правильный способ ответить на интерактивный tool "question"
   listPendingQuestions: (id: string) =>
-    req<{ data: Array<{ id: string; sessionID: string; questions: unknown[] }> }>(
-      `/session/${id}/question`,
-    ),
+    req<{
+      data: Array<{ id: string; sessionID: string; questions: unknown[] }>;
+    }>(`/session/${id}/question`),
   replyQuestion: (id: string, requestId: string, answers: string[][]) =>
     req<void>(`/session/${id}/question/${requestId}/reply`, {
       method: "POST",
@@ -212,17 +233,28 @@ export const api = {
       const body = await res.text().catch(() => "");
       throw new Error(`${res.status} ${res.statusText} ${body}`.trim());
     }
-    return res.json() as Promise<{ ok: boolean; written: number; errors?: string[] }>;
+    return res.json() as Promise<{
+      ok: boolean;
+      written: number;
+      errors?: string[];
+    }>;
   },
 
   uploadFile: (
     file: File,
     onProgress?: (pct: number) => void,
     sessionId?: string | null,
-  ): Promise<{ ok: boolean; path: string; size: number; entryCount?: number | null }> =>
+  ): Promise<{
+    ok: boolean;
+    path: string;
+    size: number;
+    entryCount?: number | null;
+  }> =>
     new Promise((resolve, reject) => {
       const base = `${config.baseUrl}/workspace/upload`;
-      const url = sessionId ? `${base}?sessionId=${encodeURIComponent(sessionId)}` : base;
+      const url = sessionId
+        ? `${base}?sessionId=${encodeURIComponent(sessionId)}`
+        : base;
       const xhr = new XMLHttpRequest();
       xhr.open("POST", url);
       xhr.withCredentials = true;
@@ -240,7 +272,9 @@ export const api = {
           }
         } else {
           try {
-            reject(new Error(JSON.parse(xhr.responseText)?.error || xhr.statusText));
+            reject(
+              new Error(JSON.parse(xhr.responseText)?.error || xhr.statusText),
+            );
           } catch {
             reject(new Error(`${xhr.status} ${xhr.statusText}`));
           }
@@ -254,14 +288,19 @@ export const api = {
 
   listProviders: () => req<ProvidersResponse>(`/config/providers`),
   listConnected: () =>
-    req<{ connected?: string[]; all?: unknown[]; default?: Record<string, string> }>(`/provider`),
+    req<{
+      connected?: string[];
+      all?: unknown[];
+      default?: Record<string, string>;
+    }>(`/provider`),
 
   setAuth: (providerId: string, key: string) =>
     req<boolean>(`/auth/${providerId}`, {
       method: "PUT",
       body: JSON.stringify({ type: "api", key }),
     }),
-  removeAuth: (providerId: string) => req<void>(`/auth/${providerId}`, { method: "DELETE" }),
+  removeAuth: (providerId: string) =>
+    req<void>(`/auth/${providerId}`, { method: "DELETE" }),
 
   saveCustomKey: (providerId: string, key: string) =>
     req<{ status: string }>(`/auth/custom`, {

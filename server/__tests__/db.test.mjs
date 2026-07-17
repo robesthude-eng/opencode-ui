@@ -34,7 +34,9 @@ afterEach(() => {
 
 describe("loadJson / saveJson (non-auth files)", () => {
   test("returns default value when file does not exist", () => {
-    const result = loadJson(path.join(tmpDir, "nonexistent.json"), { default: true });
+    const result = loadJson(path.join(tmpDir, "nonexistent.json"), {
+      default: true,
+    });
     expect(result).toEqual({ default: true });
   });
 
@@ -144,7 +146,9 @@ describe("SQLite auth store", () => {
     );
     fs.writeFileSync(
       path.join(work, ".sessions.json"),
-      JSON.stringify({ legtok: { email: "legacy@example.com", createdAt: 100 } }),
+      JSON.stringify({
+        legtok: { email: "legacy@example.com", createdAt: 100 },
+      }),
     );
     initDb(work);
     const users = loadJson(path.join(work, ".users.json"), {});

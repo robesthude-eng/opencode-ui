@@ -41,7 +41,10 @@ export function normalizePartTool(p: Part): Part {
 function normalizeParts(parts: Part[] | undefined): Part[] {
   return (parts || []).map((p) => {
     const normalized = normalizePartTool(p);
-    if (normalized.type === "text" && typeof (normalized as TextPart).text === "string") {
+    if (
+      normalized.type === "text" &&
+      typeof (normalized as TextPart).text === "string"
+    ) {
       // user-message system text cleanup
       return normalized;
     }
@@ -75,12 +78,15 @@ export function upsertMessage(messages: Message[], msg: Message): Message[] {
   const idx = messages.findIndex((m) => m.id === msg.id);
   if (idx === -1) {
     if (msg.role === "user" && !msg.id.startsWith("local_")) {
-      const localIdx = messages.findIndex((m) => m.id.startsWith("local_") && m.role === "user");
+      const localIdx = messages.findIndex(
+        (m) => m.id.startsWith("local_") && m.role === "user",
+      );
       if (localIdx !== -1) {
         const copy = messages.slice();
         const existingLocal = copy[localIdx];
         if (existingLocal) {
-          const parts = msg.parts && msg.parts.length > 0 ? msg.parts : existingLocal.parts;
+          const parts =
+            msg.parts && msg.parts.length > 0 ? msg.parts : existingLocal.parts;
           copy[localIdx] = { ...msg, parts };
           return copy;
         }
@@ -94,7 +100,10 @@ export function upsertMessage(messages: Message[], msg: Message): Message[] {
   const existing = copy[idx];
   if (!existing) return [...messages, { ...msg, parts: msg.parts ?? [] }];
   const incoming = msg as Message;
-  const parts = incoming.parts && incoming.parts.length > 0 ? incoming.parts : existing.parts;
+  const parts =
+    incoming.parts && incoming.parts.length > 0
+      ? incoming.parts
+      : existing.parts;
   const { parts: _omit, ...rest } = msg;
   copy[idx] = { ...existing, ...rest, parts } as Message;
   if (msg.role === "user" && !msg.id.startsWith("local_")) {
@@ -103,26 +112,42 @@ export function upsertMessage(messages: Message[], msg: Message): Message[] {
   return copy;
 }
 
-export function patchPart(messages: Message[], messageID: string, part: Part): Message[] {
+export function patchPart(
+  messages: Message[],
+  messageID: string,
+  part: Part,
+): Message[] {
   const cleanedPart0 = normalizePartTool(part);
   const targetID = messageID;
   const exists = messages.some((m) => m.id === targetID);
   if (!exists) {
     const localIdx = messages.findIndex(
-      (m) => m.id.startsWith("local_") && m.role === "user" && part.type === "text",
+      (m) =>
+        m.id.startsWith("local_") && m.role === "user" && part.type === "text",
     );
     if (localIdx !== -1) {
       const copy = messages.slice();
-      const cleanedPart = isTextPart(cleanedPart0) ? { ...cleanedPart0, text: cleanSysText(cleanedPart0.text) } : cleanedPart0;
-      copy[localIdx] = { ...copy[localIdx], id: targetID, parts: [cleanedPart] };
+      const cleanedPart = isTextPart(cleanedPart0)
+        ? { ...cleanedPart0, text: cleanSysText(cleanedPart0.text) }
+        : cleanedPart0;
+      copy[localIdx] = {
+        ...copy[localIdx],
+        id: targetID,
+        parts: [cleanedPart],
+      };
       return copy;
     }
-    return [...messages, { id: targetID, role: "assistant", parts: [cleanedPart0] }];
+    return [
+      ...messages,
+      { id: targetID, role: "assistant", parts: [cleanedPart0] },
+    ];
   }
   return messages.map((m) => {
     if (m.id !== targetID) return m;
     const cleanedPart =
-      m.role === "user" && isTextPart(cleanedPart0) ? { ...cleanedPart0, text: cleanSysText(cleanedPart0.text) } : cleanedPart0;
+      m.role === "user" && isTextPart(cleanedPart0)
+        ? { ...cleanedPart0, text: cleanSysText(cleanedPart0.text) }
+        : cleanedPart0;
     const pid = hasId(cleanedPart) ? cleanedPart.id : undefined;
     let idx = pid ? m.parts.findIndex((p) => hasId(p) && p.id === pid) : -1;
     if (idx === -1) {
@@ -131,7 +156,9 @@ export function patchPart(messages: Message[], messageID: string, part: Part): M
           !hasId(p) &&
           p.type === cleanedPart.type &&
           (m.role === "user" ||
-            (isTextPart(p) && isTextPart(cleanedPart) && p.text === cleanedPart.text)),
+            (isTextPart(p) &&
+              isTextPart(cleanedPart) &&
+              p.text === cleanedPart.text)),
       );
       if (
         idx === -1 &&
@@ -143,7 +170,8 @@ export function patchPart(messages: Message[], messageID: string, part: Part): M
         idx = 0;
       }
     }
-    if (idx === -1 || idx >= m.parts.length) return { ...m, parts: [...m.parts, cleanedPart] };
+    if (idx === -1 || idx >= m.parts.length)
+      return { ...m, parts: [...m.parts, cleanedPart] };
     const parts = m.parts.slice();
     const target = parts[idx];
     if (target === undefined) return { ...m, parts: [...m.parts, cleanedPart] };
@@ -164,7 +192,14 @@ export function patchPartDelta(
   if (!exists) {
     const stubPart: Record<string, unknown> = { id: partID, type: "text" };
     stubPart[field] = typeof delta === "string" ? delta : delta;
-    return [...messages, { id: messageID, role: "assistant", parts: [normalizePartTool(stubPart as Part)] }];
+    return [
+      ...messages,
+      {
+        id: messageID,
+        role: "assistant",
+        parts: [normalizePartTool(stubPart as Part)],
+      },
+    ];
   }
   return messages.map((m) => {
     if (m.id !== messageID) return m;

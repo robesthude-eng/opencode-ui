@@ -78,8 +78,12 @@ describe("isPerSessionRoute", () => {
     expect(isPerSessionRoute("/session/ses_abc")).toBe(true);
     expect(isPerSessionRoute("/session/ses_abc/message")).toBe(true);
     expect(isPerSessionRoute("/api/session/ses_abc/message")).toBe(true);
-    expect(isPerSessionRoute("/session/ses_abc/permissions/perm123")).toBe(true);
-    expect(isPerSessionRoute("/session/ses_abc/question/q123/reply")).toBe(true);
+    expect(isPerSessionRoute("/session/ses_abc/permissions/perm123")).toBe(
+      true,
+    );
+    expect(isPerSessionRoute("/session/ses_abc/question/q123/reply")).toBe(
+      true,
+    );
   });
 
   test("global routes are not per-session", () => {
@@ -91,10 +95,14 @@ describe("isPerSessionRoute", () => {
 
 describe("extractSessionIdFromPath", () => {
   test("extracts valid ses_ ID", () => {
-    expect(extractSessionIdFromPath("/session/ses_abc/message")).toBe("ses_abc");
-    expect(extractSessionIdFromPath("/api/session/ses_09c1d22d4ffey9FxxbsDPFMo54/event")).toBe(
-      "ses_09c1d22d4ffey9FxxbsDPFMo54",
+    expect(extractSessionIdFromPath("/session/ses_abc/message")).toBe(
+      "ses_abc",
     );
+    expect(
+      extractSessionIdFromPath(
+        "/api/session/ses_09c1d22d4ffey9FxxbsDPFMo54/event",
+      ),
+    ).toBe("ses_09c1d22d4ffey9FxxbsDPFMo54");
   });
 
   test("returns null for tmp_ IDs", () => {
@@ -111,15 +119,27 @@ describe("resolveTargetUrl — P0.1 invariants", () => {
   const workdir = "/app/workspace";
 
   test("per-session request preserves ?directory= for that session workspace", () => {
-    const url = resolveTargetUrl("/session/ses_abc/message", "ses_abc", workdir);
+    const url = resolveTargetUrl(
+      "/session/ses_abc/message",
+      "ses_abc",
+      workdir,
+    );
     expect(url).toContain("directory=");
-    expect(url).toContain(encodeURIComponent("/app/workspace/sessions/ses_abc/workspace"));
+    expect(url).toContain(
+      encodeURIComponent("/app/workspace/sessions/ses_abc/workspace"),
+    );
   });
 
   test("per-session request with existing directory overwrites with canonical workspace", () => {
-    const url = resolveTargetUrl("/session/ses_abc/message?directory=/evil", "ses_abc", workdir);
+    const url = resolveTargetUrl(
+      "/session/ses_abc/message?directory=/evil",
+      "ses_abc",
+      workdir,
+    );
     expect(url).not.toContain("/evil");
-    expect(url).toContain(encodeURIComponent("/app/workspace/sessions/ses_abc/workspace"));
+    expect(url).toContain(
+      encodeURIComponent("/app/workspace/sessions/ses_abc/workspace"),
+    );
   });
 
   test("per-session request preserves other query params like limit, before", () => {
@@ -137,10 +157,18 @@ describe("resolveTargetUrl — P0.1 invariants", () => {
     const url = resolveTargetUrl("/api/config/providers", null, workdir);
     expect(url).not.toContain("directory=");
 
-    const url2 = resolveTargetUrl("/api/auth/login?directory=/evil", null, workdir);
+    const url2 = resolveTargetUrl(
+      "/api/auth/login?directory=/evil",
+      null,
+      workdir,
+    );
     expect(url2).not.toContain("directory=");
 
-    const url3 = resolveTargetUrl("/api/global/health?directory=/evil", null, workdir);
+    const url3 = resolveTargetUrl(
+      "/api/global/health?directory=/evil",
+      null,
+      workdir,
+    );
     expect(url3).not.toContain("directory=");
   });
 
@@ -154,7 +182,11 @@ describe("resolveTargetUrl — P0.1 invariants", () => {
   });
 
   test("tmp_ IDs never get directory — returned URL without directory", () => {
-    const url = resolveTargetUrl("/session/tmp_123/message", "tmp_123", workdir);
+    const url = resolveTargetUrl(
+      "/session/tmp_123/message",
+      "tmp_123",
+      workdir,
+    );
     expect(url).not.toContain("directory=");
     // Caller should treat tmp_ as 410 Gone, but resolver itself strips directory for safety
   });
@@ -178,6 +210,8 @@ describe("buildSafeWorkspacePath", () => {
 
     // Even if session ID looks valid, resolved path must stay inside workdir
     // (getSessionWorkspace already uses path.join, so traversal via sessionId is impossible if isValidSessionId rejects slashes)
-    expect(() => buildSafeWorkspacePath("ses_../../etc", "/app/workspace")).toThrow();
+    expect(() =>
+      buildSafeWorkspacePath("ses_../../etc", "/app/workspace"),
+    ).toThrow();
   });
 });

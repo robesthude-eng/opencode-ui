@@ -11,7 +11,9 @@ test.describe("auth + shell", () => {
   test("home shows login or app", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("body")).toBeVisible();
-    const login = page.getByRole("button", { name: /Войти|Зарегистрироваться/i });
+    const login = page.getByRole("button", {
+      name: /Войти|Зарегистрироваться/i,
+    });
     const newChat = page.getByRole("button", { name: /New chat|Новый/i });
     await expect(login.or(newChat).first()).toBeVisible({ timeout: 15000 });
   });
@@ -27,7 +29,9 @@ test.describe("auth + shell", () => {
     await page.getByRole("button", { name: /Войти/i }).click();
     // After login: New chat or settings visible
     await expect(
-      page.getByRole("button", { name: /New chat|Settings|Настройки/i }).first(),
+      page
+        .getByRole("button", { name: /New chat|Settings|Настройки/i })
+        .first(),
     ).toBeVisible({ timeout: 20000 });
   });
 });
@@ -35,7 +39,8 @@ test.describe("auth + shell", () => {
 test.describe("api", () => {
   test("health", async ({ request }) => {
     const res = await request.get("/health");
-    if (res.status() === 404) test.skip(true, "health not proxied on this host");
+    if (res.status() === 404)
+      test.skip(true, "health not proxied on this host");
     expect(res.ok()).toBeTruthy();
     const json = await res.json();
     expect(json.status === "ok" || json.opencode).toBeTruthy();

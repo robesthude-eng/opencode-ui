@@ -24,7 +24,13 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, message: typeof error.message === "string" ? error.message : JSON.stringify(error.message) };
+    return {
+      hasError: true,
+      message:
+        typeof error.message === "string"
+          ? error.message
+          : JSON.stringify(error.message),
+    };
   }
 
   componentDidCatch(error: Error) {
@@ -36,7 +42,8 @@ export default class ErrorBoundary extends Component<Props, State> {
   };
 
   handleResetUI = async () => {
-    if (!confirm("Сбросить весь код интерфейса к исходной версии из Git?")) return;
+    if (!confirm("Сбросить весь код интерфейса к исходной версии из Git?"))
+      return;
     try {
       await fetch("/api/reset-ui", {
         method: "POST",
@@ -58,10 +65,12 @@ export default class ErrorBoundary extends Component<Props, State> {
                 <AlertTriangle className="h-6 w-6" />
               </div>
               <h2 className="text-xl font-semibold">Something went wrong</h2>
-              <p className="text-sm text-muted-foreground">{this.state.message}</p>
+              <p className="text-sm text-muted-foreground">
+                {this.state.message}
+              </p>
               <p className="text-xs text-muted-foreground">
-                If this happened after a Self-Improvement edit, you can reset the UI source code
-                back to factory Git state.
+                If this happened after a Self-Improvement edit, you can reset
+                the UI source code back to factory Git state.
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                 <Button type="button" onClick={this.handleReload}>

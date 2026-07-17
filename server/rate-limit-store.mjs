@@ -11,9 +11,13 @@ import tls from "node:tls";
 import { logger } from "./logger.mjs";
 
 const localBuckets = new Map();
-const redisUrl = process.env.RATE_LIMIT_REDIS_URL || process.env.REDIS_URL || "";
-const keyPrefix = process.env.RATE_LIMIT_REDIS_PREFIX || "opencode-ui:rate-limit:";
-const connectTimeoutMs = Number(process.env.RATE_LIMIT_REDIS_TIMEOUT_MS || 1000);
+const redisUrl =
+  process.env.RATE_LIMIT_REDIS_URL || process.env.REDIS_URL || "";
+const keyPrefix =
+  process.env.RATE_LIMIT_REDIS_PREFIX || "opencode-ui:rate-limit:";
+const connectTimeoutMs = Number(
+  process.env.RATE_LIMIT_REDIS_TIMEOUT_MS || 1000,
+);
 
 // INCR + PEXPIRE must be atomic: otherwise two instances can both see a new
 // key and accidentally reset its expiry. The script returns [count, ttlMs].
@@ -25,24 +29,36 @@ const TAKE_SCRIPT = [
 ].join("\n");
 
 function encodeCommand(parts) {
-  return `*${parts.length}\r\n${parts.map((part) => {
-    const value = String(part);
-    return `$${Buffer.byteLength(value)}\r\n${value}\r\n`;
-  }).join("")}`;
+  return `*${parts.length}\r\n${parts
+    .map((part) => {
+      const value = String(part);
+      return `$${Buffer.byteLength(value)}\r\n${value}\r\n`;
+    })
+    .join("")}`;
 }
 
 function parseReply(buffer) {
   const prefix = buffer[0];
   const lineEnd = buffer.indexOf("\r\n");
   if (lineEnd === -1) return null;
-  if (prefix === "+" || prefix === ":") return { value: Number.isNaN(Number(buffer.slice(1, lineEnd))) ? buffer.slice(1, lineEnd) : Number(buffer.slice(1, lineEnd)), consumed: lineEnd + 2 };
-  if (prefix === "-") throw new Error(`Redis error: ${buffer.slice(1, lineEnd)}`);
-  if (prefix === "$" ) {
+  if (prefix === "+" || prefix === ":")
+    return {
+      value: Number.isNaN(Number(buffer.slice(1, lineEnd)))
+        ? buffer.slice(1, lineEnd)
+        : Number(buffer.slice(1, lineEnd)),
+      consumed: lineEnd + 2,
+    };
+  if (prefix === "-")
+    throw new Error(`Redis error: ${buffer.slice(1, lineEnd)}`);
+  if (prefix === "$") {
     const length = Number(buffer.slice(1, lineEnd));
     if (length === -1) return { value: null, consumed: lineEnd + 2 };
     const end = lineEnd + 2 + length + 2;
     if (buffer.length < end) return null;
-    return { value: buffer.slice(lineEnd + 2, lineEnd + 2 + length), consumed: end };
+    return {
+      value: buffer.slice(lineEnd + 2, lineEnd + 2 + length),
+      consumed: end,
+    };
   }
   if (prefix === "*") {
     const count = Number(buffer.slice(1, lineEnd));
@@ -77,7 +93,10 @@ function redisCommand(parts) {
       if (err) reject(err);
       else resolve(value);
     };
-    const timer = setTimeout(() => finish(new Error("Redis rate-limit connection timed out")), connectTimeoutMs);
+    const timer = setTimeout(
+      () => finish(new Error("Redis rate-limit connection timed out")),
+      connectTimeoutMs,
+    );
     socket.setEncoding("utf8");
     socket.once("error", (err) => finish(err));
     socket.on("data", (chunk) => {
@@ -101,7 +120,11 @@ function redisCommand(parts) {
         socket.write(encodeCommand(parts));
         return;
       }
-      socket.write(encodeCommand(username ? ["AUTH", username, password] : ["AUTH", password]));
+      socket.write(
+        encodeCommand(
+          username ? ["AUTH", username, password] : ["AUTH", password],
+        ),
+      );
       let authenticated = false;
       socket.removeAllListeners("data");
       socket.on("data", (chunk) => {
@@ -138,8 +161,15 @@ function localTake(key, { limit, windowMs }) {
       if (now - bucket.start >= windowMs) localBuckets.delete(bucketKey);
     }
   }
-  const retryAfterSec = record.count > limit ? Math.max(1, Math.ceil((windowMs - (now - record.start)) / 1000)) : 0;
-  return { allowed: record.count <= limit, remaining: Math.max(0, limit - record.count), retryAfterSec };
+  const retryAfterSec =
+    record.count > limit
+      ? Math.max(1, Math.ceil((windowMs - (now - record.start)) / 1000))
+      : 0;
+  return {
+    allowed: record.count <= limit,
+    remaining: Math.max(0, limit - record.count),
+    retryAfterSec,
+  };
 }
 
 function storageKey(key) {
@@ -153,7 +183,13 @@ function storageKey(key) {
 export async function takeRateLimit(key, { limit, windowMs }) {
   if (!redisUrl) return localTake(key, { limit, windowMs });
   try {
-    const result = await redisCommand(["EVAL", TAKE_SCRIPT, 1, storageKey(key), windowMs]);
+    const result = await redisCommand([
+      "EVAL",
+      TAKE_SCRIPT,
+      1,
+      storageKey(key),
+      windowMs,
+    ]);
     const [count, ttlMs] = result.map(Number);
     return {
       allowed: count <= limit,
@@ -164,7 +200,12 @@ export async function takeRateLimit(key, { limit, windowMs }) {
     // A configured shared store must not silently degrade into per-instance
     // limiting. Return unavailable so callers can fail closed with 503.
     logger.error({ err: error.message }, "Redis rate-limit store unavailable");
-    return { allowed: false, remaining: 0, retryAfterSec: 1, unavailable: true };
+    return {
+      allowed: false,
+      remaining: 0,
+      retryAfterSec: 1,
+      unavailable: true,
+    };
   }
 }
 

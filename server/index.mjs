@@ -20,6 +20,16 @@ import {
   saveUserKeys,
 } from "./auth.mjs";
 import { startBackupScheduler } from "./backup.mjs";
+import {
+  MAX_JSON_BODY_BYTES,
+  OWNERS_FILE,
+  PORT,
+  SESSIONS_FILE,
+  SYSTEM_PORT,
+  USER_KEYS_DIR,
+  USERS_FILE,
+  WORKDIR,
+} from "./config.mjs";
 import { closeDb, initDb, loadJson, saveAuthJson, saveJson } from "./db.mjs";
 import { startPrStatusPoller } from "./github-pr.mjs";
 import {
@@ -34,35 +44,24 @@ import { logger } from "./logger.mjs";
 import {
   checkRateLimit,
   checkUploadRateLimit,
-
   readBody,
   setSecurityHeaders,
 } from "./middleware.mjs";
-import { checkUserRateLimit } from "./rate-limit.mjs";
-import { handleCustomAuthRoute } from "./routes/customAuth.mjs";
 import { handlePreviewRoute, PREVIEW_PREFIX } from "./preview.mjs";
+import { checkUserRateLimit } from "./rate-limit.mjs";
 import {
   handleLogin as handleAuthLogin,
   handleLogout as handleAuthLogout,
   handleMe as handleAuthMe,
   handleRegister as handleAuthRegister,
 } from "./routes/auth.mjs";
+import { handleCustomAuthRoute } from "./routes/customAuth.mjs";
 import {
   getSelfImproveSessionId,
   isSelfImproveEnabled,
   isSiInternalRequest,
   promoteDistSnapshot,
 } from "./self-improve.mjs";
-import {
-  MAX_JSON_BODY_BYTES,
-  OWNERS_FILE,
-  PORT,
-  SESSIONS_FILE,
-  SYSTEM_PORT,
-  USER_KEYS_DIR,
-  USERS_FILE,
-  WORKDIR,
-} from "./config.mjs";
 import { captureServerException, initSentryServer } from "./sentry.mjs";
 
 const require = createRequire(import.meta.url);
@@ -71,7 +70,8 @@ const __dirname = path.dirname(__filename);
 const DIST = path.join(__dirname, "..", "dist");
 initDb(WORKDIR);
 const SESSION_TTL_MS =
-  parseInt(process.env.OPENCODE_SESSION_TTL_MS || "", 10) || 7 * 24 * 60 * 60 * 1000;
+  parseInt(process.env.OPENCODE_SESSION_TTL_MS || "", 10) ||
+  7 * 24 * 60 * 60 * 1000;
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
@@ -93,14 +93,21 @@ function createProxy(targetBase) {
       port: targetUrl.port,
       path: req.url,
       method: req.method,
-      headers: { ...req.headers, host: `${targetUrl.hostname}:${targetUrl.port}` },
+      headers: {
+        ...req.headers,
+        host: `${targetUrl.hostname}:${targetUrl.port}`,
+      },
     };
     delete opts.headers.connection;
     delete opts.headers.upgrade;
-    const sessionMsgMatch = req.url.match(/\/session\/(ses_[A-Za-z0-9]+)\/(message|abort)/);
+    const sessionMsgMatch = req.url.match(
+      /\/session\/(ses_[A-Za-z0-9]+)\/(message|abort)/,
+    );
     const proxyReq = http.request(opts, (proxyRes) => {
       const headers = { ...proxyRes.headers };
-      const isEventStream = (headers["content-type"] || "").includes("text/event-stream");
+      const isEventStream = (headers["content-type"] || "").includes(
+        "text/event-stream",
+      );
       if (isEventStream) {
         // SSE must reach EventSource as soon as each upstream chunk arrives.
         // Explicitly disable intermediary buffering/compression and keep the
@@ -120,7 +127,9 @@ function createProxy(targetBase) {
             try {
               const Database = require("better-sqlite3");
               const db = new Database(dbPath);
-              db.prepare("DELETE FROM session_owners WHERE session_id = ?").run(staleSid);
+              db.prepare("DELETE FROM session_owners WHERE session_id = ?").run(
+                staleSid,
+              );
               db.close();
             } catch (e) {
               console.error(e.message);
@@ -130,14 +139,18 @@ function createProxy(targetBase) {
           if (fs.existsSync(stalePath)) {
             try {
               fs.rmSync(stalePath, { recursive: true, force: true });
-            } catch (e) { logger.error({ err: e }, "Ignored error"); }
+            } catch (e) {
+              logger.error({ err: e }, "Ignored error");
+            }
           }
         } catch (e) {
           console.error(e.message);
         }
         if (!res.headersSent) {
           res.writeHead(410, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "session_gone", sessionId: staleSid }));
+          res.end(
+            JSON.stringify({ error: "session_gone", sessionId: staleSid }),
+          );
         }
         return;
       }
@@ -147,7 +160,8 @@ function createProxy(targetBase) {
         res.flushHeaders?.();
         res.socket?.setNoDelay(true);
         const heartbeat = setInterval(() => {
-          if (!res.writableEnded && !res.destroyed) res.write(": keep-alive\n\n");
+          if (!res.writableEnded && !res.destroyed)
+            res.write(": keep-alive\n\n");
         }, 15000);
         const cleanup = () => clearInterval(heartbeat);
         res.on("close", cleanup);
@@ -174,7 +188,12 @@ function createProxy(targetBase) {
     proxyReq.on("error", (err) => {
       if (!res.headersSent) {
         res.writeHead(502, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "OpenCode unreachable", detail: err.message }));
+        res.end(
+          JSON.stringify({
+            error: "OpenCode unreachable",
+            detail: err.message,
+          }),
+        );
       } else {
         res.end();
       }
@@ -191,7 +210,9 @@ function createProxy(targetBase) {
     };
     const proxyReq = http.request(opts);
     proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
-      socket.write(`HTTP/${proxyRes.httpVersion} 101 ${proxyRes.statusMessage}\r\n`);
+      socket.write(
+        `HTTP/${proxyRes.httpVersion} 101 ${proxyRes.statusMessage}\r\n`,
+      );
       for (const [k, v] of Object.entries(proxyRes.headers)) {
         socket.write(`${k}: ${v}\r\n`);
       }
@@ -232,8 +253,13 @@ function serveStatic(req, res) {
       return;
     }
     const headers = { "Content-Type": contentType };
-    if (urlPath === "/index.html") headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
-    else if (ext === ".js" || ext === ".css" || ext.match(/\.(png|jpg|svg|woff2?|ico)/))
+    if (urlPath === "/index.html")
+      headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+    else if (
+      ext === ".js" ||
+      ext === ".css" ||
+      ext.match(/\.(png|jpg|svg|woff2?|ico)/)
+    )
       headers["Cache-Control"] = "public, max-age=31536000, immutable";
     setSecurityHeaders(res);
     res.writeHead(200, headers);
@@ -242,7 +268,11 @@ function serveStatic(req, res) {
 }
 const server = http.createServer(async (req, res) => {
   setSecurityHeaders(res);
-  if (req.url === "/health" || req.url === "/global/health" || req.url === "/api/global/health") {
+  if (
+    req.url === "/health" ||
+    req.url === "/global/health" ||
+    req.url === "/api/global/health"
+  ) {
     const ocUrl = `http://127.0.0.1:${SYSTEM_PORT}/global/health`;
     let sent = false;
     const send = (code, body) => {
@@ -253,7 +283,11 @@ const server = http.createServer(async (req, res) => {
     };
     const r = http.get(ocUrl, { timeout: 1500 }, (pr) => {
       if (pr.statusCode >= 200 && pr.statusCode < 400)
-        send(200, { status: "ok", opencode: "healthy", uptime: process.uptime() });
+        send(200, {
+          status: "ok",
+          opencode: "healthy",
+          uptime: process.uptime(),
+        });
       else
         send(503, {
           status: "error",
@@ -270,7 +304,11 @@ const server = http.createServer(async (req, res) => {
     );
     r.on("timeout", () => {
       r.destroy();
-      send(503, { status: "error", opencode: "timeout", uptime: process.uptime() });
+      send(503, {
+        status: "error",
+        opencode: "timeout",
+        uptime: process.uptime(),
+      });
     });
     return;
   }
@@ -335,7 +373,17 @@ const server = http.createServer(async (req, res) => {
     handlePreviewRoute(req, res, { WORKDIR, OWNERS_FILE, userEmail, loadJson });
     return;
   }
-  if (handleCustomAuthRoute(req, res, userEmail, loadUserKeys, saveUserKeys, readBody, MAX_JSON_BODY_BYTES)) {
+  if (
+    handleCustomAuthRoute(
+      req,
+      res,
+      userEmail,
+      loadUserKeys,
+      saveUserKeys,
+      readBody,
+      MAX_JSON_BODY_BYTES,
+    )
+  ) {
     return;
   }
   if (urlPath.startsWith("/api/sandbox/")) {
@@ -346,12 +394,18 @@ const server = http.createServer(async (req, res) => {
     }
     if (!isRequestAdmin) {
       res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Admin access required for sandbox feature." }));
+      res.end(
+        JSON.stringify({ error: "Admin access required for sandbox feature." }),
+      );
       return;
     }
     if (!isSelfImproveEnabled(WORKDIR)) {
       res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
+      res.end(
+        JSON.stringify({
+          error: "Self-Improvement Mode is disabled on the server.",
+        }),
+      );
       return;
     }
     import("./sandbox.mjs")
@@ -360,7 +414,12 @@ const server = http.createServer(async (req, res) => {
       })
       .catch((err) => {
         res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Failed to load sandbox module", detail: err.message }));
+        res.end(
+          JSON.stringify({
+            error: "Failed to load sandbox module",
+            detail: err.message,
+          }),
+        );
       });
     return;
   }
@@ -439,7 +498,10 @@ const server = http.createServer(async (req, res) => {
   }
   const sessionId = extractSessionId(req);
   if (sessionId && userEmail) {
-    if (!checkSessionOwnership(sessionId, userEmail, res, OWNERS_FILE, loadJson)) return;
+    if (
+      !checkSessionOwnership(sessionId, userEmail, res, OWNERS_FILE, loadJson)
+    )
+      return;
     const owners = loadJson(OWNERS_FILE, {});
     if (!owners[sessionId]) {
       owners[sessionId] = userEmail;
@@ -449,7 +511,9 @@ const server = http.createServer(async (req, res) => {
   const siSessionId = getSelfImproveSessionId(WORKDIR);
   const isSelfImproveSession =
     isSelfImproveEnabled(WORKDIR) && !!siSessionId && sessionId === siSessionId;
-  const selfImproveDir = isSelfImproveSession ? getSessionWorkspace(sessionId, WORKDIR) : null;
+  const selfImproveDir = isSelfImproveSession
+    ? getSessionWorkspace(sessionId, WORKDIR)
+    : null;
   const sessionMatch = urlPath.match(/^\/api\/session\/([^/?]+)$/);
   if (req.method === "DELETE" && sessionMatch) {
     import("./routes/session.mjs").then((m) => {
@@ -472,7 +536,11 @@ const server = http.createServer(async (req, res) => {
   }
   if (urlPath === "/api/workspace/upload-folder" && req.method === "POST") {
     import("./routes/upload.mjs").then((m) => {
-      m.handleUploadFolder(req, res, { WORKDIR, extractSessionId, checkUploadRateLimit });
+      m.handleUploadFolder(req, res, {
+        WORKDIR,
+        extractSessionId,
+        checkUploadRateLimit,
+      });
     });
     return;
   }
@@ -493,7 +561,9 @@ const server = http.createServer(async (req, res) => {
     const sessionWorkspace = getSessionWorkspace(sessionId, WORKDIR);
     try {
       fs.mkdirSync(sessionWorkspace, { recursive: true });
-    } catch (e) { logger.warn({ err: e.message }, "Ignored error"); }
+    } catch (e) {
+      logger.warn({ err: e.message }, "Ignored error");
+    }
     const effectiveWorkspace = selfImproveDir || sessionWorkspace;
     // Event routes must also have the /api prefix stripped: OpenCode serves
     // GET /event (not /api/event). Keep sessionId in the query so the
@@ -510,9 +580,17 @@ const server = http.createServer(async (req, res) => {
     }
     systemProxy.web(req, res);
   } catch (err) {
-    console.error(`[Proxy] Error routing to session ${sessionId}:`, err.message);
+    console.error(
+      `[Proxy] Error routing to session ${sessionId}:`,
+      err.message,
+    );
     res.writeHead(502, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Failed to route to session", detail: err.message }));
+    res.end(
+      JSON.stringify({
+        error: "Failed to route to session",
+        detail: err.message,
+      }),
+    );
   }
 });
 
@@ -521,7 +599,8 @@ server.on("upgrade", (req, socket, head) => {
   // /socket.io — терминал: его upgrade обслуживает engine.io (terminal.mjs).
   // Раньше этот хендлер параллельно проксировал такие upgrade'ы в OpenCode —
   // висящий запрос к системному инстансу на каждое подключение терминала.
-  if (upgradePath === "/socket.io" || upgradePath.startsWith("/socket.io/")) return;
+  if (upgradePath === "/socket.io" || upgradePath.startsWith("/socket.io/"))
+    return;
   const token = extractToken(req, {
     allowQueryToken: upgradePath === "/api/event" || upgradePath === "/event",
   });
@@ -567,7 +646,10 @@ setInterval(
       const now = Date.now();
       let mutated = false;
       for (const token in sessions) {
-        if (SESSION_TTL_MS > 0 && now - (sessions[token].createdAt || 0) > SESSION_TTL_MS) {
+        if (
+          SESSION_TTL_MS > 0 &&
+          now - (sessions[token].createdAt || 0) > SESSION_TTL_MS
+        ) {
           delete sessions[token];
           mutated = true;
         }
@@ -588,9 +670,14 @@ import { initTerminalServer } from "./terminal.mjs";
 void initSentryServer().finally(() => {
   initTerminalServer(server, { sessionTtlMs: SESSION_TTL_MS });
   server.listen(PORT, "0.0.0.0", () => {
-    logger.info({ port: PORT, systemPort: SYSTEM_PORT, workdir: WORKDIR }, "server listening");
+    logger.info(
+      { port: PORT, systemPort: SYSTEM_PORT, workdir: WORKDIR },
+      "server listening",
+    );
     if (Object.keys(loadJson(USERS_FILE, {})).length === 0) {
-      logger.warn("no users registered yet; first registered account becomes admin");
+      logger.warn(
+        "no users registered yet; first registered account becomes admin",
+      );
     }
     try {
       startBackupScheduler(WORKDIR);
@@ -631,5 +718,7 @@ process.on("uncaughtException", (err) => {
 });
 process.on("unhandledRejection", (reason) => {
   logger.error({ err: String(reason) }, "unhandledRejection");
-  captureServerException(reason instanceof Error ? reason : new Error(String(reason)));
+  captureServerException(
+    reason instanceof Error ? reason : new Error(String(reason)),
+  );
 });

@@ -22,7 +22,8 @@ export function toolIcon(name?: string | null): ReactNode {
   if (n === "read") return <FileIcon size={13} />;
   if (n === "edit" || n === "applypatch") return <EditIcon size={13} />;
   if (n === "write") return <WriteIcon size={13} />;
-  if (n === "bash" || n === "cmd" || n === "shell") return <BashIcon size={13} />;
+  if (n === "bash" || n === "cmd" || n === "shell")
+    return <BashIcon size={13} />;
   if (n === "glob") return <GlobIcon size={13} />;
   if (n === "grep") return <GrepIcon size={13} />;
   if (n === "list" || n === "ls") return <ListFilesIcon size={13} />;

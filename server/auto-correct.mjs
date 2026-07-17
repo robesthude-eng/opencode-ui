@@ -1,14 +1,22 @@
 import http from "node:http";
 import { SYSTEM_PORT } from "./config.mjs";
 
-const AUTO_CORRECT_TIMEOUT_MS = Number(process.env.SELF_IMPROVE_AUTOCORRECT_TIMEOUT_MS) || 300_000;
+const AUTO_CORRECT_TIMEOUT_MS =
+  Number(process.env.SELF_IMPROVE_AUTOCORRECT_TIMEOUT_MS) || 300_000;
 
 /**
  * Automatically correct TypeScript compilation errors using the local OpenCode model.
  * Calls callback(err, correctedFiles).
  */
-export function runAutoCorrection(files, compileErrors, callback, { directory } = {}) {
-  console.log(`[Auto-Correct] Initiating correction request for ${files.length} files...`);
+export function runAutoCorrection(
+  files,
+  compileErrors,
+  callback,
+  { directory } = {},
+) {
+  console.log(
+    `[Auto-Correct] Initiating correction request for ${files.length} files...`,
+  );
 
   // Step 1: Create a temporary OpenCode session
   requestJson("POST", "/session", {}, directory)
@@ -16,7 +24,9 @@ export function runAutoCorrection(files, compileErrors, callback, { directory } 
       const sessionId = session.id;
       if (!sessionId) {
         return callback(
-          new Error("OpenCode session creation response did not include session ID."),
+          new Error(
+            "OpenCode session creation response did not include session ID.",
+          ),
         );
       }
       console.log(`[Auto-Correct] Created temp session: ${sessionId}`);
@@ -51,10 +61,17 @@ DO NOT include any explanations, markdown text, or comments outside of the JSON 
         parts: [{ type: "text", text: prompt }],
       };
 
-      requestJson("POST", `/session/${sessionId}/message`, messageBody, directory)
+      requestJson(
+        "POST",
+        `/session/${sessionId}/message`,
+        messageBody,
+        directory,
+      )
         .then((message) => {
           // Clean up the session in the background
-          requestJson("DELETE", `/session/${sessionId}`, {}, directory).catch(() => {});
+          requestJson("DELETE", `/session/${sessionId}`, {}, directory).catch(
+            () => {},
+          );
 
           const textPart = message.parts?.find((p) => p.type === "text");
           const text = textPart ? textPart.text : "";
@@ -67,7 +84,9 @@ DO NOT include any explanations, markdown text, or comments outside of the JSON 
             const result = extractJson(text);
             if (!Array.isArray(result.files) || result.files.length === 0) {
               return callback(
-                new Error("Valid JSON parsed, but 'files' array is missing or empty."),
+                new Error(
+                  "Valid JSON parsed, but 'files' array is missing or empty.",
+                ),
               );
             }
             console.log(
@@ -83,12 +102,18 @@ DO NOT include any explanations, markdown text, or comments outside of the JSON 
           }
         })
         .catch((msgErr) => {
-          requestJson("DELETE", `/session/${sessionId}`, {}, directory).catch(() => {});
+          requestJson("DELETE", `/session/${sessionId}`, {}, directory).catch(
+            () => {},
+          );
           callback(msgErr);
         });
     })
     .catch((sessErr) => {
-      callback(new Error(`Failed to initialize session with OpenCode: ${sessErr.message}`));
+      callback(
+        new Error(
+          `Failed to initialize session with OpenCode: ${sessErr.message}`,
+        ),
+      );
     });
 }
 
@@ -98,9 +123,13 @@ DO NOT include any explanations, markdown text, or comments outside of the JSON 
 function requestJson(method, endpoint, body = null, directory = null) {
   return new Promise((resolve, reject) => {
     const dataStr = body ? JSON.stringify(body) : "";
-    const query = directory ? `?directory=${encodeURIComponent(directory)}` : "";
+    const query = directory
+      ? `?directory=${encodeURIComponent(directory)}`
+      : "";
     const pathWithDirectory =
-      query && endpoint.includes("?") ? `${endpoint}&${query.slice(1)}` : `${endpoint}${query}`;
+      query && endpoint.includes("?")
+        ? `${endpoint}&${query.slice(1)}`
+        : `${endpoint}${query}`;
     const options = {
       hostname: "127.0.0.1",
       port: SYSTEM_PORT,
@@ -126,7 +155,11 @@ function requestJson(method, endpoint, body = null, directory = null) {
             reject(new Error(`Failed to parse JSON response: ${e.message}`));
           }
         } else {
-          reject(new Error(`OpenCode returned status ${res.statusCode}: ${responseBody}`));
+          reject(
+            new Error(
+              `OpenCode returned status ${res.statusCode}: ${responseBody}`,
+            ),
+          );
         }
       });
     });

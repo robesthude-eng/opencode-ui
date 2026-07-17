@@ -3,7 +3,11 @@
  * Tests for server/middleware.mjs
  */
 import { describe, expect, test, vi } from "vitest";
-import { checkRateLimit, readBody, setSecurityHeaders } from "../middleware.mjs";
+import {
+  checkRateLimit,
+  readBody,
+  setSecurityHeaders,
+} from "../middleware.mjs";
 
 describe("setSecurityHeaders", () => {
   test("sets all required security headers when framing is blocked", () => {
@@ -13,7 +17,10 @@ describe("setSecurityHeaders", () => {
       const res = { setHeader: vi.fn() };
       setSecurityHeaders(res);
 
-      expect(res.setHeader).toHaveBeenCalledWith("X-Content-Type-Options", "nosniff");
+      expect(res.setHeader).toHaveBeenCalledWith(
+        "X-Content-Type-Options",
+        "nosniff",
+      );
       expect(res.setHeader).toHaveBeenCalledWith("X-Frame-Options", "DENY");
       expect(res.setHeader).toHaveBeenCalledWith(
         "Referrer-Policy",
@@ -27,7 +34,9 @@ describe("setSecurityHeaders", () => {
         "Content-Security-Policy",
         expect.stringContaining("default-src 'self'"),
       );
-      const cspCall = res.setHeader.mock.calls.find((c) => c[0] === "Content-Security-Policy");
+      const cspCall = res.setHeader.mock.calls.find(
+        (c) => c[0] === "Content-Security-Policy",
+      );
       expect(cspCall[1]).toContain("connect-src");
       expect(cspCall[1]).toContain("https:");
       expect(cspCall[1]).toContain("worker-src");
@@ -48,9 +57,14 @@ describe("setSecurityHeaders", () => {
       const res = { setHeader: vi.fn() };
       setSecurityHeaders(res);
 
-      expect(res.setHeader).toHaveBeenCalledWith("X-Content-Type-Options", "nosniff");
+      expect(res.setHeader).toHaveBeenCalledWith(
+        "X-Content-Type-Options",
+        "nosniff",
+      );
       expect(res.setHeader).not.toHaveBeenCalledWith("X-Frame-Options", "DENY");
-      const cspCall = res.setHeader.mock.calls.find((c) => c[0] === "Content-Security-Policy");
+      const cspCall = res.setHeader.mock.calls.find(
+        (c) => c[0] === "Content-Security-Policy",
+      );
       expect(cspCall[1]).toContain("frame-ancestors *");
     } finally {
       if (originalAllowFraming === undefined) {

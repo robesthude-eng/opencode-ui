@@ -9,7 +9,8 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
   // Default closed — opening workspace on every load + self-improve toggle was heavy
   workspaceOpen: false,
   selfImproveEnabled:
-    typeof window !== "undefined" && localStorage.getItem("opencode_self_improve") === "true",
+    typeof window !== "undefined" &&
+    localStorage.getItem("opencode_self_improve") === "true",
   // ID of the dedicated «Самоулучшение» chat created when Self-Improvement is enabled.
   selfImproveSessionId: (typeof window !== "undefined"
     ? localStorage.getItem("opencode_self_improve_session")
@@ -47,7 +48,9 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
   // (e.g. admin toggled from another device or state was reset server-side).
   syncSelfImproveFromServer: async () => {
     try {
-      const res = await fetch("/api/settings/self-improve", { credentials: "include" });
+      const res = await fetch("/api/settings/self-improve", {
+        credentials: "include",
+      });
       if (!res.ok) return;
       const data = (await res.json()) as {
         enabled?: boolean;
@@ -61,7 +64,8 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
       const testErrors = data.testErrors || [];
       if (typeof window !== "undefined") {
         localStorage.setItem("opencode_self_improve", String(enabled));
-        if (sessionId) localStorage.setItem("opencode_self_improve_session", sessionId);
+        if (sessionId)
+          localStorage.setItem("opencode_self_improve_session", sessionId);
         else localStorage.removeItem("opencode_self_improve_session");
       }
       set({

@@ -1,4 +1,11 @@
-import { ArrowRight, Check, ChevronDown, ChevronRight, Copy, Terminal } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Terminal,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +45,10 @@ function getTime(part: ToolPart): { start?: number; end?: number } {
 }
 
 /** Live "1.8s" / "3s" duration label. Ticks while running, freezes once ended. */
-function useDuration(time: { start?: number; end?: number }, running: boolean): string | null {
+function useDuration(
+  time: { start?: number; end?: number },
+  running: boolean,
+): string | null {
   const [, setTick] = useState(0);
   useEffect(() => {
     if (!running || !time.start) return;
@@ -67,7 +77,12 @@ function getOutput(part: ToolPart): string {
   if (typeof out === "object") {
     const o = out as { type?: string; text?: string; error?: unknown };
     if (o.type === "error") {
-      const errMsg = typeof o.error === "string" ? o.error : (o.error && typeof (o.error as any).message === "string" ? (o.error as any).message : JSON.stringify(o.error ?? "unknown"));
+      const errMsg =
+        typeof o.error === "string"
+          ? o.error
+          : o.error && typeof (o.error as any).message === "string"
+            ? (o.error as any).message
+            : JSON.stringify(o.error ?? "unknown");
       return `Error: ${errMsg}`;
     }
     return fmt(out);
@@ -83,9 +98,17 @@ function getSummary(part: ToolPart): string {
   }
   const input = getInput(part) as Record<string, unknown> | undefined;
   if (!input) return "";
-  for (const k of ["filePath", "path", "command", "pattern", "query", "description"]) {
+  for (const k of [
+    "filePath",
+    "path",
+    "command",
+    "pattern",
+    "query",
+    "description",
+  ]) {
     const v = input[k];
-    if (typeof v === "string" && v) return v.length > 72 ? `${v.slice(0, 69)}…` : v;
+    if (typeof v === "string" && v)
+      return v.length > 72 ? `${v.slice(0, 69)}…` : v;
   }
   return "";
 }
@@ -154,7 +177,9 @@ function parseQuestions(input: unknown): QuestionItem[] {
                   },
             )
           : [],
-        allowCustomResponse: (obj.allowCustomResponse ?? obj.allowCustom ?? true) as boolean,
+        allowCustomResponse: (obj.allowCustomResponse ??
+          obj.allowCustom ??
+          true) as boolean,
       },
     ];
   }
@@ -169,7 +194,9 @@ function QuestionCard({ part }: { part: ToolPart }) {
   const currentID = useStore((s) => s.currentID);
   const [customText, setCustomText] = useState<Record<number, string>>({});
   const [answered, setAnswered] = useState(false);
-  const [selectedIdx, setSelectedIdx] = useState<Record<number, number | null>>({});
+  const [selectedIdx, setSelectedIdx] = useState<Record<number, number | null>>(
+    {},
+  );
   const isWaiting = state === "running";
 
   // UX-fix: правильный способ ответить на интерактивный tool "question" —
@@ -255,14 +282,21 @@ function QuestionCard({ part }: { part: ToolPart }) {
       {questions.map((q, qIdx) => (
         <div
           key={qIdx}
-          className={cn("flex flex-col gap-2 p-3", qIdx > 0 && "border-t border-border")}
+          className={cn(
+            "flex flex-col gap-2 p-3",
+            qIdx > 0 && "border-t border-border",
+          )}
         >
           {q.header && (
             <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300/90">
               {q.header}
             </div>
           )}
-          {q.question && <div className="text-[13.5px] font-medium leading-snug">{q.question}</div>}
+          {q.question && (
+            <div className="text-[13.5px] font-medium leading-snug">
+              {q.question}
+            </div>
+          )}
           {q.options && q.options.length > 0 && (
             <div className="flex flex-col gap-1">
               {q.options.map((opt, optIdx) => {
@@ -279,12 +313,18 @@ function QuestionCard({ part }: { part: ToolPart }) {
                         : "border-border/80 bg-card/50 hover:border-primary/40 hover:bg-muted/40",
                       disabled && "cursor-default opacity-70",
                     )}
-                    onClick={() => handleOptionClick(qIdx, optIdx, opt.label || "")}
+                    onClick={() =>
+                      handleOptionClick(qIdx, optIdx, opt.label || "")
+                    }
                     disabled={disabled}
                   >
-                    <span className="text-[13px] font-semibold">{opt.label}</span>
+                    <span className="text-[13px] font-semibold">
+                      {opt.label}
+                    </span>
                     {opt.description && (
-                      <span className="text-[11px] text-muted-foreground">{opt.description}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {opt.description}
+                      </span>
                     )}
                   </button>
                 );
@@ -298,7 +338,9 @@ function QuestionCard({ part }: { part: ToolPart }) {
                 className="h-8 text-[13px]"
                 placeholder="Или свой ответ…"
                 value={customText[qIdx] || ""}
-                onChange={(e) => setCustomText((prev) => ({ ...prev, [qIdx]: e.target.value }))}
+                onChange={(e) =>
+                  setCustomText((prev) => ({ ...prev, [qIdx]: e.target.value }))
+                }
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCustomSubmit(qIdx);
                 }}
@@ -340,11 +382,15 @@ function CodeBlock({ label, text }: { label: string; text: string }) {
   return (
     <div
       className="rounded-lg border border-border overflow-hidden"
-      style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 4%)" }}
+      style={{
+        background: "color-mix(in srgb, var(--color-card) 100%, white 4%)",
+      }}
     >
       <div
         className="flex items-center justify-between px-2.5 py-1 border-b border-border/70"
-        style={{ background: "color-mix(in srgb, var(--color-card) 100%, white 8%)" }}
+        style={{
+          background: "color-mix(in srgb, var(--color-card) 100%, white 8%)",
+        }}
       >
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
           {label}
@@ -356,7 +402,11 @@ function CodeBlock({ label, text }: { label: string; text: string }) {
           title="Copy"
           aria-label="Copy"
         >
-          {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+          {copied ? (
+            <Check className="h-3 w-3 text-emerald-500" />
+          ) : (
+            <Copy className="h-3 w-3" />
+          )}
         </button>
       </div>
       <pre className="max-h-56 overflow-auto p-2.5 font-mono text-[11.5px] leading-relaxed text-foreground/85 whitespace-pre-wrap break-all">
@@ -385,9 +435,12 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
   // during streaming. After store normalization this should never reach UI,
   // but if anything slips through, fall back to undefined rather than
   // crashing with React error #31 (Objects are not valid as a React child).
-  const toolName = typeof part.tool === "string" && part.tool ? part.tool : undefined;
+  const toolName =
+    typeof part.tool === "string" && part.tool ? part.tool : undefined;
   const label = friendlyToolLabel(toolName);
-  const isBash = ["bash", "shell", "cmd"].includes((toolName || "").toLowerCase());
+  const isBash = ["bash", "shell", "cmd"].includes(
+    (toolName || "").toLowerCase(),
+  );
 
   return (
     <div className="not-prose my-1">
@@ -399,23 +452,38 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
           hasBody && "hover:bg-accent/30 cursor-pointer",
           !hasBody && "cursor-default",
         )}
-        onClick={hasBody ? () => setManuallyToggled((e) => (e === null ? false : !e)) : undefined}
+        onClick={
+          hasBody
+            ? () => setManuallyToggled((e) => (e === null ? false : !e))
+            : undefined
+        }
       >
         <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground">
           {toolIcon(toolName) || <Terminal className="h-3 w-3" />}
         </span>
         {/* Название */}
-        <span className="text-[13px] font-medium text-foreground/85">{label}</span>
+        <span className="text-[13px] font-medium text-foreground/85">
+          {label}
+        </span>
         {/* Статус: ✓ или ● или ✕ */}
         {running && (
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
         )}
         {!running && !errored && (
-          <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" strokeWidth={2.5} />
+          <Check
+            className="h-3.5 w-3.5 shrink-0 text-emerald-500"
+            strokeWidth={2.5}
+          />
         )}
-        {errored && <span className="text-[11px] font-medium text-red-400">error</span>}
+        {errored && (
+          <span className="text-[11px] font-medium text-red-400">error</span>
+        )}
         {/* Duration */}
-        {duration && <span className="text-[11.5px] text-muted-foreground/70">{duration}</span>}
+        {duration && (
+          <span className="text-[11.5px] text-muted-foreground/70">
+            {duration}
+          </span>
+        )}
         {/* Summary inline (обрезается) */}
         {summary && (
           <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground/70">
@@ -449,7 +517,9 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
               <CodeBlock label={isBash ? "COMMAND" : "INPUT"} text={input} />
             )
           )}
-          {output && <CodeBlock label={isBash ? "STDOUT" : "OUTPUT"} text={output} />}
+          {output && (
+            <CodeBlock label={isBash ? "STDOUT" : "OUTPUT"} text={output} />
+          )}
         </div>
       )}
     </div>
@@ -458,7 +528,8 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
 
 const ToolCard = ({ part }: { part: ToolPart }) => {
   const toolName = typeof part.tool === "string" ? part.tool : "";
-  if (toolName.toLowerCase() === "question") return <QuestionCard part={part} />;
+  if (toolName.toLowerCase() === "question")
+    return <QuestionCard part={part} />;
   return <DefaultToolCard part={part} />;
 };
 

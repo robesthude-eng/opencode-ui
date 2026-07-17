@@ -34,7 +34,9 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   if (authChecking) {
     return (
       <div className="flex h-dvh w-dvw items-center justify-center bg-background">
-        <div className="text-sm text-muted-foreground">Загрузка OpenCode UI…</div>
+        <div className="text-sm text-muted-foreground">
+          Загрузка OpenCode UI…
+        </div>
       </div>
     );
   }
@@ -126,8 +128,10 @@ function AppShell() {
         }
       } else {
         if (!poll) poll = setInterval(() => setConnection(stream.status), 400);
-        if (!healthPoll) healthPoll = setInterval(() => checkConnection(), 15000);
-        if (!modelsPoll) modelsPoll = setInterval(() => loadModels(true), 60000);
+        if (!healthPoll)
+          healthPoll = setInterval(() => checkConnection(), 15000);
+        if (!modelsPoll)
+          modelsPoll = setInterval(() => loadModels(true), 60000);
         checkConnection(); // immediate check on resume
       }
     };
@@ -142,7 +146,14 @@ function AppShell() {
       if (modelsPoll) clearInterval(modelsPoll);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [currentUser, loadSessions, loadModels, applyEvent, setConnection, checkConnection]);
+  }, [
+    currentUser,
+    loadSessions,
+    loadModels,
+    applyEvent,
+    setConnection,
+    checkConnection,
+  ]);
 
   // Real-time streaming: retarget the SSE stream at the active session so its
   // directory-scoped token events (message.part.updated / .delta) arrive live.
@@ -179,7 +190,11 @@ function AppShell() {
 
   // Sync store → URL when chat selected without route param (skip temp IDs)
   useEffect(() => {
-    if (currentID && !currentID.startsWith("tmp_") && params.sessionId !== currentID) {
+    if (
+      currentID &&
+      !currentID.startsWith("tmp_") &&
+      params.sessionId !== currentID
+    ) {
       lastNavigateFromStore.current = currentID;
       void navigate({
         to: "/chat/$sessionId",
@@ -197,7 +212,7 @@ function AppShell() {
         <div
           className={cn(
             "hidden md:block shrink-0 transition-all duration-300 ease-in-out overflow-hidden",
-            sidebarCollapsed ? "w-0 opacity-0" : "w-[224px] opacity-100"
+            sidebarCollapsed ? "w-0 opacity-0" : "w-[224px] opacity-100",
           )}
         >
           <div className="w-[224px] h-full">
@@ -214,7 +229,9 @@ function AppShell() {
             {/* Chat + Composer — единый блок, который сдвигается при открытии Workspace */}
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#202020]">
               <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#202020]">
-                {serverConnected === false && <ConnectionBanner onRetry={checkConnection} />}
+                {serverConnected === false && (
+                  <ConnectionBanner onRetry={checkConnection} />
+                )}
                 <Outlet />
               </main>
 
@@ -223,7 +240,7 @@ function AppShell() {
 
             {/* Мобильный overlay для Workspace */}
             {workspaceOpen && (
-              <div 
+              <div
                 className="absolute inset-0 z-40 bg-black/50 md:hidden"
                 onClick={() => setWorkspaceOpen(false)}
               />
@@ -233,7 +250,9 @@ function AppShell() {
             <div
               className={cn(
                 "absolute right-0 top-0 bottom-0 z-50 md:relative shrink-0 transition-all duration-300 ease-in-out overflow-hidden bg-[#202020] md:bg-transparent",
-                workspaceOpen ? "w-[85vw] max-w-[320px] md:w-80 opacity-100 border-l border-white/10 md:border-none shadow-2xl md:shadow-none" : "w-0 opacity-0"
+                workspaceOpen
+                  ? "w-[85vw] max-w-[320px] md:w-80 opacity-100 border-l border-white/10 md:border-none shadow-2xl md:shadow-none"
+                  : "w-0 opacity-0",
               )}
             >
               <div className="w-[85vw] max-w-[320px] md:w-80 h-full">

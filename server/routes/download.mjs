@@ -43,7 +43,7 @@ export async function handleDownload(req, res, { WORKDIR, extractSessionId }) {
     if (stats.isDirectory()) {
       // It's a directory, zip it
       const zip = new AdmZip();
-      
+
       const addDirectoryToZip = (dirPath, zipPath) => {
         const items = fs.readdirSync(dirPath);
         for (const item of items) {
@@ -63,22 +63,22 @@ export async function handleDownload(req, res, { WORKDIR, extractSessionId }) {
 
       const zipBuffer = zip.toBuffer();
       const folderName = path.basename(fullPath) || "workspace";
-      
+
       res.writeHead(200, {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="${folderName}.zip"`,
-        "Content-Length": zipBuffer.length
+        "Content-Length": zipBuffer.length,
       });
       res.end(zipBuffer);
     } else {
       // It's a file
       const fileName = path.basename(fullPath);
       const content = fs.readFileSync(fullPath);
-      
+
       res.writeHead(200, {
         "Content-Type": "application/octet-stream",
         "Content-Disposition": `attachment; filename="${fileName}"`,
-        "Content-Length": content.length
+        "Content-Length": content.length,
       });
       res.end(content);
     }

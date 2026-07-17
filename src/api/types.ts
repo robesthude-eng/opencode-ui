@@ -9,7 +9,6 @@ export interface SessionInfo {
   share?: { url?: string } | null;
   time?: { created: number; updated: number };
   version?: string;
-
 }
 
 export type SessionStatus = "idle" | "busy" | "retry" | "error" | string;
@@ -17,7 +16,6 @@ export type SessionStatus = "idle" | "busy" | "retry" | "error" | string;
 /** Status can be a plain string or an object with .type — normalize at use site. */
 export interface SessionStatusObject {
   type: SessionStatus;
-
 }
 
 export interface BasePart {
@@ -78,7 +76,7 @@ export interface ToolState {
   output?: string | ToolOutput;
   title?: string;
 
-  metadata?: { exit?: number; truncated?: boolean; };
+  metadata?: { exit?: number; truncated?: boolean };
   time?: { start?: number; end?: number };
 }
 
@@ -94,8 +92,8 @@ export interface Message {
   role: "user" | "assistant" | "system";
   parts: Part[];
   sessionID?: string;
-    session_id?: string;
-    sessionId?: string;
+  session_id?: string;
+  sessionId?: string;
   time?: { created: number; completed?: number };
   info?: {
     id?: string;
@@ -108,7 +106,6 @@ export interface Message {
     structured_output?: unknown;
   };
   // Allow legacy/extra fields without forcing `any` casts in consumer code.
-
 }
 
 // SSE event envelope. OpenCode emits `{ type, properties }`.
@@ -135,7 +132,6 @@ export interface AppEvent {
     // Имя инструмента (строка) или объект-ссылка { messageID, callID } в новых версиях opencode
     tool?: string | { messageID?: string; callID?: string };
     input?: unknown;
-
   };
 }
 
@@ -156,12 +152,16 @@ export interface FileNode {
   size?: number;
 }
 
-export type GitStatus = "modified" | "added" | "deleted" | "untracked" | "renamed";
+export type GitStatus =
+  | "modified"
+  | "added"
+  | "deleted"
+  | "untracked"
+  | "renamed";
 
 export interface TrackedFile {
   path: string;
   status?: GitStatus;
-
 }
 
 // --- Providers / models ---
@@ -173,14 +173,12 @@ export interface ProviderModel {
   reasoning?: boolean;
   cost?: { input?: number; output?: number };
   limit?: { context?: number; output?: number };
-
 }
 
 export interface Provider {
   id: string;
   name?: string;
   models?: Record<string, ProviderModel>;
-
 }
 
 export interface ProvidersResponse {

@@ -22,8 +22,14 @@ export interface AuthSlice {
   authed: Record<string, boolean>;
   currentUser: { email: string; role?: "admin" | "user" } | null;
   authChecking: boolean;
-  login: (email: string, pass: string) => Promise<{ ok: boolean; error?: string }>;
-  register: (email: string, pass: string) => Promise<{ ok: boolean; error?: string }>;
+  login: (
+    email: string,
+    pass: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  register: (
+    email: string,
+    pass: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkCurrentUser: () => Promise<void>;
   loadAuth: () => Promise<void>;
@@ -91,7 +97,12 @@ export interface MessagesSlice {
   applyEvent: (e: AppEvent) => void;
 }
 
-export interface State extends AuthSlice, ModelsSlice, UiSlice, SessionsSlice, MessagesSlice {}
+export interface State
+  extends AuthSlice,
+    ModelsSlice,
+    UiSlice,
+    SessionsSlice,
+    MessagesSlice {}
 
 export type Slice<T> = StateCreator<State, [], [], T>;
 

@@ -42,7 +42,10 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
     // UX-fix: если sid уже в blacklist (сервер вернул 410 в прошлом запросе) —
     // не идём в сеть повторно. Просто чистим URL и переключаемся на первую живую.
     if (id && isSessionDead(id)) {
-      console.warn("[select] sid уже помечен dead, пропускаем сетевой вызов:", id);
+      console.warn(
+        "[select] sid уже помечен dead, пропускаем сетевой вызов:",
+        id,
+      );
       set((state) => {
         const messages = { ...state.messages };
         delete messages[id];
@@ -216,9 +219,15 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
   respondPermission: async (permissionId, allow) => {
     const req = get().permissions.find((p) => p.id === permissionId);
     if (!req) return;
-    set((s) => ({ permissions: s.permissions.filter((p) => p.id !== permissionId) }));
+    set((s) => ({
+      permissions: s.permissions.filter((p) => p.id !== permissionId),
+    }));
     try {
-      await api.respondPermission(req.sessionID, req.id, allow ? "allow" : "deny");
+      await api.respondPermission(
+        req.sessionID,
+        req.id,
+        allow ? "allow" : "deny",
+      );
     } catch (e) {
       set({ error: (e as Error).message });
     }
@@ -229,7 +238,12 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
   // existing self-improve session (by stored id, then by title) to avoid duplicates.
   ensureSelfImproveSession: async () => {
     const SELF_IMPROVE_TITLE = "Самоулучшение";
-    const { sessions, currentID, selfImproveSessionId, setSelfImproveSessionId } = get();
+    const {
+      sessions,
+      currentID,
+      selfImproveSessionId,
+      setSelfImproveSessionId,
+    } = get();
 
     // Persist the designated chat on the server so its agent is pointed at the
     // live project source. Best-effort: a failure here only means the agent won't
@@ -243,7 +257,8 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
     };
 
     const existing =
-      (selfImproveSessionId && sessions.find((s) => s.id === selfImproveSessionId)) ||
+      (selfImproveSessionId &&
+        sessions.find((s) => s.id === selfImproveSessionId)) ||
       sessions.find((s) => s.title === SELF_IMPROVE_TITLE);
     if (existing) {
       setSelfImproveSessionId(existing.id);

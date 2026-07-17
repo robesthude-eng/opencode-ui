@@ -51,7 +51,9 @@ const GLOBAL_ROUTE_PREFIXES = [
 export function isGlobalRoute(urlPath) {
   if (typeof urlPath !== "string") return true;
   const pathname = urlPath.split("?")[0];
-  return GLOBAL_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(prefix));
+  return GLOBAL_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(prefix),
+  );
 }
 
 export function extractSessionId(req) {
@@ -62,15 +64,25 @@ export function extractSessionId(req) {
     if (isValidSessionId(sid)) return sid;
   }
   try {
-    const qs = new URL(req.url, "http://localhost").searchParams.get("sessionId");
+    const qs = new URL(req.url, "http://localhost").searchParams.get(
+      "sessionId",
+    );
     if (qs && isValidSessionId(qs)) return qs;
-  } catch (e) { console.warn("Ignored error:", e.message); }
+  } catch (e) {
+    console.warn("Ignored error:", e.message);
+  }
   const hdr = req.headers["x-session-id"];
   if (hdr && isValidSessionId(hdr)) return hdr;
   return null;
 }
 
-export function checkSessionOwnership(sessionId, userEmail, res, ownersFile, loadJson) {
+export function checkSessionOwnership(
+  sessionId,
+  userEmail,
+  res,
+  ownersFile,
+  loadJson,
+) {
   const owners = loadJson(ownersFile, {});
   if (owners[sessionId] && userEmail && owners[sessionId] !== userEmail) {
     res.writeHead(403, { "Content-Type": "application/json" });

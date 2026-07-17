@@ -76,7 +76,10 @@ describe("client", () => {
         json: () => Promise.resolve(message),
       });
 
-      await api.prompt("session-1", "Hello", { providerID: "openai", modelID: "gpt-4" });
+      await api.prompt("session-1", "Hello", {
+        providerID: "openai",
+        modelID: "gpt-4",
+      });
 
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/session/session-1/message",

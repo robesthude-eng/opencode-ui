@@ -62,7 +62,9 @@ describe("handleBackupRoute routing and dispatch", () => {
       userEmail: "a@example.com",
       isRequestAdmin: true,
     });
-    expect(res.writeHead).toHaveBeenCalledWith(200, { "Content-Type": "application/json" });
+    expect(res.writeHead).toHaveBeenCalledWith(200, {
+      "Content-Type": "application/json",
+    });
     const responseData = JSON.parse(res.end.mock.calls[0][0]);
     expect(responseData).toEqual([]);
   });

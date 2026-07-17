@@ -7,7 +7,9 @@ export function getInitialTheme(): Theme {
   const saved = localStorage.getItem(KEY) as Theme | null;
   if (saved === "light" || saved === "dark") return saved;
   // Respect OS preference on first visit.
-  return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  return window.matchMedia?.("(prefers-color-scheme: light)").matches
+    ? "light"
+    : "dark";
 }
 
 export function applyTheme(theme: Theme) {

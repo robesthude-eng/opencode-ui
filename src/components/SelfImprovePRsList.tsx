@@ -64,15 +64,19 @@ export default function SelfImprovePRsList({ visible }: { visible: boolean }) {
 
       {!error && prs.length === 0 && !loading && (
         <div className="text-xs text-muted-foreground italic py-3">
-          Пока PR'ов нет. Ассистент создаст их через <code>create-pr</code>, когда ты попросишь
-          что-то улучшить в UI.
+          Пока PR'ов нет. Ассистент создаст их через <code>create-pr</code>,
+          когда ты попросишь что-то улучшить в UI.
         </div>
       )}
 
       {prs.length > 0 && (
         <ul className="space-y-1">
           {prs.map((pr) => {
-            const stateIcon = pr.merged ? "🟣" : pr.state === "open" ? "🟢" : "🔴";
+            const stateIcon = pr.merged
+              ? "🟣"
+              : pr.state === "open"
+                ? "🟢"
+                : "🔴";
             const stateLabel = pr.merged
               ? "merged"
               : pr.state === "open"
@@ -96,7 +100,8 @@ export default function SelfImprovePRsList({ visible }: { visible: boolean }) {
                       #{pr.number} · {pr.title}
                     </div>
                     <div className="text-[11px] text-muted-foreground truncate">
-                      {pr.head_branch} · {stateLabel} · {new Date(pr.updated_at).toLocaleString()}
+                      {pr.head_branch} · {stateLabel} ·{" "}
+                      {new Date(pr.updated_at).toLocaleString()}
                     </div>
                   </div>
                 </a>

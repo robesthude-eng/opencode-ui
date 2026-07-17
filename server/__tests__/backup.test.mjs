@@ -4,7 +4,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { createDbBackup, getBackupDir, listDbBackups, resolveBackupFile } from "../backup.mjs";
+import {
+  createDbBackup,
+  getBackupDir,
+  listDbBackups,
+  resolveBackupFile,
+} from "../backup.mjs";
 import { clearCache, closeDb, initDb, saveJson } from "../db.mjs";
 
 let tmpDir;

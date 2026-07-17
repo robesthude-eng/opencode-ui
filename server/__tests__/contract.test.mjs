@@ -42,9 +42,15 @@ describe("contract: resolveTargetUrl with fake OpenCode upstream", () => {
   const workdir = "/app/workspace";
 
   test("per-session route preserves directory for that session", async () => {
-    const url = resolveTargetUrl("/session/ses_abc123/message", "ses_abc123", workdir);
+    const url = resolveTargetUrl(
+      "/session/ses_abc123/message",
+      "ses_abc123",
+      workdir,
+    );
     expect(url).toContain("directory=");
-    expect(url).toContain(encodeURIComponent("/app/workspace/sessions/ses_abc123/workspace"));
+    expect(url).toContain(
+      encodeURIComponent("/app/workspace/sessions/ses_abc123/workspace"),
+    );
 
     // Simulate proxy to fake upstream
     await new Promise((resolve, reject) => {
@@ -63,13 +69,21 @@ describe("contract: resolveTargetUrl with fake OpenCode upstream", () => {
   });
 
   test("global route never receives directory even if smuggled", () => {
-    const url = resolveTargetUrl("/api/config/providers?directory=/evil", null, workdir);
+    const url = resolveTargetUrl(
+      "/api/config/providers?directory=/evil",
+      null,
+      workdir,
+    );
     expect(url).not.toContain("directory=");
     expect(url).not.toContain("/evil");
   });
 
   test("tmp_ IDs never get directory — treated as global for safety", () => {
-    const url = resolveTargetUrl("/session/tmp_123/message", "tmp_123", workdir);
+    const url = resolveTargetUrl(
+      "/session/tmp_123/message",
+      "tmp_123",
+      workdir,
+    );
     expect(url).not.toContain("directory=");
   });
 
@@ -92,7 +106,11 @@ describe("contract: resolveTargetUrl with fake OpenCode upstream", () => {
   test("DELETE session routing preserves directory for canonical workspace", () => {
     // Simulate DELETE /api/session/ses_del123 — proxy should add directory=/app/workspace/sessions/ses_del123/workspace
     const sessionId = "ses_del123";
-    const url = resolveTargetUrl(`/api/session/${sessionId}`, sessionId, workdir);
+    const url = resolveTargetUrl(
+      `/api/session/${sessionId}`,
+      sessionId,
+      workdir,
+    );
     // For DELETE, our isolation module adds directory, but in real proxy we override with sessionWorkspace
     // Here we just verify the helper adds directory for per-session
     expect(url).toContain("directory=");
@@ -105,7 +123,11 @@ describe("contract: admin route guard", () => {
     // the above tests will fail, blocking CI.
     const url = "/api/session/ses_contract_test/message";
     expect(isPerSessionRoute(url)).toBe(true);
-    const resolved = resolveTargetUrl(url, "ses_contract_test", "/app/workspace");
+    const resolved = resolveTargetUrl(
+      url,
+      "ses_contract_test",
+      "/app/workspace",
+    );
     expect(resolved).toMatch(/directory=/);
   });
 

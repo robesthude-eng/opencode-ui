@@ -21,7 +21,9 @@ describe("sandbox path boundary", () => {
   });
 
   it("accepts a normal source path and normalizes separators", () => {
-    expect(normalizeSandboxPath("src\\components\\Card.tsx")).toBe("src/components/Card.tsx");
+    expect(normalizeSandboxPath("src\\components\\Card.tsx")).toBe(
+      "src/components/Card.tsx",
+    );
   });
 
   it.each([
@@ -35,7 +37,9 @@ describe("sandbox path boundary", () => {
   });
 
   it("enforces the resolved root boundary", () => {
-    expect(resolveInside("/tmp/sandbox", "src/App.tsx")).toBe("/tmp/sandbox/src/App.tsx");
+    expect(resolveInside("/tmp/sandbox", "src/App.tsx")).toBe(
+      "/tmp/sandbox/src/App.tsx",
+    );
     expect(() => resolveInside("/tmp/sandbox", "../outside.ts")).toThrow();
   });
 
@@ -55,7 +59,9 @@ describe("sandbox path boundary", () => {
       ),
     ).toThrow("at most 20");
     expect(() =>
-      validateSandboxFiles([{ path: "src/large.ts", content: "x".repeat(201 * 1024) }]),
+      validateSandboxFiles([
+        { path: "src/large.ts", content: "x".repeat(201 * 1024) },
+      ]),
     ).toThrow("200 KB");
   });
 });
@@ -64,7 +70,8 @@ describe("source transaction", () => {
   const dirs = [];
 
   afterEach(() => {
-    for (const dir of dirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+    for (const dir of dirs.splice(0))
+      fs.rmSync(dir, { recursive: true, force: true });
   });
 
   it("restores modified files and removes newly created files on rollback", () => {
@@ -77,11 +84,15 @@ describe("source transaction", () => {
       { path: "src/App.tsx", content: "after" },
       { path: "src/New.tsx", content: "new" },
     ]);
-    expect(fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8")).toBe("after");
+    expect(fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8")).toBe(
+      "after",
+    );
     expect(fs.existsSync(path.join(root, "src", "New.tsx"))).toBe(true);
 
     rollback();
-    expect(fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8")).toBe("before");
+    expect(fs.readFileSync(path.join(root, "src", "App.tsx"), "utf8")).toBe(
+      "before",
+    );
     expect(fs.existsSync(path.join(root, "src", "New.tsx"))).toBe(false);
   });
 });

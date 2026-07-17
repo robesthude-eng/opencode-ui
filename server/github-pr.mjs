@@ -18,16 +18,22 @@ const pExec = promisify(execFile);
 
 /** Extract PAT + owner/repo from `git remote get-url origin` */
 export async function readRemoteInfo(uiDir) {
-  const { stdout } = await pExec("git", ["-C", uiDir, "remote", "get-url", "origin"], {
-    timeout: 10_000,
-  });
+  const { stdout } = await pExec(
+    "git",
+    ["-C", uiDir, "remote", "get-url", "origin"],
+    {
+      timeout: 10_000,
+    },
+  );
   const url = stdout.trim();
   if (/^https:\/\/[^/]+@github\.com\//i.test(url)) {
     throw new Error(
       "GitHub token in git remote is forbidden; use GITHUB_TOKEN/GITHUB_PAT environment variable",
     );
   }
-  const httpsMatch = url.match(/^https:\/\/github\.com\/([^/]+)\/([^./]+)(?:\.git)?$/);
+  const httpsMatch = url.match(
+    /^https:\/\/github\.com\/([^/]+)\/([^./]+)(?:\.git)?$/,
+  );
   const sshMatch = url.match(/^git@github\.com:([^/]+)\/([^./]+)(?:\.git)?$/);
   const m = httpsMatch || sshMatch;
   if (!m) throw new Error(`unrecognized origin url: ${url}`);
@@ -51,7 +57,10 @@ function githubApi(token, method, apiPath, body) {
           "X-GitHub-Api-Version": "2022-11-28",
           "User-Agent": "opencode-ui-self-improve/1.0",
           ...(data
-            ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) }
+            ? {
+                "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(data),
+              }
             : {}),
         },
       },
@@ -70,7 +79,11 @@ function githubApi(token, method, apiPath, body) {
                 ),
               );
           } catch (e) {
-            reject(new Error(`GitHub API parse error: ${e.message}; raw: ${buf.slice(0, 200)}`));
+            reject(
+              new Error(
+                `GitHub API parse error: ${e.message}; raw: ${buf.slice(0, 200)}`,
+              ),
+            );
           }
         });
       },
@@ -88,12 +101,22 @@ function githubApi(token, method, apiPath, body) {
  * Create a branch, commit files (list of {path, content}), push, open a PR.
  * Returns { url, number, branch, html_url }.
  */
-export async function openPullRequest({ uiDir, files, title, body, baseBranch = "main" }) {
-  if (!Array.isArray(files) || files.length === 0) throw new Error("files array required");
+export async function openPullRequest({
+  uiDir,
+  files,
+  title,
+  body,
+  baseBranch = "main",
+}) {
+  if (!Array.isArray(files) || files.length === 0)
+    throw new Error("files array required");
   if (!title) throw new Error("title required");
 
   const { token, owner, repo } = await readRemoteInfo(uiDir);
-  if (!token) throw new Error("No GITHUB_TOKEN/GITHUB_PAT configured for self-improvement PRs.");
+  if (!token)
+    throw new Error(
+      "No GITHUB_TOKEN/GITHUB_PAT configured for self-improvement PRs.",
+    );
 
   // Branch name: si/YYYY-MM-DD-HHMMSS[-shortHash]
   const now = new Date();
@@ -103,10 +126,14 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
     `${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
   const branch = `si/${stamp}`;
 
-  logger.info(`[create-pr] branch=${branch}, files=${files.length}, base=${baseBranch}`);
+  logger.info(
+    `[create-pr] branch=${branch}, files=${files.length}, base=${baseBranch}`,
+  );
 
   // 1) Make sure we're up-to-date with origin/main
-  await pExec("git", ["-C", uiDir, "fetch", "origin", baseBranch], { timeout: 30000 });
+  await pExec("git", ["-C", uiDir, "fetch", "origin", baseBranch], {
+    timeout: 30000,
+  });
 
   // 2) Create branch from origin/main (throw away any uncommitted local drift for cleanliness)
   //    but STASH first so we don't lose ongoing work
@@ -121,11 +148,17 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
       `${stashResult.stdout || ""} ${stashResult.stderr || ""}`,
     );
   } catch (e) {
-    logger.warn(`[create-pr] stash failed; continuing without stash: ${e.message}`);
+    logger.warn(
+      `[create-pr] stash failed; continuing without stash: ${e.message}`,
+    );
   }
-  await pExec("git", ["-C", uiDir, "checkout", "-B", branch, `origin/${baseBranch}`], {
-    timeout: 15000,
-  });
+  await pExec(
+    "git",
+    ["-C", uiDir, "checkout", "-B", branch, `origin/${baseBranch}`],
+    {
+      timeout: 15000,
+    },
+  );
 
   // 3) Write files (path is relative to uiDir; guard against traversal)
   const written = [];
@@ -133,7 +166,8 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
     if (typeof f?.path !== "string" || typeof f?.content !== "string")
       throw new Error("each file must have {path,content} strings");
     const rel = f.path.replace(/^\/+/, "");
-    if (rel.includes("..") || path.isAbsolute(rel)) throw new Error(`invalid path: ${f.path}`);
+    if (rel.includes("..") || path.isAbsolute(rel))
+      throw new Error(`invalid path: ${f.path}`);
     // whitelist: same as sandbox — only src/, public/, and doc files
     const top = rel.split("/")[0];
     const allowedTop = new Set([
@@ -144,7 +178,9 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
       "README.md",
     ]);
     if (!allowedTop.has(top))
-      throw new Error(`path outside allowlist: ${rel} (only src/**, public/**, docs allowed)`);
+      throw new Error(
+        `path outside allowlist: ${rel} (only src/**, public/**, docs allowed)`,
+      );
     const abs = path.join(uiDir, rel);
     const dir = path.dirname(abs);
     fs.mkdirSync(dir, { recursive: true });
@@ -153,7 +189,9 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
   }
 
   // 4) git add + commit
-  await pExec("git", ["-C", uiDir, "add", "--", ...written], { timeout: 15000 });
+  await pExec("git", ["-C", uiDir, "add", "--", ...written], {
+    timeout: 15000,
+  });
 
   // Skip pre-commit hook — sandbox already validated everything
   await pExec(
@@ -176,7 +214,8 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
   // 5) Push
   // Push with token via extraheader (never writes token to disk / git config)
   const authHeader =
-    "Authorization: Basic " + Buffer.from(`x-access-token:${token}`).toString("base64");
+    "Authorization: Basic " +
+    Buffer.from(`x-access-token:${token}`).toString("base64");
   await pExec(
     "git",
     [
@@ -207,13 +246,17 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
 
   // 7) Restore stashed local drift if any (best effort)
   try {
-    await pExec("git", ["-C", uiDir, "checkout", baseBranch], { timeout: 10000 });
+    await pExec("git", ["-C", uiDir, "checkout", baseBranch], {
+      timeout: 10000,
+    });
   } catch {}
   if (stashCreated) {
     try {
       await pExec("git", ["-C", uiDir, "stash", "pop"], { timeout: 10000 });
     } catch (e) {
-      logger.error(`[create-pr] stash pop conflict; local drift remains in stash: ${e.message}`);
+      logger.error(
+        `[create-pr] stash pop conflict; local drift remains in stash: ${e.message}`,
+      );
     }
   }
 
@@ -229,14 +272,22 @@ export async function openPullRequest({ uiDir, files, title, body, baseBranch = 
  * Enable auto-merge on a PR (if repo settings allow it). Falls back to
  * manual merge if auto-merge is not available.
  */
-export async function enableAutoMerge({ uiDir, prNumber, mergeMethod = "squash" }) {
+export async function enableAutoMerge({
+  uiDir,
+  prNumber,
+  mergeMethod = "squash",
+}) {
   const { token, owner, repo } = await readRemoteInfo(uiDir);
   if (!token) throw new Error("no token");
   try {
     // GraphQL is the only way to enable auto-merge — REST doesn't expose it.
     const query = `mutation($id:ID!, $method:PullRequestMergeMethod!){enablePullRequestAutoMerge(input:{pullRequestId:$id, mergeMethod:$method}){pullRequest{number,autoMergeRequest{enabledAt}}}}`;
     // 1) resolve PR node_id via REST
-    const pr = await githubApi(token, "GET", `/repos/${owner}/${repo}/pulls/${prNumber}`);
+    const pr = await githubApi(
+      token,
+      "GET",
+      `/repos/${owner}/${repo}/pulls/${prNumber}`,
+    );
     const nodeId = pr.body.node_id;
     // 2) send graphql mutation
     const result = await new Promise((resolve, reject) => {
@@ -385,15 +436,24 @@ export async function pollPrStatuses(workdir) {
 
     const runs = checkRuns.check_runs || [];
     // We consider the checks finished when all of them have status === "completed"
-    const finished = runs.length > 0 && runs.every((run) => run.status === "completed");
-    const allSuccessful = finished && runs.every((run) => run.conclusion === "success");
-    const anyFailed = finished && runs.some((run) => run.conclusion === "failure");
+    const finished =
+      runs.length > 0 && runs.every((run) => run.status === "completed");
+    const allSuccessful =
+      finished && runs.every((run) => run.conclusion === "success");
+    const anyFailed =
+      finished && runs.some((run) => run.conclusion === "failure");
 
     // Check if we have already notified for this commit and state
-    const existing = sqlite.prepare("SELECT * FROM tracked_prs WHERE pr_number = ?").get(prNumber);
+    const existing = sqlite
+      .prepare("SELECT * FROM tracked_prs WHERE pr_number = ?")
+      .get(prNumber);
 
     const statusStr = finished ? "completed" : "in_progress";
-    const conclusionStr = allSuccessful ? "success" : anyFailed ? "failure" : "neutral";
+    const conclusionStr = allSuccessful
+      ? "success"
+      : anyFailed
+        ? "failure"
+        : "neutral";
 
     if (!existing) {
       sqlite
@@ -418,8 +478,12 @@ export async function pollPrStatuses(workdir) {
       // Do not inject CI results as a user prompt into the agent. The UI reads
       // tracked_prs through /api/self-improve/prs and displays the status there.
       // Mark as notified in DB
-      sqlite.prepare("UPDATE tracked_prs SET notified = 1 WHERE pr_number = ?").run(prNumber);
-      console.log(`[PR Poller] Notified chat of PR #${prNumber} CI conclusion: ${conclusionStr}`);
+      sqlite
+        .prepare("UPDATE tracked_prs SET notified = 1 WHERE pr_number = ?")
+        .run(prNumber);
+      console.log(
+        `[PR Poller] Notified chat of PR #${prNumber} CI conclusion: ${conclusionStr}`,
+      );
     }
   }
 }

@@ -122,7 +122,9 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                autoComplete={isRegistering ? "new-password" : "current-password"}
+                autoComplete={
+                  isRegistering ? "new-password" : "current-password"
+                }
               />
             </div>
 
@@ -142,7 +144,11 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" className="w-full h-10" disabled={loading}>
-              {loading ? "Подождите…" : isRegistering ? "Зарегистрироваться" : "Войти"}
+              {loading
+                ? "Подождите…"
+                : isRegistering
+                  ? "Зарегистрироваться"
+                  : "Войти"}
             </Button>
           </form>
         </CardContent>

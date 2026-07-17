@@ -18,19 +18,52 @@ const MIN_W = 360;
 const MIN_H = 240;
 
 const HANDLES: Array<{ dir: Dir; style: React.CSSProperties }> = [
-  { dir: "n", style: { top: -3, left: 10, right: 10, height: 7, cursor: "n-resize" } },
-  { dir: "s", style: { bottom: -3, left: 10, right: 10, height: 7, cursor: "s-resize" } },
-  { dir: "e", style: { right: -3, top: 10, bottom: 10, width: 7, cursor: "e-resize" } },
-  { dir: "w", style: { left: -3, top: 10, bottom: 10, width: 7, cursor: "w-resize" } },
-  { dir: "ne", style: { top: -4, right: -4, width: 14, height: 14, cursor: "ne-resize" } },
-  { dir: "nw", style: { top: -4, left: -4, width: 14, height: 14, cursor: "nw-resize" } },
-  { dir: "se", style: { bottom: -4, right: -4, width: 14, height: 14, cursor: "se-resize" } },
-  { dir: "sw", style: { bottom: -4, left: -4, width: 14, height: 14, cursor: "sw-resize" } },
+  {
+    dir: "n",
+    style: { top: -3, left: 10, right: 10, height: 7, cursor: "n-resize" },
+  },
+  {
+    dir: "s",
+    style: { bottom: -3, left: 10, right: 10, height: 7, cursor: "s-resize" },
+  },
+  {
+    dir: "e",
+    style: { right: -3, top: 10, bottom: 10, width: 7, cursor: "e-resize" },
+  },
+  {
+    dir: "w",
+    style: { left: -3, top: 10, bottom: 10, width: 7, cursor: "w-resize" },
+  },
+  {
+    dir: "ne",
+    style: { top: -4, right: -4, width: 14, height: 14, cursor: "ne-resize" },
+  },
+  {
+    dir: "nw",
+    style: { top: -4, left: -4, width: 14, height: 14, cursor: "nw-resize" },
+  },
+  {
+    dir: "se",
+    style: {
+      bottom: -4,
+      right: -4,
+      width: 14,
+      height: 14,
+      cursor: "se-resize",
+    },
+  },
+  {
+    dir: "sw",
+    style: { bottom: -4, left: -4, width: 14, height: 14, cursor: "sw-resize" },
+  },
 ];
 
 function initialRect(): Rect {
   const w = Math.min(920, Math.round(window.innerWidth * 0.94));
-  const h = Math.min(Math.round(window.innerHeight * 0.7), window.innerHeight - 96);
+  const h = Math.min(
+    Math.round(window.innerHeight * 0.7),
+    window.innerHeight - 96,
+  );
   return {
     x: Math.max(8, Math.round((window.innerWidth - w) / 2)),
     y: 48,
@@ -179,7 +212,11 @@ export default function PanelModal({
             title={full ? "Exit fullscreen" : "Fullscreen"}
             aria-label={full ? "Exit fullscreen" : "Fullscreen"}
           >
-            {full ? <ExitFullscreenIcon size={14} /> : <FullscreenIcon size={14} />}
+            {full ? (
+              <ExitFullscreenIcon size={14} />
+            ) : (
+              <FullscreenIcon size={14} />
+            )}
           </Button>
           <Button
             variant="ghost"

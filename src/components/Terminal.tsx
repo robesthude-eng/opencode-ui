@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from "react";
-import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { Terminal as XTerm } from "@xterm/xterm";
+import React, { useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "@xterm/xterm/css/xterm.css";
 
@@ -81,7 +81,11 @@ export function Terminal({ workdir }: TerminalProps) {
     const safeFit = () => {
       if (isDisposed) return;
       try {
-        if (term.element && term.element.clientWidth > 0 && term.element.clientHeight > 0) {
+        if (
+          term.element &&
+          term.element.clientWidth > 0 &&
+          term.element.clientHeight > 0
+        ) {
           if ((term as any)._core && (term as any)._core._renderService) {
             fitAddon.fit();
           }

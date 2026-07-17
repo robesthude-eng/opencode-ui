@@ -8,7 +8,8 @@ import MessageItem from "./MessageItem";
 const SUGGESTIONS = [
   {
     title: "Написать код",
-    prompt: "Напиши функцию на Python, которая сортирует список словарей по ключу",
+    prompt:
+      "Напиши функцию на Python, которая сортирует список словарей по ключу",
     icon: "💻",
   },
   {
@@ -18,10 +19,15 @@ const SUGGESTIONS = [
   },
   {
     title: "Создать файл",
-    prompt: "Создай файл hello.txt с текстом 'Привет мир' используя инструмент write",
+    prompt:
+      "Создай файл hello.txt с текстом 'Привет мир' используя инструмент write",
     icon: "📄",
   },
-  { title: "Отладить", prompt: "Помоги найти баг в этом коде и предложи исправление", icon: "🐛" },
+  {
+    title: "Отладить",
+    prompt: "Помоги найти баг в этом коде и предложи исправление",
+    icon: "🐛",
+  },
 ];
 
 const hasVisibleContent = (m: Message) =>
@@ -35,8 +41,12 @@ const hasVisibleContent = (m: Message) =>
 
 export default function ChatView() {
   const currentID = useStore((s) => s.currentID);
-  const messages = useStore((s) => (currentID ? s.messages[currentID] : undefined));
-  const rawStatus = useStore((s) => (currentID ? s.status[currentID] : undefined));
+  const messages = useStore((s) =>
+    currentID ? s.messages[currentID] : undefined,
+  );
+  const rawStatus = useStore((s) =>
+    currentID ? s.status[currentID] : undefined,
+  );
   const status =
     typeof rawStatus === "string"
       ? rawStatus
@@ -59,7 +69,9 @@ export default function ChatView() {
     setIsScrolledUp(false);
   };
 
-  const scrollRafRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+  const scrollRafRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(
+    null,
+  );
   const onScroll = () => {
     if (scrollRafRef.current) return;
     scrollRafRef.current = requestAnimationFrame(() => {
@@ -82,7 +94,10 @@ export default function ChatView() {
     if (!messages || messages.length === 0) return "";
     const last = messages[messages.length - 1];
     const textLen =
-      last?.parts?.reduce((n, p) => n + ((p as { text?: string }).text?.length ?? 0), 0) ?? 0;
+      last?.parts?.reduce(
+        (n, p) => n + ((p as { text?: string }).text?.length ?? 0),
+        0,
+      ) ?? 0;
     return `${messages.length}:${last?.id ?? ""}:${last?.parts?.length ?? 0}:${textLen}`;
   }, [messages]);
 
@@ -112,7 +127,9 @@ export default function ChatView() {
 
   const visibleMessages = useMemo(
     () =>
-      (messages || []).filter((m) => !showTyping || m.role !== "assistant" || hasVisibleContent(m)),
+      (messages || []).filter(
+        (m) => !showTyping || m.role !== "assistant" || hasVisibleContent(m),
+      ),
     [messages, showTyping],
   );
 
@@ -141,7 +158,9 @@ export default function ChatView() {
     return (
       <div className="flex-1 flex items-center justify-center p-4 md:p-6 min-h-0 overflow-y-auto">
         <div className="max-w-3xl w-full text-center px-3 md:px-6">
-          <h1 className="text-xl md:text-3xl font-semibold mb-2">Чем могу помочь?</h1>
+          <h1 className="text-xl md:text-3xl font-semibold mb-2">
+            Чем могу помочь?
+          </h1>
           <p className="text-sm md:text-base text-muted-foreground">
             Твой персональный AI-ассистент для кода. Напиши свой запрос.
           </p>
@@ -178,14 +197,17 @@ export default function ChatView() {
                 className="rounded-full"
                 onClick={() => setWindowSize((s) => s + 40)}
               >
-                ↑ Показать предыдущие сообщения ({visibleMessages.length - windowSize})
+                ↑ Показать предыдущие сообщения (
+                {visibleMessages.length - windowSize})
               </Button>
             </div>
           )}
           <div>
             {renderedGroups.map((group, i) => {
               const isWorking =
-                status === "busy" && group.role === "assistant" && i === renderedGroups.length - 1;
+                status === "busy" &&
+                group.role === "assistant" &&
+                i === renderedGroups.length - 1;
               const firstId = group.messages[0]?.id ?? `group-${i}`;
               return (
                 <MessageItem
@@ -219,8 +241,8 @@ export default function ChatView() {
                     <span>Сбой автоматического тестирования песочницы</span>
                   </div>
                   <p className="text-xs text-muted-foreground/80 mb-3">
-                    Внесенные изменения вызывают ошибки компиляции или заваливают автотесты Vitest.
-                    Лог ошибок:
+                    Внесенные изменения вызывают ошибки компиляции или
+                    заваливают автотесты Vitest. Лог ошибок:
                   </p>
                   <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 font-mono text-[12px] leading-relaxed text-rose-300 max-h-60 border border-black/10 whitespace-pre-wrap break-all">
                     {testErrors.join("\n")}

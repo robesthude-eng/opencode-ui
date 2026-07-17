@@ -48,7 +48,12 @@ describe("handleRegister security gates", () => {
       on: (event, callback) => {
         if (event === "data") {
           callback(
-            Buffer.from(JSON.stringify({ email: "user@example.com", password: "password123" })),
+            Buffer.from(
+              JSON.stringify({
+                email: "user@example.com",
+                password: "password123",
+              }),
+            ),
           );
         } else if (event === "end") {
           callback();
@@ -146,7 +151,12 @@ describe("handleRegister security gates", () => {
       on: (event, callback) => {
         if (event === "data") {
           callback(
-            Buffer.from(JSON.stringify({ email: "hacker@example.com", password: "password123" })),
+            Buffer.from(
+              JSON.stringify({
+                email: "hacker@example.com",
+                password: "password123",
+              }),
+            ),
           );
         } else if (event === "end") {
           callback();

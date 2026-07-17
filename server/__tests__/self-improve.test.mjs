@@ -67,13 +67,19 @@ describe("isSelfImproveEnabled", () => {
 describe("toggleSelfImprove", () => {
   test("creates flag file with 'true' when enabling", () => {
     toggleSelfImprove(tmpDir, true);
-    const content = fs.readFileSync(path.join(tmpDir, ".self_improve_mode"), "utf8");
+    const content = fs.readFileSync(
+      path.join(tmpDir, ".self_improve_mode"),
+      "utf8",
+    );
     expect(content).toBe("true");
   });
 
   test("creates flag file with 'false' when disabling", () => {
     toggleSelfImprove(tmpDir, false);
-    const content = fs.readFileSync(path.join(tmpDir, ".self_improve_mode"), "utf8");
+    const content = fs.readFileSync(
+      path.join(tmpDir, ".self_improve_mode"),
+      "utf8",
+    );
     expect(content).toBe("false");
   });
 

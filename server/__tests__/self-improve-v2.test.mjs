@@ -32,7 +32,10 @@ afterEach(() => {
 describe("self-improve v2 proposal", () => {
   test("creates proposal with hash and TTL", () => {
     const files = [
-      { path: "src/components/Test.tsx", content: "export const Test = () => <div>hi</div>" },
+      {
+        path: "src/components/Test.tsx",
+        content: "export const Test = () => <div>hi</div>",
+      },
     ];
     const proposal = createProposal(tmpDir, {
       files,
@@ -68,28 +71,52 @@ describe("self-improve v2 proposal", () => {
 
   test("rejects empty files array at creation time", () => {
     expect(() =>
-      createProposal(tmpDir, { files: [], baseCommit: "abc", userEmail: "a@b.com" }),
+      createProposal(tmpDir, {
+        files: [],
+        baseCommit: "abc",
+        userEmail: "a@b.com",
+      }),
     ).toThrow(/files array/);
   });
 
   test("hash is deterministic for same files", () => {
     const files = [{ path: "src/a.ts", content: "content" }];
-    const p1 = createProposal(tmpDir, { files, baseCommit: "abc", userEmail: "a@b.com" });
-    const p2 = createProposal(tmpDir, { files, baseCommit: "abc", userEmail: "a@b.com" });
+    const p1 = createProposal(tmpDir, {
+      files,
+      baseCommit: "abc",
+      userEmail: "a@b.com",
+    });
+    const p2 = createProposal(tmpDir, {
+      files,
+      baseCommit: "abc",
+      userEmail: "a@b.com",
+    });
     expect(p1.hash).toBe(p2.hash);
   });
 
   test("hash differs for different content", () => {
     const files1 = [{ path: "src/a.ts", content: "content1" }];
     const files2 = [{ path: "src/a.ts", content: "content2" }];
-    const p1 = createProposal(tmpDir, { files: files1, baseCommit: "abc", userEmail: "a@b.com" });
-    const p2 = createProposal(tmpDir, { files: files2, baseCommit: "abc", userEmail: "a@b.com" });
+    const p1 = createProposal(tmpDir, {
+      files: files1,
+      baseCommit: "abc",
+      userEmail: "a@b.com",
+    });
+    const p2 = createProposal(tmpDir, {
+      files: files2,
+      baseCommit: "abc",
+      userEmail: "a@b.com",
+    });
     expect(p1.hash).not.toBe(p2.hash);
   });
 
   test("getProposal returns stored proposal", () => {
     const files = [{ path: "src/a.ts", content: "hi" }];
-    const created = createProposal(tmpDir, { files, baseCommit: "abc", userEmail: "a@b.com" });
+    const created = createProposal(tmpDir, {
+      files,
+      baseCommit: "abc",
+      userEmail: "a@b.com",
+    });
     const fetched = getProposal(tmpDir, created.id);
     expect(fetched).not.toBeNull();
     expect(fetched.id).toBe(created.id);
@@ -98,7 +125,11 @@ describe("self-improve v2 proposal", () => {
 
   test("confirmProposal with correct hash succeeds", () => {
     const files = [{ path: "src/a.ts", content: "hi" }];
-    const proposal = createProposal(tmpDir, { files, baseCommit: "abc", userEmail: "a@b.com" });
+    const proposal = createProposal(tmpDir, {
+      files,
+      baseCommit: "abc",
+      userEmail: "a@b.com",
+    });
     const confirmed = confirmProposal(tmpDir, {
       proposalId: proposal.id,
       hash: proposal.hash,
@@ -109,15 +140,27 @@ describe("self-improve v2 proposal", () => {
 
   test("confirmProposal with wrong hash fails", () => {
     const files = [{ path: "src/a.ts", content: "hi" }];
-    const proposal = createProposal(tmpDir, { files, baseCommit: "abc", userEmail: "a@b.com" });
+    const proposal = createProposal(tmpDir, {
+      files,
+      baseCommit: "abc",
+      userEmail: "a@b.com",
+    });
     expect(() =>
-      confirmProposal(tmpDir, { proposalId: proposal.id, hash: "wronghash", userEmail: "a@b.com" }),
+      confirmProposal(tmpDir, {
+        proposalId: proposal.id,
+        hash: "wronghash",
+        userEmail: "a@b.com",
+      }),
     ).toThrow(/Hash mismatch/);
   });
 
   test("proposal TTL 15min", () => {
     const files = [{ path: "src/a.ts", content: "hi" }];
-    const proposal = createProposal(tmpDir, { files, baseCommit: "abc", userEmail: "a@b.com" });
+    const proposal = createProposal(tmpDir, {
+      files,
+      baseCommit: "abc",
+      userEmail: "a@b.com",
+    });
     expect(proposal.ttl).toBe(15 * 60 * 1000);
     expect(proposal.expiresAt - proposal.createdAt).toBe(15 * 60 * 1000);
   });
@@ -132,15 +175,27 @@ describe("self-improve v2 proposal", () => {
 
   test("markProposalStatus updates status", () => {
     const files = [{ path: "src/a.ts", content: "hi" }];
-    const proposal = createProposal(tmpDir, { files, baseCommit: "abc", userEmail: "a@b.com" });
+    const proposal = createProposal(tmpDir, {
+      files,
+      baseCommit: "abc",
+      userEmail: "a@b.com",
+    });
     const updated = markProposalStatus(tmpDir, proposal.id, "applying");
     expect(updated.status).toBe("applying");
   });
 
   test("single-use: confirmed proposal cannot be re-confirmed", () => {
     const files = [{ path: "src/a.ts", content: "hi" }];
-    const proposal = createProposal(tmpDir, { files, baseCommit: "abc", userEmail: "a@b.com" });
-    confirmProposal(tmpDir, { proposalId: proposal.id, hash: proposal.hash, userEmail: "a@b.com" });
+    const proposal = createProposal(tmpDir, {
+      files,
+      baseCommit: "abc",
+      userEmail: "a@b.com",
+    });
+    confirmProposal(tmpDir, {
+      proposalId: proposal.id,
+      hash: proposal.hash,
+      userEmail: "a@b.com",
+    });
     expect(() =>
       confirmProposal(tmpDir, {
         proposalId: proposal.id,

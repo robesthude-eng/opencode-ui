@@ -20,7 +20,13 @@ export function handleBackupsList(_req, res, { WORKDIR, isRequestAdmin }) {
   }
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(
-    JSON.stringify(listDbBackups(WORKDIR).map(({ name, bytes, time }) => ({ name, bytes, time }))),
+    JSON.stringify(
+      listDbBackups(WORKDIR).map(({ name, bytes, time }) => ({
+        name,
+        bytes,
+        time,
+      })),
+    ),
   );
 }
 
@@ -38,9 +44,19 @@ export async function handleBackupCreate(
   try {
     const result = createDbBackup(WORKDIR);
     logAudit(WORKDIR, userEmail, "DB_BACKUP", result.name);
-    void notifyBackupWebhook({ name: result.name, bytes: result.bytes, by: userEmail });
+    void notifyBackupWebhook({
+      name: result.name,
+      bytes: result.bytes,
+      by: userEmail,
+    });
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "success", name: result.name, bytes: result.bytes }));
+    res.end(
+      JSON.stringify({
+        status: "success",
+        name: result.name,
+        bytes: result.bytes,
+      }),
+    );
   } catch (e) {
     captureServerException(e);
     res.writeHead(500, { "Content-Type": "application/json" });
@@ -103,7 +119,11 @@ export async function handleBackupRestore(
   }
 }
 
-export function handleAuditLogs(_req, res, { WORKDIR, userEmail, isRequestAdmin, readAuditLog }) {
+export function handleAuditLogs(
+  _req,
+  res,
+  { WORKDIR, userEmail, isRequestAdmin, readAuditLog },
+) {
   if (!userEmail) {
     res.writeHead(401, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Unauthorized" }));
@@ -122,15 +142,25 @@ export function handleAuditLogs(_req, res, { WORKDIR, userEmail, isRequestAdmin,
     });
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
-      JSON.stringify(formatted.length > 0 ? formatted : ["[System] No audit logs recorded yet."]),
+      JSON.stringify(
+        formatted.length > 0
+          ? formatted
+          : ["[System] No audit logs recorded yet."],
+      ),
     );
   } catch (e) {
     res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Failed to read audit logs", detail: e.message }));
+    res.end(
+      JSON.stringify({ error: "Failed to read audit logs", detail: e.message }),
+    );
   }
 }
 
-export async function handleDiff(_req, res, { WORKDIR, isRequestAdmin, getWorkingDiff }) {
+export async function handleDiff(
+  _req,
+  res,
+  { WORKDIR, isRequestAdmin, getWorkingDiff },
+) {
   if (!isRequestAdmin) {
     res.writeHead(403, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Admin access required." }));
@@ -142,7 +172,12 @@ export async function handleDiff(_req, res, { WORKDIR, isRequestAdmin, getWorkin
     res.end(JSON.stringify(result));
   } catch (err) {
     res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Failed to read source diff", detail: err.message }));
+    res.end(
+      JSON.stringify({
+        error: "Failed to read source diff",
+        detail: err.message,
+      }),
+    );
   }
 }
 
@@ -162,20 +197,40 @@ export async function handleBackupRoute(
   }
 
   if (urlPath === "/api/db/backup" && req.method === "POST") {
-    return handleBackupCreate(req, res, { WORKDIR, userEmail, isRequestAdmin, checkRateLimit });
+    return handleBackupCreate(req, res, {
+      WORKDIR,
+      userEmail,
+      isRequestAdmin,
+      checkRateLimit,
+    });
   }
 
   if (urlPath === "/api/db/backup/restore" && req.method === "POST") {
-    return handleBackupRestore(req, res, { WORKDIR, userEmail, isRequestAdmin, checkRateLimit });
+    return handleBackupRestore(req, res, {
+      WORKDIR,
+      userEmail,
+      isRequestAdmin,
+      checkRateLimit,
+    });
   }
 
   const backupDlMatch = urlPath.match(/^\/api\/db\/backup\/download\/(.+)$/);
   if (backupDlMatch && req.method === "GET") {
-    return handleBackupDownload(req, res, { WORKDIR, userEmail, isRequestAdmin, backupDlMatch });
+    return handleBackupDownload(req, res, {
+      WORKDIR,
+      userEmail,
+      isRequestAdmin,
+      backupDlMatch,
+    });
   }
 
   if (urlPath === "/api/db/audit" && req.method === "GET") {
-    return handleAuditLogs(req, res, { WORKDIR, userEmail, isRequestAdmin, readAuditLog });
+    return handleAuditLogs(req, res, {
+      WORKDIR,
+      userEmail,
+      isRequestAdmin,
+      readAuditLog,
+    });
   }
 
   if (urlPath === "/api/db/diff" && req.method === "GET") {

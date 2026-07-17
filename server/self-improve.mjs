@@ -22,10 +22,14 @@ const BUILD_OUT_DIR = "/app/dist";
 // Versioned snapshots for instant rollback (symlink switch)
 const DIST_VERSIONS_DIR = "/app/dist-versions";
 const DIST_CURRENT_LINK = "/app/dist-current";
-const MAX_DIST_VERSIONS = Number(process.env.SELF_IMPROVE_MAX_DIST_VERSIONS) || 3;
-const GIT_COMMAND_TIMEOUT_MS = Number(process.env.SELF_IMPROVE_GIT_TIMEOUT_MS) || 30_000;
-const REBUILD_NPM_TIMEOUT_MS = Number(process.env.SELF_IMPROVE_NPM_TIMEOUT_MS) || 300_000;
-const REBUILD_VITE_TIMEOUT_MS = Number(process.env.SELF_IMPROVE_VITE_TIMEOUT_MS) || 600_000;
+const MAX_DIST_VERSIONS =
+  Number(process.env.SELF_IMPROVE_MAX_DIST_VERSIONS) || 3;
+const GIT_COMMAND_TIMEOUT_MS =
+  Number(process.env.SELF_IMPROVE_GIT_TIMEOUT_MS) || 30_000;
+const REBUILD_NPM_TIMEOUT_MS =
+  Number(process.env.SELF_IMPROVE_NPM_TIMEOUT_MS) || 300_000;
+const REBUILD_VITE_TIMEOUT_MS =
+  Number(process.env.SELF_IMPROVE_VITE_TIMEOUT_MS) || 600_000;
 const INTERNAL_TOKEN_FILE = ".si-internal-token";
 
 // Concurrency lock: prevents rebuild/reset/rollback from running in parallel.
@@ -54,7 +58,8 @@ export function releaseBuildLock() {
 export function getUiDir(workdir) {
   const p = path.join(workdir, "opencode-ui");
   if (fs.existsSync(p)) return p;
-  if (fs.existsSync(path.join(__dirname, "..", "package.json"))) return path.join(__dirname, "..");
+  if (fs.existsSync(path.join(__dirname, "..", "package.json")))
+    return path.join(__dirname, "..");
   return p;
 }
 
@@ -68,7 +73,9 @@ export function getUiDir(workdir) {
 // REAL latest from GitHub (origin/main) on demand — e.g. when Self-Improvement
 // is toggled ON, or via POST /api/self-improve/resync.
 
-const GITHUB_REPO = process.env.GITHUB_REPO || "https://github.com/robesthude-eng/opencode-ui.git";
+const GITHUB_REPO =
+  process.env.GITHUB_REPO ||
+  "https://github.com/robesthude-eng/opencode-ui.git";
 // Image snapshot used as a fallback when GitHub is unreachable. Mirrors the
 // file list copied by start.sh.
 const SRC_SNAPSHOT = "/app/workspace-src";
@@ -97,9 +104,14 @@ async function git(workdir, args, { allowFail = false } = {}) {
       cwd: workdir,
       timeout: GIT_COMMAND_TIMEOUT_MS,
     });
-    return { ok: true, stdout: (stdout || "").trim(), stderr: (stderr || "").trim() };
+    return {
+      ok: true,
+      stdout: (stdout || "").trim(),
+      stderr: (stderr || "").trim(),
+    };
   } catch (e) {
-    if (allowFail) return { ok: false, error: e.message, stderr: (e.stderr || "").trim() };
+    if (allowFail)
+      return { ok: false, error: e.message, stderr: (e.stderr || "").trim() };
     throw e;
   }
 }
@@ -129,15 +141,23 @@ export async function syncUiSource(workdir) {
 
   // 1) Preserve any in-progress agent work in local history (recoverable).
   await git(uiDir, ["add", "-A"]);
-  await new Promise((res) => commitBounded(uiDir, "pre-resync checkpoint", () => res()));
+  await new Promise((res) =>
+    commitBounded(uiDir, "pre-resync checkpoint", () => res()),
+  );
 
   // 2) Ensure an `origin` remote pointing at the PUBLIC repo URL (no token!).
-  const originInfo = await git(uiDir, ["remote", "get-url", "origin"], { allowFail: true });
+  const originInfo = await git(uiDir, ["remote", "get-url", "origin"], {
+    allowFail: true,
+  });
   if (!originInfo.ok) {
-    await git(uiDir, ["remote", "add", "origin", GITHUB_REPO], { allowFail: true });
+    await git(uiDir, ["remote", "add", "origin", GITHUB_REPO], {
+      allowFail: true,
+    });
   } else if (originInfo.stdout !== GITHUB_REPO) {
     // Normalize any legacy token-bearing remote before future commands.
-    await git(uiDir, ["remote", "set-url", "origin", GITHUB_REPO], { allowFail: true });
+    await git(uiDir, ["remote", "set-url", "origin", GITHUB_REPO], {
+      allowFail: true,
+    });
   }
 
   // 3) Try to fetch the real latest from GitHub.
@@ -155,16 +175,22 @@ export async function syncUiSource(workdir) {
     : ["fetch", "--depth=1", "origin", "main"];
   const fr = await git(uiDir, fetchArgs, { allowFail: true });
   if (fr.ok) {
-    const co = await git(uiDir, ["checkout", "-f", "origin/main", "--", "."], { allowFail: true });
+    const co = await git(uiDir, ["checkout", "-f", "origin/main", "--", "."], {
+      allowFail: true,
+    });
     githubOk = co.ok;
   }
 
   // 4) Fallback: clean copy from the image snapshot (also drops removed files).
   if (!githubOk && fs.existsSync(SRC_SNAPSHOT)) {
     fs.rmSync(path.join(uiDir, "src"), { recursive: true, force: true });
-    fs.cpSync(path.join(SRC_SNAPSHOT, "src"), path.join(uiDir, "src"), { recursive: true });
+    fs.cpSync(path.join(SRC_SNAPSHOT, "src"), path.join(uiDir, "src"), {
+      recursive: true,
+    });
     if (fs.existsSync(path.join(SRC_SNAPSHOT, "public")))
-      fs.cpSync(path.join(SRC_SNAPSHOT, "public"), path.join(uiDir, "public"), { recursive: true });
+      fs.cpSync(path.join(SRC_SNAPSHOT, "public"), path.join(uiDir, "public"), {
+        recursive: true,
+      });
     for (const f of ROOT_FILES) {
       const s = path.join(SRC_SNAPSHOT, f);
       if (fs.existsSync(s)) fs.copyFileSync(s, path.join(uiDir, f));
@@ -172,7 +198,11 @@ export async function syncUiSource(workdir) {
   }
 
   // 5) Record what we synced to.
-  const source = githubOk ? "github" : fs.existsSync(SRC_SNAPSHOT) ? "image" : "none";
+  const source = githubOk
+    ? "github"
+    : fs.existsSync(SRC_SNAPSHOT)
+      ? "image"
+      : "none";
   const msg = githubOk
     ? "resync → origin/main (GitHub, freshest)"
     : source === "image"
@@ -189,7 +219,9 @@ export async function syncUiSource(workdir) {
   // Keep the local history bounded (compact unreachable objects).
   await new Promise((res) => pruneCheckpoints(workdir, () => res()));
 
-  console.log(`[syncUiSource] source=${source} githubOk=${githubOk} dir=${uiDir}`);
+  console.log(
+    `[syncUiSource] source=${source} githubOk=${githubOk} dir=${uiDir}`,
+  );
   return { source, githubOk };
 }
 
@@ -206,8 +238,14 @@ export async function pruneCheckpoints(workdir) {
   const uiDir = getUiDir(workdir);
   if (!fs.existsSync(path.join(uiDir, ".git"))) return;
   try {
-    await execFileP("git", ["reflog", "expire", "--expire=now", "--all"], { cwd: uiDir, timeout: 10000 });
-    await execFileP("git", ["gc", "--prune=now"], { cwd: uiDir, timeout: 30000 });
+    await execFileP("git", ["reflog", "expire", "--expire=now", "--all"], {
+      cwd: uiDir,
+      timeout: 10000,
+    });
+    await execFileP("git", ["gc", "--prune=now"], {
+      cwd: uiDir,
+      timeout: 30000,
+    });
   } catch (e) {
     console.error("[pruneCheckpoints] failed:", e.message);
   }
@@ -229,18 +267,27 @@ async function commitBounded(uiDir, message) {
     const { stdout: countOut } = await execFileP(
       "git",
       ["rev-list", "--count", "HEAD"],
-      { cwd: uiDir, timeout: 10000 }
+      { cwd: uiDir, timeout: 10000 },
     );
     const count = parseInt((countOut || "0").trim(), 10) || 0;
     if (count >= MAX_CHECKPOINTS) {
       try {
-        await execFileP("git", ["commit", "--amend", "-m", message], { cwd: uiDir, timeout: 15000 });
+        await execFileP("git", ["commit", "--amend", "-m", message], {
+          cwd: uiDir,
+          timeout: 15000,
+        });
       } catch (err) {
         // Amend can fail on an unchanged tree — fall back to an empty commit.
-        await execFileP("git", ["commit", "-m", message, "--allow-empty"], { cwd: uiDir, timeout: 15000 });
+        await execFileP("git", ["commit", "-m", message, "--allow-empty"], {
+          cwd: uiDir,
+          timeout: 15000,
+        });
       }
     } else {
-      await execFileP("git", ["commit", "-m", message], { cwd: uiDir, timeout: 15000 });
+      await execFileP("git", ["commit", "-m", message], {
+        cwd: uiDir,
+        timeout: 15000,
+      });
     }
   } catch (err) {
     throw new Error(`commitBounded failed: ${err.message}`);
@@ -253,7 +300,10 @@ async function commitBounded(uiDir, message) {
 export function isSelfImproveEnabled(workdir) {
   const flagFile = path.join(workdir, ".self_improve_mode");
   try {
-    return fs.existsSync(flagFile) && fs.readFileSync(flagFile, "utf8").trim() === "true";
+    return (
+      fs.existsSync(flagFile) &&
+      fs.readFileSync(flagFile, "utf8").trim() === "true"
+    );
   } catch {
     return false;
   }
@@ -288,7 +338,10 @@ export function setSelfImproveSessionId(workdir, id) {
   try {
     fs.writeFileSync(f, JSON.stringify({ id: id || null }), "utf8");
   } catch (e) {
-    console.error("[Self-Improve] failed to store self-improve session id:", e.message);
+    console.error(
+      "[Self-Improve] failed to store self-improve session id:",
+      e.message,
+    );
   }
 }
 
@@ -329,28 +382,44 @@ function selfImproveWorkspaceFilter(src) {
 }
 
 export function getSiInternalTokenPath(workdir, sessionId) {
-  return path.join(workdir, "sessions", sessionId, "workspace", INTERNAL_TOKEN_FILE);
+  return path.join(
+    workdir,
+    "sessions",
+    sessionId,
+    "workspace",
+    INTERNAL_TOKEN_FILE,
+  );
 }
 
 export function ensureSiInternalToken(workdir, sessionId) {
   const tokenPath = getSiInternalTokenPath(workdir, sessionId);
   fs.mkdirSync(path.dirname(tokenPath), { recursive: true });
   if (!fs.existsSync(tokenPath)) {
-    fs.writeFileSync(tokenPath, crypto.randomBytes(32).toString("hex"), { mode: 0o600 });
+    fs.writeFileSync(tokenPath, crypto.randomBytes(32).toString("hex"), {
+      mode: 0o600,
+    });
   }
   try {
     fs.chmodSync(tokenPath, 0o600);
-  } catch (e) { console.warn("Ignored error:", e); }
+  } catch (e) {
+    console.warn("Ignored error:", e);
+  }
   return fs.readFileSync(tokenPath, "utf8").trim();
 }
 
 export function isSiInternalRequest(workdir, req, urlPath) {
   const remote = req.socket?.remoteAddress || "";
-  if (remote !== "127.0.0.1" && remote !== "::1" && remote !== "::ffff:127.0.0.1") return false;
+  if (
+    remote !== "127.0.0.1" &&
+    remote !== "::1" &&
+    remote !== "::ffff:127.0.0.1"
+  )
+    return false;
   const token = req.headers["x-si-internal-token"];
   const sessionId = req.headers["x-si-session-id"];
   const configured = getSelfImproveSessionId(workdir);
-  const allowed = req.method === "POST" && urlPath === "/api/self-improve/create-pr";
+  const allowed =
+    req.method === "POST" && urlPath === "/api/self-improve/create-pr";
   if (
     !allowed ||
     typeof token !== "string" ||
@@ -369,14 +438,24 @@ export function isSiInternalRequest(workdir, req, urlPath) {
 }
 
 export function refreshSelfImproveWorkspace(workdir, sessionId) {
-  const sessionWorkspace = path.join(workdir, "sessions", sessionId, "workspace");
+  const sessionWorkspace = path.join(
+    workdir,
+    "sessions",
+    sessionId,
+    "workspace",
+  );
   const uiDir = getUiDir(workdir);
   if (!fs.existsSync(uiDir)) throw new Error(`UI source missing: ${uiDir}`);
   fs.rmSync(sessionWorkspace, { recursive: true, force: true });
   fs.mkdirSync(sessionWorkspace, { recursive: true });
-  fs.cpSync(uiDir, sessionWorkspace, { recursive: true, filter: selfImproveWorkspaceFilter });
+  fs.cpSync(uiDir, sessionWorkspace, {
+    recursive: true,
+    filter: selfImproveWorkspaceFilter,
+  });
   ensureSiInternalToken(workdir, sessionId);
-  console.log(`[Self-Improve Sandbox] Workspace refreshed for session ${sessionId}`);
+  console.log(
+    `[Self-Improve Sandbox] Workspace refreshed for session ${sessionId}`,
+  );
 }
 
 export function toggleSelfImprove(workdir, enabled) {
@@ -435,11 +514,17 @@ export function promoteDistSnapshot() {
     const entries = fs
       .readdirSync(DIST_VERSIONS_DIR)
       .filter((n) => n.startsWith("v-"))
-      .map((n) => ({ name: n, mtime: fs.statSync(path.join(DIST_VERSIONS_DIR, n)).mtimeMs }))
+      .map((n) => ({
+        name: n,
+        mtime: fs.statSync(path.join(DIST_VERSIONS_DIR, n)).mtimeMs,
+      }))
       .sort((a, b) => b.mtime - a.mtime);
     for (const old of entries.slice(MAX_DIST_VERSIONS)) {
       try {
-        fs.rmSync(path.join(DIST_VERSIONS_DIR, old.name), { recursive: true, force: true });
+        fs.rmSync(path.join(DIST_VERSIONS_DIR, old.name), {
+          recursive: true,
+          force: true,
+        });
       } catch (e) {
         console.warn("[Dist] prune failed:", e.message);
       }
@@ -467,7 +552,8 @@ function replaceLiveDistFrom(versionDir, label) {
     if (movedOld) fs.rmSync(oldDir, { recursive: true, force: true });
   } catch (error) {
     fs.rmSync(tempDir, { recursive: true, force: true });
-    if (movedOld && !fs.existsSync(BUILD_OUT_DIR)) fs.renameSync(oldDir, BUILD_OUT_DIR);
+    if (movedOld && !fs.existsSync(BUILD_OUT_DIR))
+      fs.renameSync(oldDir, BUILD_OUT_DIR);
     throw error;
   }
 }
@@ -569,7 +655,11 @@ async function runBuild(cwd) {
   const env = { ...process.env, NODE_OPTIONS: "--max-old-space-size=4096" };
   let stdout1, stderr1;
   try {
-    ({ stdout: stdout1, stderr: stderr1 } = await execFileP("npm", ["install", "--silent"], { cwd, timeout: REBUILD_NPM_TIMEOUT_MS, env }));
+    ({ stdout: stdout1, stderr: stderr1 } = await execFileP(
+      "npm",
+      ["install", "--silent"],
+      { cwd, timeout: REBUILD_NPM_TIMEOUT_MS, env },
+    ));
   } catch (err1) {
     throw new Error(`npm install failed: ${err1.stderr || err1.message}`);
   }
@@ -614,13 +704,19 @@ export default defineConfig({
     ({ stdout: stdout2, stderr: stderr2 } = await execFileP(
       "npx",
       ["vite", "build", "--config", configPath],
-      { cwd, timeout: REBUILD_VITE_TIMEOUT_MS, env, maxBuffer: 20 * 1024 * 1024 }
+      {
+        cwd,
+        timeout: REBUILD_VITE_TIMEOUT_MS,
+        env,
+        maxBuffer: 20 * 1024 * 1024,
+      },
     ));
   } catch (err2) {
     fs.rmSync(buildDir, { recursive: true, force: true });
     // Vite failed (likely OOM). Return error — do NOT fall back to
     // esbuild (its ESM output produces a blank page).
-    const isOOM = (err2.stderr || "").includes("Killed") || err2.message.includes("Killed");
+    const isOOM =
+      (err2.stderr || "").includes("Killed") || err2.message.includes("Killed");
     throw new Error(
       isOOM
         ? `vite build was killed (OOM). Rebuild on a host with sufficient memory, or deploy through the Docker pipeline.`
@@ -630,7 +726,9 @@ export default defineConfig({
     // Clean up temp config
     try {
       fs.unlinkSync(configPath);
-    } catch (e) { console.warn("Ignored error:", e); }
+    } catch (e) {
+      console.warn("Ignored error:", e);
+    }
   }
 
   // Vite succeeded: atomically replace the live dist with the clean,
@@ -638,7 +736,8 @@ export default defineConfig({
   // completes, then removed to avoid stale index-rebuilt assets.
   try {
     const oldDir = `${BUILD_OUT_DIR}.previous-${process.pid}-${Date.now()}`;
-    if (fs.existsSync(oldDir)) fs.rmSync(oldDir, { recursive: true, force: true });
+    if (fs.existsSync(oldDir))
+      fs.rmSync(oldDir, { recursive: true, force: true });
     if (fs.existsSync(BUILD_OUT_DIR)) fs.renameSync(BUILD_OUT_DIR, oldDir);
     fs.renameSync(buildDir, BUILD_OUT_DIR);
     fs.rmSync(oldDir, { recursive: true, force: true });
@@ -681,13 +780,18 @@ export async function resetUi(workdir) {
   }
 
   await execFileP("mkdir", ["-p", path.join(uiDir, "src")], { timeout: 10000 });
-  await execFileP("cp", ["-rf", `${path.join(srcDir, "src")}/.`, `${path.join(uiDir, "src")}/`], { timeout: 30000 });
+  await execFileP(
+    "cp",
+    ["-rf", `${path.join(srcDir, "src")}/.`, `${path.join(uiDir, "src")}/`],
+    { timeout: 30000 },
+  );
 
   const publicSrc = path.join(srcDir, "public");
   const publicDest = path.join(uiDir, "public");
   try {
     fs.rmSync(publicDest, { recursive: true, force: true });
-    if (fs.existsSync(publicSrc)) fs.cpSync(publicSrc, publicDest, { recursive: true });
+    if (fs.existsSync(publicSrc))
+      fs.cpSync(publicSrc, publicDest, { recursive: true });
   } catch (e) {
     console.warn(`[Reset UI] Could not copy public/: ${e.message}`);
   }
@@ -721,9 +825,17 @@ export async function createCheckpoint(workdir) {
     throw new Error("Directory opencode-ui not found.");
   }
 
-  const { stdout: statusOut } = await execFileP("git", ["status", "--porcelain"], { cwd: uiDir, timeout: 10000 });
+  const { stdout: statusOut } = await execFileP(
+    "git",
+    ["status", "--porcelain"],
+    { cwd: uiDir, timeout: 10000 },
+  );
   if (!statusOut?.trim()) {
-    const { stdout: logOut } = await execFileP("git", ["log", "-1", "--format=%h — %s (%cr)"], { cwd: uiDir, timeout: 10000 });
+    const { stdout: logOut } = await execFileP(
+      "git",
+      ["log", "-1", "--format=%h — %s (%cr)"],
+      { cwd: uiDir, timeout: 10000 },
+    );
     return {
       status: "noop",
       message: "No changes to save",
@@ -740,11 +852,11 @@ export async function createCheckpoint(workdir) {
   // fold new changes into the latest commit (amend) instead of adding a
   // new one. Bounds history length without fragile history rewriting.
   await commitBounded(uiDir, msg);
-  
+
   const { stdout: commitOut } = await execFileP(
     "git",
     ["log", "-1", "--format=%h — %s (%cr)"],
-    { cwd: uiDir, timeout: 10000 }
+    { cwd: uiDir, timeout: 10000 },
   );
   console.log(`[Checkpoint] Created: ${commitOut?.trim()}`);
   pruneCheckpoints(workdir).catch(() => {}); // best-effort: keep history bounded
@@ -761,11 +873,12 @@ export async function createCheckpoint(workdir) {
  */
 export async function getWorkingDiff(workdir) {
   const uiDir = getUiDir(workdir);
-  if (!fs.existsSync(path.join(uiDir, ".git"))) return { diff: "", changed: false };
+  if (!fs.existsSync(path.join(uiDir, ".git")))
+    return { diff: "", changed: false };
   const { stdout } = await execFileP(
     "git",
     ["diff", "--no-ext-diff", "--", "src"],
-    { cwd: uiDir, timeout: 10000, maxBuffer: 512 * 1024 }
+    { cwd: uiDir, timeout: 10000, maxBuffer: 512 * 1024 },
   );
   const diff = (stdout || "").slice(0, 500 * 1024);
   return { diff, changed: diff.length > 0 };
@@ -789,7 +902,7 @@ export async function listCheckpoints(workdir) {
     const { stdout } = await execFileP(
       "git",
       ["log", "-n", "15", "--format=%h|%s|%cr"],
-      { cwd: uiDir, timeout: 10000 }
+      { cwd: uiDir, timeout: 10000 },
     );
     const commits = (stdout || "")
       .trim()
@@ -797,7 +910,11 @@ export async function listCheckpoints(workdir) {
       .filter(Boolean)
       .map((line) => {
         const parts = line.split("|");
-        return { hash: parts[0] || "", subject: parts[1] || "", time: parts[2] || "" };
+        return {
+          hash: parts[0] || "",
+          subject: parts[1] || "",
+          time: parts[2] || "",
+        };
       });
     return commits;
   } catch (err) {
@@ -813,7 +930,10 @@ export async function rollbackToCommit(workdir, hash) {
   const uiDir = getUiDir(workdir);
 
   try {
-    await execFileP("git", ["reset", "--hard", hash], { cwd: uiDir, timeout: 30000 });
+    await execFileP("git", ["reset", "--hard", hash], {
+      cwd: uiDir,
+      timeout: 30000,
+    });
   } catch (err1) {
     console.error("[Rollback] git reset failed:", err1.message);
     throw err1;
@@ -901,13 +1021,21 @@ export function readAuditLog(workdir, maxEntries = 100) {
           entries.push(parsed);
         } catch {
           // Legacy plain-text format — wrap in object
-          entries.push({ raw: line, timestamp: "", user: "", action: "", details: "" });
+          entries.push({
+            raw: line,
+            timestamp: "",
+            user: "",
+            action: "",
+            details: "",
+          });
         }
       }
     }
 
     // Sort by timestamp descending (most recent first), take last maxEntries
-    entries.sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+    entries.sort((a, b) =>
+      (b.timestamp || "").localeCompare(a.timestamp || ""),
+    );
     return entries.slice(0, maxEntries);
   } catch {
     return [];

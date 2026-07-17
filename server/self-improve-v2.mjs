@@ -57,7 +57,10 @@ function normalizeDiff(files, baseCommit) {
   const sorted = [...files].sort((a, b) => a.path.localeCompare(b.path));
   return {
     baseCommit,
-    files: sorted.map((f) => ({ path: f.path, size: (f.content || "").length })),
+    files: sorted.map((f) => ({
+      path: f.path,
+      size: (f.content || "").length,
+    })),
     hash: hashFiles(files),
   };
 }
@@ -114,12 +117,17 @@ export function createProposal(workdir, { files, baseCommit, userEmail }) {
 
 export function getProposal(workdir, proposalId) {
   const db = getDb(workdir);
-  const row = db.prepare("SELECT * FROM proposals WHERE id = ?").get(proposalId);
+  const row = db
+    .prepare("SELECT * FROM proposals WHERE id = ?")
+    .get(proposalId);
   if (!row) return null;
   const now = Date.now();
   if (row.expires_at < now && row.status === "proposal") {
     // Expired
-    db.prepare("UPDATE proposals SET status = ? WHERE id = ?").run("expired", proposalId);
+    db.prepare("UPDATE proposals SET status = ? WHERE id = ?").run(
+      "expired",
+      proposalId,
+    );
     return { ...row, status: "expired", files: JSON.parse(row.files) };
   }
   return {
@@ -132,12 +140,15 @@ export function listProposals(workdir, { status } = {}) {
   const db = getDb(workdir);
   const now = Date.now();
   // Cleanup expired
-  db.prepare("DELETE FROM proposals WHERE expires_at < ? AND status = 'proposal'").run(now);
+  db.prepare(
+    "DELETE FROM proposals WHERE expires_at < ? AND status = 'proposal'",
+  ).run(now);
 
   let query = "SELECT * FROM proposals ORDER BY created_at DESC LIMIT 50";
   let rows;
   if (status) {
-    query = "SELECT * FROM proposals WHERE status = ? ORDER BY created_at DESC LIMIT 50";
+    query =
+      "SELECT * FROM proposals WHERE status = ? ORDER BY created_at DESC LIMIT 50";
     rows = db.prepare(query).all(status);
   } else {
     rows = db.prepare(query).all();
@@ -162,41 +173,60 @@ export function confirmProposal(workdir, { proposalId, hash, userEmail }) {
   if (!proposal) throw new Error("Proposal not found");
   if (proposal.status !== "proposal")
     throw new Error(`Proposal already ${proposal.status}, not confirmable`);
-  if (proposal.hash !== hash) throw new Error("Hash mismatch — proposal files changed");
+  if (proposal.hash !== hash)
+    throw new Error("Hash mismatch — proposal files changed");
 
   const now = Date.now();
-  if (proposal.expires_at < now) throw new Error("Proposal expired (15min TTL)");
+  if (proposal.expires_at < now)
+    throw new Error("Proposal expired (15min TTL)");
 
   // Verify baseCommit still matches current HEAD (optimistic concurrency)
   // This will be checked in transaction step, but we store confirmation now
-  db.prepare("UPDATE proposals SET status = ?, confirmed_at = ?, user_email = ? WHERE id = ?").run(
-    "confirmed",
-    now,
-    userEmail || proposal.user_email,
-    proposalId,
-  );
+  db.prepare(
+    "UPDATE proposals SET status = ?, confirmed_at = ?, user_email = ? WHERE id = ?",
+  ).run("confirmed", now, userEmail || proposal.user_email, proposalId);
 
-  logAudit(workdir, userEmail, "SI_V2_CONFIRMED", `id=${proposalId} hash=${hash.slice(0, 12)}`);
+  logAudit(
+    workdir,
+    userEmail,
+    "SI_V2_CONFIRMED",
+    `id=${proposalId} hash=${hash.slice(0, 12)}`,
+  );
 
   return { ...proposal, status: "confirmed", confirmedAt: now };
 }
 
-export function markProposalStatus(workdir, proposalId, status, { userEmail } = {}) {
+export function markProposalStatus(
+  workdir,
+  proposalId,
+  status,
+  { userEmail } = {},
+) {
   const db = getDb(workdir);
   const now = Date.now();
   const field =
-    status === "applying" ? "applied_at" : status === "confirmed" ? "confirmed_at" : null;
+    status === "applying"
+      ? "applied_at"
+      : status === "confirmed"
+        ? "confirmed_at"
+        : null;
   if (field) {
-    db.prepare(`UPDATE proposals SET status = ?, ${field} = ? WHERE id = ?`).run(
+    db.prepare(
+      `UPDATE proposals SET status = ?, ${field} = ? WHERE id = ?`,
+    ).run(status, now, proposalId);
+  } else {
+    db.prepare("UPDATE proposals SET status = ? WHERE id = ?").run(
       status,
-      now,
       proposalId,
     );
-  } else {
-    db.prepare("UPDATE proposals SET status = ? WHERE id = ?").run(status, proposalId);
   }
   if (userEmail) {
-    logAudit(workdir, userEmail, `SI_V2_${status.toUpperCase()}`, `id=${proposalId}`);
+    logAudit(
+      workdir,
+      userEmail,
+      `SI_V2_${status.toUpperCase()}`,
+      `id=${proposalId}`,
+    );
   }
   return getProposal(workdir, proposalId);
 }
@@ -204,15 +234,24 @@ export function markProposalStatus(workdir, proposalId, status, { userEmail } = 
 export function getProposalDiff(workdir, proposalId) {
   const proposal = getProposal(workdir, proposalId);
   if (!proposal) throw new Error("Proposal not found");
-  const files = typeof proposal.files === "string" ? JSON.parse(proposal.files) : proposal.files;
+  const files =
+    typeof proposal.files === "string"
+      ? JSON.parse(proposal.files)
+      : proposal.files;
   // If files is array of objects with content, normalize
   const fileObjs =
-    Array.isArray(files) && files.length > 0 && typeof files[0] === "object" && files[0].path
+    Array.isArray(files) &&
+    files.length > 0 &&
+    typeof files[0] === "object" &&
+    files[0].path
       ? files
       : [];
   // For diff, we need to handle both cases: files stored as objects or as paths
   // If stored as objects, use them; if as paths, we can't diff without content (should not happen)
-  const normalized = normalizeDiff(fileObjs.length > 0 ? fileObjs : [], proposal.base_commit);
+  const normalized = normalizeDiff(
+    fileObjs.length > 0 ? fileObjs : [],
+    proposal.base_commit,
+  );
   return normalized;
 }
 
@@ -227,7 +266,11 @@ export function getProposalDiff(workdir, proposalId) {
  * 5. Healthcheck (curl /health and check dist exists)
  * 6. Atomic publish (promoteDistSnapshot) or restore last published dist
  */
-export async function executeProposalTransaction(workdir, proposalId, { userEmail, deps }) {
+export async function executeProposalTransaction(
+  workdir,
+  proposalId,
+  { userEmail, deps },
+) {
   const {
     getCurrentCommit,
     applyFiles,
@@ -253,14 +296,20 @@ export async function executeProposalTransaction(workdir, proposalId, { userEmai
 
   // createProposal stores the full validated [{path, content}] array as JSON.
   const db = getDb(workdir);
-  const rawRow = db.prepare("SELECT files FROM proposals WHERE id = ?").get(proposalId);
+  const rawRow = db
+    .prepare("SELECT files FROM proposals WHERE id = ?")
+    .get(proposalId);
   let fullFiles;
   try {
     fullFiles = JSON.parse(rawRow.files);
   } catch {
     fullFiles = [];
   }
-  if (!Array.isArray(fullFiles) || fullFiles.length === 0 || !fullFiles[0]?.path) {
+  if (
+    !Array.isArray(fullFiles) ||
+    fullFiles.length === 0 ||
+    !fullFiles[0]?.path
+  ) {
     throw new Error("Proposal has no applicable file contents");
   }
 
@@ -307,7 +356,12 @@ export async function executeProposalTransaction(workdir, proposalId, { userEmai
     const healthy = await healthcheck();
     if (!healthy) {
       // Failed healthcheck → rollback to previous dist
-      logAudit(workdir, userEmail, "SI_V2_HEALTHCHECK_FAILED", `id=${proposalId}`);
+      logAudit(
+        workdir,
+        userEmail,
+        "SI_V2_HEALTHCHECK_FAILED",
+        `id=${proposalId}`,
+      );
       const rollback = await restoreLastPublishedDist();
       markProposalStatus(workdir, proposalId, "rolled_back", { userEmail });
       return {
@@ -322,7 +376,12 @@ export async function executeProposalTransaction(workdir, proposalId, { userEmai
     // Step 6: Atomic publish
     const snapshot = await promoteDistSnapshot();
     markProposalStatus(workdir, proposalId, "published", { userEmail });
-    logAudit(workdir, userEmail, "SI_V2_PUBLISHED", `id=${proposalId} snapshot=${snapshot}`);
+    logAudit(
+      workdir,
+      userEmail,
+      "SI_V2_PUBLISHED",
+      `id=${proposalId} snapshot=${snapshot}`,
+    );
 
     return { status: "published", checkpoint, buildResult, snapshot };
   } catch (e) {

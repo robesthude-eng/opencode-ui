@@ -8,7 +8,9 @@ import { CloseIcon, PaperclipIcon, SendIcon, StopIcon } from "./icons";
 
 export default function Composer() {
   const currentID = useStore((s) => s.currentID);
-  const rawStatus = useStore((s) => (currentID ? s.status[currentID] : undefined));
+  const rawStatus = useStore((s) =>
+    currentID ? s.status[currentID] : undefined,
+  );
   const status =
     typeof rawStatus === "string"
       ? rawStatus
@@ -22,8 +24,12 @@ export default function Composer() {
   const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [_uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
-  const [_uploadedPaths, setUploadedPaths] = useState<Record<string, string>>({});
+  const [_uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+    {},
+  );
+  const [_uploadedPaths, setUploadedPaths] = useState<Record<string, string>>(
+    {},
+  );
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const busy =

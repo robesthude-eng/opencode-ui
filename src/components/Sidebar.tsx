@@ -103,7 +103,13 @@ export default function Sidebar() {
               <NewChatIcon />
               <span>New chat</span>
             </Button>
-            <Button variant="ghost" size="icon" onClick={close} title="Close" className="md:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={close}
+              title="Close"
+              className="md:hidden"
+            >
               <CloseIcon />
             </Button>
           </div>
@@ -121,14 +127,19 @@ export default function Sidebar() {
               }}
             >
               <span className="text-sm shrink-0">✦</span>
-              <span className="font-medium text-xs sm:text-sm">Сессия саморазвития</span>
+              <span className="font-medium text-xs sm:text-sm">
+                Сессия саморазвития
+              </span>
             </Button>
           )}
         </div>
 
         {/* Chat list */}
         <ScrollArea className="flex-1 w-full" style={{ width: "100%" }}>
-          <nav className="space-y-1 p-2" style={{ width: "100%", overflowX: "hidden" }}>
+          <nav
+            className="space-y-1 p-2"
+            style={{ width: "100%", overflowX: "hidden" }}
+          >
             {sessions.length === 0 && (
               <p className="px-3 py-8 text-sm text-muted-foreground text-center">
                 No conversations yet
@@ -244,7 +255,8 @@ export default function Sidebar() {
                         "background 160ms ease, color 160ms ease, opacity 160ms ease, transform 100ms ease",
                     }}
                     onPointerEnter={(e) => {
-                      e.currentTarget.style.background = "rgba(239, 68, 68, 0.12)";
+                      e.currentTarget.style.background =
+                        "rgba(239, 68, 68, 0.12)";
                       e.currentTarget.style.color = "#ef4444";
                       e.currentTarget.style.opacity = "1";
                     }}
@@ -255,7 +267,8 @@ export default function Sidebar() {
                     }}
                     onPointerDown={(e) => {
                       e.currentTarget.style.transform = "scale(0.88)";
-                      e.currentTarget.style.background = "rgba(239, 68, 68, 0.18)";
+                      e.currentTarget.style.background =
+                        "rgba(239, 68, 68, 0.18)";
                       e.currentTarget.style.color = "#ef4444";
                       e.currentTarget.style.opacity = "1";
                     }}
@@ -302,12 +315,20 @@ export default function Sidebar() {
               <SettingsIcon />
               <span>Settings</span>
               {authedCount > 0 && (
-                <Badge variant="secondary" className="ml-auto h-5 px-1.5 text-[10px]">
+                <Badge
+                  variant="secondary"
+                  className="ml-auto h-5 px-1.5 text-[10px]"
+                >
                   {authedCount}
                 </Badge>
               )}
             </Button>
-            <Button variant="ghost" size="icon" onClick={toggleTheme} title="Toggle theme">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              title="Toggle theme"
+            >
               {theme === "dark" ? <SunIcon /> : <MoonIcon />}
             </Button>
           </div>

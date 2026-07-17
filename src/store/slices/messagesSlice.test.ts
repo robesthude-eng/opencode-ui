@@ -23,7 +23,11 @@ function makeStore(initial: Partial<Store> = {}) {
     const next = typeof update === "function" ? update(store) : update;
     Object.assign(store, next);
   };
-  const slice = createMessagesSlice(set as never, (() => store) as never, {} as never);
+  const slice = createMessagesSlice(
+    set as never,
+    (() => store) as never,
+    {} as never,
+  );
   // Slice defaults are installed first; caller-supplied state models the existing store.
   Object.assign(store, slice, initial);
   return store;
@@ -47,7 +51,9 @@ describe("messagesSlice streaming event reducer", () => {
     store = makeStore({
       currentID: sid,
       messages: { [sid]: [assistant] },
-      sessions: [{ id: sid, title: "Stream", time: { updated: 1 } } as SessionInfo],
+      sessions: [
+        { id: sid, title: "Stream", time: { updated: 1 } } as SessionInfo,
+      ],
     });
   });
 
@@ -60,7 +66,9 @@ describe("messagesSlice streaming event reducer", () => {
       }),
     );
 
-    expect(store.messages[sid][0].parts[0]).toMatchObject({ text: "first second" });
+    expect(store.messages[sid][0].parts[0]).toMatchObject({
+      text: "first second",
+    });
   });
 
   test("does not lose accumulated text when a later info-only polling update arrives", () => {
@@ -76,11 +84,18 @@ describe("messagesSlice streaming event reducer", () => {
     store.applyEvent(
       event("message.updated", {
         sessionID: sid,
-        message: { id: "msg_1", role: "assistant", parts: [], info: { finish: "stop" } },
+        message: {
+          id: "msg_1",
+          role: "assistant",
+          parts: [],
+          info: { finish: "stop" },
+        },
       }),
     );
 
-    expect(store.messages[sid][0].parts[0]).toMatchObject({ text: "first second" });
+    expect(store.messages[sid][0].parts[0]).toMatchObject({
+      text: "first second",
+    });
   });
 
   test("applies a streaming delta to an existing part", () => {
@@ -94,7 +109,9 @@ describe("messagesSlice streaming event reducer", () => {
       }),
     );
 
-    expect(store.messages[sid][0].parts[0]).toMatchObject({ text: "first + delta" });
+    expect(store.messages[sid][0].parts[0]).toMatchObject({
+      text: "first + delta",
+    });
   });
 
   test("creates a missing streaming part instead of losing an out-of-order delta", () => {
@@ -123,7 +140,13 @@ describe("messagesSlice streaming event reducer", () => {
     store.newSession = async () => {
       Object.assign(store, {
         currentID: newSid,
-        sessions: [{ id: newSid, title: "Recovered", time: { updated: 2 } } as SessionInfo],
+        sessions: [
+          {
+            id: newSid,
+            title: "Recovered",
+            time: { updated: 2 },
+          } as SessionInfo,
+        ],
       });
     };
 

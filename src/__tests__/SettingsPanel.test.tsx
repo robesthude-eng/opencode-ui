@@ -2,7 +2,13 @@
  * Tests for src/components/SettingsPanel.tsx
  */
 
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import SettingsPanel from "../components/SettingsPanel";
 import { useStore } from "../store/useStore";
@@ -65,7 +71,10 @@ beforeEach(() => {
       });
     }
     if (url.includes("/api/settings/self-improve")) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ status: "success" }) });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ status: "success" }),
+      });
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
   });

@@ -12,7 +12,8 @@ export default function ModelSelector() {
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
@@ -21,7 +22,9 @@ export default function ModelSelector() {
   if (models.length === 0) return null;
 
   const current = models.find(
-    (m) => m.providerID === selectedModel?.providerID && m.modelID === selectedModel?.modelID,
+    (m) =>
+      m.providerID === selectedModel?.providerID &&
+      m.modelID === selectedModel?.modelID,
   );
 
   const free = models.filter((m) => m.free);
@@ -34,7 +37,8 @@ export default function ModelSelector() {
 
   const renderOption = (m: ModelEntry) => {
     const active =
-      m.providerID === selectedModel?.providerID && m.modelID === selectedModel?.modelID;
+      m.providerID === selectedModel?.providerID &&
+      m.modelID === selectedModel?.modelID;
     return (
       <button
         key={`${m.providerID}/${m.modelID}`}
@@ -69,7 +73,9 @@ export default function ModelSelector() {
         onClick={() => setOpen((o) => !o)}
       >
         <span className="flex items-center gap-2 min-w-0">
-          <span className="truncate">{current?.modelName ?? "Select model"}</span>
+          <span className="truncate">
+            {current?.modelName ?? "Select model"}
+          </span>
           {current?.free && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold shrink-0">
               FREE

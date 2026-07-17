@@ -7,7 +7,11 @@ import AdmZip from "adm-zip";
 import { MAX_BODY_BYTES, readBody } from "../middleware.mjs";
 import { parseMultipart } from "../upload.mjs";
 
-export async function handleUploadFolder(req, res, { WORKDIR, extractSessionId, checkUploadRateLimit }) {
+export async function handleUploadFolder(
+  req,
+  res,
+  { WORKDIR, extractSessionId, checkUploadRateLimit },
+) {
   if (!(await checkUploadRateLimit(req, res))) return;
   readBody(req, MAX_BODY_BYTES)
     .then((buffer) => {
@@ -57,12 +61,19 @@ export async function handleUploadFolder(req, res, { WORKDIR, extractSessionId, 
     });
 }
 
-export async function handleUpload(req, res, { WORKDIR, checkUploadRateLimit }) {
+export async function handleUpload(
+  req,
+  res,
+  { WORKDIR, checkUploadRateLimit },
+) {
   if (!(await checkUploadRateLimit(req, res))) return;
   let sessionId = "";
   try {
-    sessionId = new URL(req.url, "http://localhost").searchParams.get("sessionId") || "";
-  } catch (e) { console.warn("Ignored error:", e); }
+    sessionId =
+      new URL(req.url, "http://localhost").searchParams.get("sessionId") || "";
+  } catch (e) {
+    console.warn("Ignored error:", e);
+  }
   if (sessionId && !/^[a-zA-Z0-9_-]+$/.test(sessionId)) sessionId = "";
   readBody(req, MAX_BODY_BYTES)
     .then((buffer) => {
@@ -91,7 +102,13 @@ export async function handleUpload(req, res, { WORKDIR, checkUploadRateLimit }) 
       let uploadDir;
       let relativePath;
       if (sessionId) {
-        uploadDir = path.join(WORKDIR, "sessions", sessionId, "workspace", "uploads");
+        uploadDir = path.join(
+          WORKDIR,
+          "sessions",
+          sessionId,
+          "workspace",
+          "uploads",
+        );
         relativePath = `sessions/${sessionId}/workspace/uploads/${safeName}`;
       } else {
         uploadDir = path.join(WORKDIR, "uploads", "_orphan");
@@ -107,11 +124,21 @@ export async function handleUpload(req, res, { WORKDIR, checkUploadRateLimit }) 
           const zip = new AdmZip(dest);
           entryCount = zip.getEntries().filter((e) => !e.isDirectory).length;
         } catch (e) {
-          console.error(`[Upload] Failed to read zip entries for ${safeName}:`, e.message);
+          console.error(
+            `[Upload] Failed to read zip entries for ${safeName}:`,
+            e.message,
+          );
         }
       }
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, path: relativePath, size: part.data.length, entryCount }));
+      res.end(
+        JSON.stringify({
+          ok: true,
+          path: relativePath,
+          size: part.data.length,
+          entryCount,
+        }),
+      );
     })
     .catch(() => {
       res.writeHead(413, { "Content-Type": "application/json" });

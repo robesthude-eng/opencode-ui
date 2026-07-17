@@ -43,7 +43,9 @@ describe("central admin gate", () => {
     const req = { url: "/api/settings/self-improve", method: "GET" };
     const res = createMockResponse();
     await handleSelfImproveRoute(req, res, nonAdminCtx());
-    expect(res.writeHead).toHaveBeenCalledWith(200, { "Content-Type": "application/json" });
+    expect(res.writeHead).toHaveBeenCalledWith(200, {
+      "Content-Type": "application/json",
+    });
     const body = JSON.parse(res.end.mock.calls[0][0]);
     expect(body.canWrite).toBe(false);
   });
@@ -69,7 +71,9 @@ describe("central admin gate", () => {
     const req = { url, method };
     const res = createMockResponse();
     await handleSelfImproveRoute(req, res, nonAdminCtx());
-    expect(res.writeHead).toHaveBeenCalledWith(403, { "Content-Type": "application/json" });
+    expect(res.writeHead).toHaveBeenCalledWith(403, {
+      "Content-Type": "application/json",
+    });
     const body = JSON.parse(res.end.mock.calls[0][0]);
     expect(body.error).toMatch(/Admin/);
   });
@@ -95,7 +99,9 @@ describe("handleSelfImproveRoute routing and dispatch", () => {
       userEmail: "a@b.com",
       isRequestAdmin: true,
     });
-    expect(res.writeHead).toHaveBeenCalledWith(200, { "Content-Type": "application/json" });
+    expect(res.writeHead).toHaveBeenCalledWith(200, {
+      "Content-Type": "application/json",
+    });
     const responseData = JSON.parse(res.end.mock.calls[0][0]);
     expect(responseData).toHaveProperty("enabled", false);
     expect(responseData).toHaveProperty("sessionId", null);
@@ -109,7 +115,9 @@ describe("handleSelfImproveRoute routing and dispatch", () => {
       userEmail: "a@b.com",
       isRequestAdmin: true,
     });
-    expect(res.writeHead).toHaveBeenCalledWith(200, { "Content-Type": "application/json" });
+    expect(res.writeHead).toHaveBeenCalledWith(200, {
+      "Content-Type": "application/json",
+    });
     const responseData = JSON.parse(res.end.mock.calls[0][0]);
     expect(responseData).toHaveProperty("proposals", []);
   });

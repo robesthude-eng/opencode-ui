@@ -25,7 +25,11 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { checkSessionOwnership, getSessionWorkspace, isValidSessionId } from "./isolation.mjs";
+import {
+  checkSessionOwnership,
+  getSessionWorkspace,
+  isValidSessionId,
+} from "./isolation.mjs";
 import { logger } from "./logger.mjs";
 
 export const PREVIEW_PREFIX = "/api/sandbox-proxy";
@@ -70,7 +74,9 @@ const PREVIEW_CSP = [
 ].join("; ");
 
 function contentTypeFor(filePath) {
-  return MIME[path.extname(filePath).toLowerCase()] || "application/octet-stream";
+  return (
+    MIME[path.extname(filePath).toLowerCase()] || "application/octet-stream"
+  );
 }
 
 function baseHeaders(contentType) {
@@ -110,7 +116,10 @@ function send404(res, isHead) {
   sendHtml(
     res,
     404,
-    htmlPage("Не найдено", `<h1>404</h1><p>Файл не найден в workspace этой сессии.</p>`),
+    htmlPage(
+      "Не найдено",
+      `<h1>404</h1><p>Файл не найден в workspace этой сессии.</p>`,
+    ),
     isHead,
   );
 }
@@ -153,7 +162,9 @@ function detectDocroot(workspace) {
     const skip = new Set(["uploads", "node_modules", "backups", "temp"]);
     const dirs = fs
       .readdirSync(workspace, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && !skip.has(e.name) && !e.name.startsWith("."))
+      .filter(
+        (e) => e.isDirectory() && !skip.has(e.name) && !e.name.startsWith("."),
+      )
       .map((e) => path.join(workspace, e.name))
       .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
     for (const dir of dirs) {
@@ -161,7 +172,8 @@ function detectDocroot(workspace) {
         const d = candidate === "." ? dir : path.join(dir, candidate);
         const idx = path.join(d, "index.html");
         try {
-          if (fs.statSync(idx).isFile()) return { docroot: d, docrootIndex: idx };
+          if (fs.statSync(idx).isFile())
+            return { docroot: d, docrootIndex: idx };
         } catch {
           // нет — следующий кандидат
         }
@@ -178,7 +190,10 @@ export function handlePreviewRoute(req, res, ctx) {
   const method = (req.method || "GET").toUpperCase();
   const isHead = method === "HEAD";
   if (method !== "GET" && !isHead) {
-    res.writeHead(405, { "Content-Type": "application/json", Allow: "GET, HEAD" });
+    res.writeHead(405, {
+      "Content-Type": "application/json",
+      Allow: "GET, HEAD",
+    });
     res.end(JSON.stringify({ error: "Method not allowed" }));
     return;
   }
@@ -194,17 +209,24 @@ export function handlePreviewRoute(req, res, ctx) {
     sendHtml(
       res,
       404,
-      htmlPage("Нет сессии", `<h1>Превью недоступно</h1><p>Откройте чат и обновите превью.</p>`),
+      htmlPage(
+        "Нет сессии",
+        `<h1>Превью недоступно</h1><p>Откройте чат и обновите превью.</p>`,
+      ),
       isHead,
     );
     return;
   }
-  if (!checkSessionOwnership(sid, userEmail, res, OWNERS_FILE, loadJson)) return;
+  if (!checkSessionOwnership(sid, userEmail, res, OWNERS_FILE, loadJson))
+    return;
 
   // Без завершающего слэша относительные URL страницы (./app.js) резолвились
   // бы в /api/sandbox-proxy/app.js мимо превью — редиректим на канонический вид.
   if (subPath === null) {
-    res.writeHead(302, { Location: `${PREVIEW_PREFIX}/${sid}/`, "Cache-Control": "no-store" });
+    res.writeHead(302, {
+      Location: `${PREVIEW_PREFIX}/${sid}/`,
+      "Cache-Control": "no-store",
+    });
     res.end();
     return;
   }
@@ -252,7 +274,8 @@ export function handlePreviewRoute(req, res, ctx) {
 
   // Каталог → его index.html; не найдено без расширения → SPA-fallback.
   try {
-    if (fs.statSync(target).isDirectory()) target = path.join(target, "index.html");
+    if (fs.statSync(target).isDirectory())
+      target = path.join(target, "index.html");
   } catch {
     // target не существует — разберёмся ниже
   }

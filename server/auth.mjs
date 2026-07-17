@@ -13,7 +13,10 @@ import { resetRateLimitKey, takeRateLimit } from "./rate-limit-store.mjs";
 export const SESSION_COOKIE = "opencode_session";
 
 function getUserKeysFile(email) {
-  return path.join(USER_KEYS_DIR, `${email.replace(/[^a-zA-Z0-9._-]/g, "_")}.json`);
+  return path.join(
+    USER_KEYS_DIR,
+    `${email.replace(/[^a-zA-Z0-9._-]/g, "_")}.json`,
+  );
 }
 
 export function loadUserKeys(email) {
@@ -40,7 +43,10 @@ function pepperPassword(password) {
   return crypto.createHmac("sha256", pepper).update(password).digest("hex");
 }
 
-export function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+export function hashPassword(
+  password,
+  salt = crypto.randomBytes(16).toString("hex"),
+) {
   const material = pepperPassword(password);
   const hash = crypto.scryptSync(material, salt, 64).toString("hex");
   if (process.env.OPENCODE_PASSWORD_PEPPER) {
@@ -50,8 +56,14 @@ export function hashPassword(password, salt = crypto.randomBytes(16).toString("h
 }
 
 export function verifyPassword(password, storedHash) {
-  if (!storedHash || typeof storedHash !== "string" || !storedHash.includes(":")) return false;
-  if (!password || typeof password !== "string" || password.length === 0) return false;
+  if (
+    !storedHash ||
+    typeof storedHash !== "string" ||
+    !storedHash.includes(":")
+  )
+    return false;
+  if (!password || typeof password !== "string" || password.length === 0)
+    return false;
   const tryVerify = (material, salt, originalHash) => {
     try {
       const testHash = crypto.scryptSync(material, salt, 64).toString("hex");
@@ -123,12 +135,19 @@ export function parseCookies(req) {
 export function extractToken(req, { allowQueryToken = false } = {}) {
   const cookies = parseCookies(req);
   if (cookies[SESSION_COOKIE]) return cookies[SESSION_COOKIE];
-  const token = (req.headers?.["x-auth-token"] || req.headers?.authorization || "")
+  const token = (
+    req.headers?.["x-auth-token"] ||
+    req.headers?.authorization ||
+    ""
+  )
     .replace(/^Bearer\s+/i, "")
     .trim();
   if (token || !allowQueryToken) return token;
   try {
-    return new URL(req.url || "/", "http://localhost").searchParams.get("token") || "";
+    return (
+      new URL(req.url || "/", "http://localhost").searchParams.get("token") ||
+      ""
+    );
   } catch {
     return "";
   }
@@ -176,8 +195,13 @@ export function getClientIp(req) {
 }
 
 export function buildSessionCookie(token, maxAgeMs, req) {
-  const maxAge = Math.max(0, Math.floor((maxAgeMs || 7 * 24 * 60 * 60 * 1000) / 1000));
-  const forwardedProto = String(trustedForwardedHeader(req, "x-forwarded-proto") || "")
+  const maxAge = Math.max(
+    0,
+    Math.floor((maxAgeMs || 7 * 24 * 60 * 60 * 1000) / 1000),
+  );
+  const forwardedProto = String(
+    trustedForwardedHeader(req, "x-forwarded-proto") || "",
+  )
     .split(",")[0]
     .trim()
     .toLowerCase();
@@ -200,19 +224,33 @@ export function buildSessionCookie(token, maxAgeMs, req) {
 }
 
 export function buildClearSessionCookie() {
-  const parts = [`${SESSION_COOKIE}=`, "Path=/", "HttpOnly", "SameSite=Lax", "Max-Age=0"];
+  const parts = [
+    `${SESSION_COOKIE}=`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ];
   return parts.join("; ");
 }
 
 export function checkCsrf(req, res) {
   const method = (req.method || "GET").toUpperCase();
-  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return true;
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS")
+    return true;
   const cookies = parseCookies(req);
   if (!cookies[SESSION_COOKIE]) return true;
-  const host = trustedForwardedHeader(req, "x-forwarded-host") || req.headers.host || "";
+  const host =
+    trustedForwardedHeader(req, "x-forwarded-host") || req.headers.host || "";
   if (!host) return true;
-  const proto = (trustedForwardedHeader(req, "x-forwarded-proto") || "http").split(",")[0].trim();
-  const allowedOrigins = new Set([`${proto}://${host}`, `https://${host}`, `http://${host}`]);
+  const proto = (trustedForwardedHeader(req, "x-forwarded-proto") || "http")
+    .split(",")[0]
+    .trim();
+  const allowedOrigins = new Set([
+    `${proto}://${host}`,
+    `https://${host}`,
+    `http://${host}`,
+  ]);
   if (process.env.NODE_ENV !== "production") {
     allowedOrigins.add("http://localhost:3000");
     allowedOrigins.add("http://localhost:5173");
@@ -251,7 +289,11 @@ export function checkCsrf(req, res) {
 
 /** True when a persisted session is older than the configured TTL. */
 export function isSessionExpired(session, sessionTtlMs, now = Date.now()) {
-  return Boolean(session?.email) && sessionTtlMs > 0 && now - (session.createdAt || 0) > sessionTtlMs;
+  return (
+    Boolean(session?.email) &&
+    sessionTtlMs > 0 &&
+    now - (session.createdAt || 0) > sessionTtlMs
+  );
 }
 
 export function getUserEmail(req, sessionsFile, sessionTtlMs) {
@@ -301,8 +343,15 @@ export async function checkAuthRateLimit(req, res) {
     windowMs: AUTH_WINDOW_MS,
   });
   if (result.unavailable) {
-    res.writeHead(503, { "Content-Type": "application/json", "Retry-After": "1" });
-    res.end(JSON.stringify({ error: "Rate-limit service unavailable. Retry shortly." }));
+    res.writeHead(503, {
+      "Content-Type": "application/json",
+      "Retry-After": "1",
+    });
+    res.end(
+      JSON.stringify({
+        error: "Rate-limit service unavailable. Retry shortly.",
+      }),
+    );
     return false;
   }
   if (!result.allowed) {

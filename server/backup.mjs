@@ -9,7 +9,10 @@ import { getSqlite } from "./db.mjs";
 const MAX_BACKUPS = 14; // keep ~2 weeks if daily
 
 export function getBackupDir(workdir) {
-  return path.join(workdir || process.env.OPENCODE_WORKDIR || "/app/workspace", "backups");
+  return path.join(
+    workdir || process.env.OPENCODE_WORKDIR || "/app/workspace",
+    "backups",
+  );
 }
 
 /**
@@ -57,7 +60,13 @@ export function listDbBackups(workdir) {
     .map((n) => {
       const p = path.join(dir, n);
       const st = fs.statSync(p);
-      return { name: n, path: p, bytes: st.size, mtime: st.mtimeMs, time: st.mtime.toISOString() };
+      return {
+        name: n,
+        path: p,
+        bytes: st.size,
+        mtime: st.mtimeMs,
+        time: st.mtime.toISOString(),
+      };
     })
     .sort((a, b) => b.mtime - a.mtime);
 }
@@ -84,12 +93,16 @@ function pruneBackups(dir, keep) {
 export function resolveBackupFile(workdir, name) {
   if (!name || typeof name !== "string") return null;
   if (!/^opencode-[\w.-]+\.db$/.test(name)) return null;
-  if (name.includes("..") || name.includes("/") || name.includes("\\")) return null;
+  if (name.includes("..") || name.includes("/") || name.includes("\\"))
+    return null;
   const full = path.join(getBackupDir(workdir), name);
   if (!fs.existsSync(full)) return null;
   // ensure still inside backups dir
   const dir = path.resolve(getBackupDir(workdir));
-  if (!path.resolve(full).startsWith(dir + path.sep) && path.resolve(full) !== dir) {
+  if (
+    !path.resolve(full).startsWith(dir + path.sep) &&
+    path.resolve(full) !== dir
+  ) {
     return null;
   }
   return full;
@@ -123,7 +136,10 @@ export function restoreDbBackup(workdir, name) {
       fs.unlinkSync(shmFile);
     }
   } catch (e) {
-    console.error("[Backup] Failed to remove active DB files during restore:", e.message);
+    console.error(
+      "[Backup] Failed to remove active DB files during restore:",
+      e.message,
+    );
   }
 
   fs.copyFileSync(backupFile, dbFile);
@@ -163,7 +179,10 @@ export async function notifyBackupWebhook(meta) {
 /**
  * Start interval backup (default 24h). Safe no-op if DB missing.
  */
-export function startBackupScheduler(workdir, intervalMs = 24 * 60 * 60 * 1000) {
+export function startBackupScheduler(
+  workdir,
+  intervalMs = 24 * 60 * 60 * 1000,
+) {
   const run = () => {
     try {
       const r = createDbBackup(workdir);

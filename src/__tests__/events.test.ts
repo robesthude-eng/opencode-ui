@@ -12,7 +12,8 @@ class MockEventSource {
   onerror: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
   readyState = 0;
-  private listeners: Map<string, ((event: { data: string }) => void)[]> = new Map();
+  private listeners: Map<string, ((event: { data: string }) => void)[]> =
+    new Map();
 
   constructor(url: string) {
     this.url = url;
@@ -67,7 +68,9 @@ describe("EventStream", () => {
     stream.connect();
 
     expect(MockEventSource.instances).toHaveLength(1);
-    expect(MockEventSource.instances[0].url).toBe("http://localhost:3000/api/event");
+    expect(MockEventSource.instances[0].url).toBe(
+      "http://localhost:3000/api/event",
+    );
   });
 
   test("uses cookie auth — default event URL has no token query", () => {
