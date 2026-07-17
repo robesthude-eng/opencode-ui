@@ -45,6 +45,9 @@ fi
 for f in index.html package.json package-lock.json tsconfig.json tsconfig.node.json vite.config.ts vitest.config.ts biome.json SELF_IMPROVE.md SELF_IMPROVE_GUIDE.md; do
   cp "/app/workspace-src/$f" "$WORKDIR/opencode-ui/" 2>/dev/null || true
 done
+# Ensure git sees the synced repo as owned by the current user (container user)
+# to avoid 'detected dubious ownership' fatal on self-improve operations.
+git config --global --add safe.directory "$WORKDIR/opencode-ui" 2>/dev/null || true
 if [ ! -f "$WORKDIR/opencode-ui/SELF_IMPROVE.md" ]; then
   cat > "$WORKDIR/opencode-ui/SELF_IMPROVE.md" <<'GUIDE'
 # Self-Improvement Guide
