@@ -250,7 +250,11 @@ export async function handleCreatePr(
       files,
       title,
       body,
-      autoMerge = true,
+      // P0-fix (безопасность): auto-merge больше НЕ включён по умолчанию —
+      // иначе self-improve агент мог сам замерджить и задеплоить код
+      // на прод без человеческого ревью. Мердж только по явному
+      // autoMerge: true в теле запроса (осознанный клик человека).
+      autoMerge = false,
     } = JSON.parse(buf.toString("utf8") || "{}");
     if (!Array.isArray(files) || files.length === 0) {
       releaseBuildLock();
