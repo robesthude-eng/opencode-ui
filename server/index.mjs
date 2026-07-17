@@ -15,6 +15,7 @@ import {
   extractToken,
   getUserEmail,
   isAdmin,
+  isSessionExpired,
   loadUserKeys,
   saveUserKeys,
 } from "./auth.mjs";
@@ -239,7 +240,7 @@ function serveStatic(req, res) {
     res.end(data);
   });
 }
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   setSecurityHeaders(res);
   if (req.url === "/health" || req.url === "/global/health" || req.url === "/api/global/health") {
     const ocUrl = `http://127.0.0.1:${SYSTEM_PORT}/global/health`;
@@ -318,11 +319,11 @@ const server = http.createServer((req, res) => {
     );
   if (heavy && req.method !== "GET" && req.method !== "HEAD") {
     if (
-      !checkUserRateLimit(req, res, userEmail || "anon", {
+      !(await checkUserRateLimit(req, res, userEmail || "anon", {
         limit: 120,
         windowMs: 60000,
         bucket: "heavy",
-      })
+      }))
     )
       return;
   }
@@ -526,14 +527,25 @@ server.on("upgrade", (req, socket, head) => {
   });
   const sessions = loadJson(SESSIONS_FILE, {});
   const users = loadJson(USERS_FILE, {});
-  if (Object.keys(users).length > 0 && (!token || !sessions[token])) {
+  const session = token ? sessions[token] : null;
+  // Upgrade requests do not pass through the HTTP handler. Enforce the same
+  // TTL boundary here, delete an expired token immediately, and never proxy a
+  // WebSocket using a stale session.
+  if (session && isSessionExpired(session, SESSION_TTL_MS)) {
+    delete sessions[token];
+    saveJson(SESSIONS_FILE, sessions);
+    socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+  if (Object.keys(users).length > 0 && (!token || !session?.email)) {
     socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
     socket.destroy();
     return;
   }
   const sessionId = extractSessionId(req);
   if (sessionId) {
-    const userEmail = sessions[token]?.email || null;
+    const userEmail = session?.email || null;
     if (userEmail) {
       const owners = loadJson(OWNERS_FILE, {});
       if (owners[sessionId] && owners[sessionId] !== userEmail) {

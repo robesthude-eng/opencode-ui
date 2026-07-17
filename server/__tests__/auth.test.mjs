@@ -15,8 +15,11 @@ import {
   checkCsrf,
   extractToken,
   getUserEmail,
+  getClientIp,
+  isTrustedProxy,
   hashPassword,
   isAdmin,
+  isSessionExpired,
   parseCookies,
   resetAuthRateLimit,
   SESSION_COOKIE,
@@ -38,6 +41,44 @@ beforeEach(() => {
 
 afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+describe("trusted reverse proxy headers", () => {
+  const originalTrustedProxyIps = process.env.TRUSTED_PROXY_IPS;
+
+  afterEach(() => {
+    if (originalTrustedProxyIps === undefined) delete process.env.TRUSTED_PROXY_IPS;
+    else process.env.TRUSTED_PROXY_IPS = originalTrustedProxyIps;
+  });
+
+  test("ignores X-Forwarded-For from an untrusted direct peer", () => {
+    delete process.env.TRUSTED_PROXY_IPS;
+    const req = {
+      headers: { "x-forwarded-for": "198.51.100.7" },
+      socket: { remoteAddress: "203.0.113.9" },
+    };
+    expect(isTrustedProxy(req)).toBe(false);
+    expect(getClientIp(req)).toBe("203.0.113.9");
+  });
+
+  test("uses X-Forwarded-For only when the socket peer is allowlisted", () => {
+    process.env.TRUSTED_PROXY_IPS = "172.18.0.2,::1";
+    const req = {
+      headers: { "x-forwarded-for": "198.51.100.7, 172.18.0.2" },
+      socket: { remoteAddress: "172.18.0.2" },
+    };
+    expect(isTrustedProxy(req)).toBe(true);
+    expect(getClientIp(req)).toBe("198.51.100.7");
+  });
+
+  test("normalizes IPv4-mapped proxy peers and rejects malformed XFF", () => {
+    process.env.TRUSTED_PROXY_IPS = "127.0.0.1";
+    const req = {
+      headers: { "x-forwarded-for": "not-an-ip" },
+      socket: { remoteAddress: "::ffff:127.0.0.1" },
+    };
+    expect(getClientIp(req)).toBe("127.0.0.1");
+  });
 });
 
 describe("hashPassword", () => {
@@ -163,12 +204,23 @@ describe("checkCsrf", () => {
       headers: {
         cookie: `${SESSION_COOKIE}=t`,
         host: "example.com",
-        origin: "https://example.com",
-        "x-forwarded-proto": "https",
+        origin: "http://example.com",
       },
     };
     const res = { writeHead: vi.fn(), end: vi.fn() };
     expect(checkCsrf(req, res)).toBe(true);
+  });
+});
+
+describe("isSessionExpired", () => {
+  test("uses the same strict greater-than TTL boundary", () => {
+    const now = 1_000_000;
+    expect(isSessionExpired({ email: "u@example.com", createdAt: now - 1_001 }, 1_000, now)).toBe(true);
+    expect(isSessionExpired({ email: "u@example.com", createdAt: now - 1_000 }, 1_000, now)).toBe(false);
+  });
+
+  test("does not expire sessions when TTL is disabled", () => {
+    expect(isSessionExpired({ email: "u@example.com", createdAt: 0 }, 0, 1_000_000)).toBe(false);
   });
 });
 
@@ -275,37 +327,40 @@ describe("checkAuth", () => {
 });
 
 describe("rate limiting", () => {
-  test("allows requests under limit", () => {
+  test("allows requests under limit", async () => {
     const req = { socket: { remoteAddress: "127.0.0.1" } };
     const res = { writeHead: vi.fn(), end: vi.fn() };
 
     for (let i = 0; i < 10; i++) {
-      expect(checkAuthRateLimit(req, res)).toBe(true);
+      expect(await checkAuthRateLimit(req, res)).toBe(true);
     }
   });
 
-  test("blocks requests over limit", () => {
+  test("blocks requests over limit", async () => {
     const req = { socket: { remoteAddress: "192.168.1.1" } };
     const res = { writeHead: vi.fn(), end: vi.fn() };
 
     for (let i = 0; i < 10; i++) {
-      checkAuthRateLimit(req, res);
+      await checkAuthRateLimit(req, res);
     }
 
-    expect(checkAuthRateLimit(req, res)).toBe(false);
-    expect(res.writeHead).toHaveBeenCalledWith(429, { "Content-Type": "application/json" });
+    expect(await checkAuthRateLimit(req, res)).toBe(false);
+    expect(res.writeHead).toHaveBeenCalledWith(
+      429,
+      expect.objectContaining({ "Content-Type": "application/json" }),
+    );
   });
 
-  test("resets rate limit for IP", () => {
+  test("resets rate limit for IP", async () => {
     const req = { socket: { remoteAddress: "10.0.0.1" } };
     const res = { writeHead: vi.fn(), end: vi.fn() };
 
     for (let i = 0; i < 10; i++) {
-      checkAuthRateLimit(req, res);
+      await checkAuthRateLimit(req, res);
     }
 
-    resetAuthRateLimit(req);
-    expect(checkAuthRateLimit(req, res)).toBe(true);
+    await resetAuthRateLimit(req);
+    expect(await checkAuthRateLimit(req, res)).toBe(true);
   });
 });
 

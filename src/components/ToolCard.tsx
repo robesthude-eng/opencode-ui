@@ -187,7 +187,6 @@ function QuestionCard({ part }: { part: ToolPart }) {
         const list = await api.listPendingQuestions(sid);
         const pending = list?.data?.[0];
         if (pending?.id && /^que/.test(pending.id)) {
-          console.info("[QuestionCard] reply via /question/reply:", pending.id, labels);
           await api.replyQuestion(sid, pending.id, [labels]);
           return; // сервер сам продолжит turn через SSE
         }
@@ -202,7 +201,6 @@ function QuestionCard({ part }: { part: ToolPart }) {
     // без tool_result вешают LLM-контракт (два user в ряд запрещены).
     if (sid) {
       try {
-        console.info("[QuestionCard] abort() stale turn before answering");
         await api.abortSession(sid);
         // маленькая пауза, чтобы сервер успел записать abort в БД
         await new Promise((r) => setTimeout(r, 200));
@@ -211,7 +209,6 @@ function QuestionCard({ part }: { part: ToolPart }) {
       }
     }
 
-    console.info("[QuestionCard] send answer as user-message:", answerText);
     await Promise.resolve(send(answerText));
   }
 
@@ -220,7 +217,6 @@ function QuestionCard({ part }: { part: ToolPart }) {
       if (answered) return;
       setSelectedIdx((prev) => ({ ...prev, [qIdx]: optIdx }));
       setAnswered(true);
-      console.info("[QuestionCard] option chosen:", label);
       submitAnswer([label]).catch((err) => {
         console.error("[QuestionCard] submitAnswer failed:", err);
         setAnswered(false);
@@ -236,7 +232,6 @@ function QuestionCard({ part }: { part: ToolPart }) {
       const text = customText[qIdx]?.trim();
       if (!text) return;
       setAnswered(true);
-      console.info("[QuestionCard] custom answer:", text);
       submitAnswer([text]).catch((err) => {
         console.error("[QuestionCard] submitAnswer failed:", err);
         setAnswered(false);

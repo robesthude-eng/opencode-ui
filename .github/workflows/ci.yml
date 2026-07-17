@@ -36,15 +36,23 @@ jobs:
       - name: Install dependencies (with dev)
         run: npm ci --include=dev
 
-      # Biome temporarily disabled (too many formatting issues)
-      # - name: Biome lint / format check
-      #   run: npx biome check .
+      - name: Biome lint / format check
+        run: npm run lint
 
       - name: TypeScript typecheck
         run: npm run typecheck
 
-      - name: Vitest — full test suite
-        run: npm run test:all
+      - name: Vitest — coverage threshold
+        run: npm run test:coverage:ci
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.sha }}
+          path: coverage/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Vite build
         run: npm run build
@@ -56,3 +64,63 @@ jobs:
           name: dist-${{ github.sha }}
           path: dist/
           retention-days: 3
+
+  e2e-mock:
+    name: E2E · Mock OpenCode
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: test-and-build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --include=dev
+
+      - name: Build UI
+        run: npm run build
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E against mock OpenCode
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/opencode-e2e"
+          node e2e/mock-opencode.mjs > "$RUNNER_TEMP/mock-opencode.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/mock-opencode.pid"
+          OPENCODE_WORKDIR="$RUNNER_TEMP/opencode-e2e" OC_SYSTEM_PORT=4096 NODE_ENV=test \
+            node server/index.mjs > "$RUNNER_TEMP/opencode-ui.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/opencode-ui.pid"
+          cleanup() {
+            kill "$(cat "$RUNNER_TEMP/opencode-ui.pid")" "$(cat "$RUNNER_TEMP/mock-opencode.pid")" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent --show-error \
+            -H 'Content-Type: application/json' \
+            --data '{"email":"admin@local.test","password":"testpass123"}' \
+            http://127.0.0.1:3000/api/auth/register > /dev/null
+          PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 npm run test:e2e:ci
+
+      - name: Upload E2E diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-${{ github.sha }}
+          path: |
+            test-results/
+            ${{ runner.temp }}/mock-opencode.log
+            ${{ runner.temp }}/opencode-ui.log
+          retention-days: 7

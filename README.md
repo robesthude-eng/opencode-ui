@@ -17,6 +17,7 @@ Browser (React) ── HTTPS/HTTP + SSE ──> Node.js UI/proxy (:3000)
 - Light/dark theme, responsive layout and workspace browser.
 - Admin-only self-improvement workflow with validation, checkpoints and rollback tools.
 - SQLite-backed users, sessions and ownership records; scheduled/manual backups.
+- Redis-backed shared rate limits when `RATE_LIMIT_REDIS_URL` is configured (with a local-development fallback).
 
 ## Production model
 
@@ -37,6 +38,31 @@ OPENCODE_ADMIN_EMAILS=alice@example.com,bob@example.com
 ```
 
 Session cookies are `HttpOnly` and `SameSite=Lax`. Do not enable `Secure` until the service is served over HTTPS.
+
+
+### Reverse-proxy forwarding headers
+
+Forwarding headers are ignored by default. If the UI is behind a reverse proxy, configure the socket address of that proxy explicitly — never a broad public/client range:
+
+```bash
+TRUSTED_PROXY_IPS=127.0.0.1,::1
+```
+
+Only a peer on this allowlist may provide `X-Forwarded-For`, `X-Forwarded-Host`, or `X-Forwarded-Proto`. This prevents clients connecting directly to port 3000 from spoofing their IP address, origin host, or HTTPS status.
+
+
+The HTTP API, OpenCode WebSocket upgrade path, and Socket.IO terminal handshake all enforce the same session TTL. An expired token is rejected during the upgrade and removed from persistent session storage immediately.
+
+
+## Multi-instance rate limiting
+
+A single instance uses an in-memory rate-limit fallback for frictionless local development. For any horizontally scaled deployment, configure the **same** Redis endpoint on every UI instance:
+
+```bash
+RATE_LIMIT_REDIS_URL=rediss://:password@redis.example.com:6380/0
+```
+
+The Compose stack starts a private Redis service automatically and defaults to `redis://redis:6379`. Limits are evaluated through one atomic Redis Lua operation; login/registration attempts, user/IP heavy requests, uploads, and the self-improvement rebuild cooldown are therefore enforced across instances. A successful login or registration clears its shared authentication-attempt bucket. If a configured Redis store is unavailable, the app returns `503` rather than silently reverting to per-instance limits.
 
 ## Self-improvement safety model
 
@@ -103,8 +129,13 @@ npm run typecheck  # TypeScript project check
 npm run test:all   # Vitest suite
 npm run build      # TypeScript + Vite production build
 npm run ci         # lint + tests + build
-npm run test:e2e   # Playwright against PLAYWRIGHT_BASE_URL or local preview
+npm run test:e2e      # Playwright against PLAYWRIGHT_BASE_URL or local preview
+npm run test:e2e:ci  # Chromium critical UI suite; requires the included mock backend
 ```
+
+## CI E2E environment
+
+CI starts `e2e/mock-opencode.mjs`, a deterministic local OpenCode HTTP/SSE substitute, then boots the production Node proxy with an isolated temporary workspace. It registers `admin@local.test` only inside that disposable environment and runs the Chromium full-UI suite. The mock covers health, sessions, messages, event streaming, provider discovery and workspace reads; no model provider, external OpenCode installation, or production credential is needed.
 
 ## API overview
 

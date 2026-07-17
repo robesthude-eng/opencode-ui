@@ -130,8 +130,8 @@ export function releaseSandboxRun() {
   sandboxRunInProgress = false;
 }
 
-export function handleSandboxRequest(req, res, WORKDIR, userEmail) {
-  if (!checkRateLimit(res)) return;
+export async function handleSandboxRequest(req, res, WORKDIR, userEmail) {
+  if (!(await checkRateLimit(res))) return;
 
   const urlPath = req.url.split("?")[0];
 

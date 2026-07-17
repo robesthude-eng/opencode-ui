@@ -3,15 +3,15 @@
  */
 import { getClientIp } from "./auth.mjs";
 import { MAX_JSON_BODY_BYTES } from "./config.mjs";
+import { takeRateLimit } from "./rate-limit-store.mjs";
 export { MAX_JSON_BODY_BYTES };
 
 // Body size limits
 export const MAX_BODY_BYTES = 50 * 1024 * 1024; // 50 MB for uploads
 
-// Upload rate limiting (per-IP)
-const uploadAttempts = new Map();
-const UPLOAD_WINDOW_MS = 60 * 1000; // 1 minute
-const UPLOAD_MAX_PER_WINDOW = 20; // max 20 uploads per minute per IP
+// Shared upload rate limiting (per-IP).
+const UPLOAD_WINDOW_MS = 60 * 1000;
+const UPLOAD_MAX_PER_WINDOW = 20;
 
 /**
  * Set security headers on response.
@@ -69,51 +69,37 @@ export function readBody(req, maxBytes = MAX_JSON_BODY_BYTES) {
   });
 }
 
-/**
- * Upload rate limit check (per-IP, per-minute window).
- * Returns true if allowed, false if rate limited.
- */
-export function checkUploadRateLimit(req, res) {
-  const ip = getClientIp(req);
-  const now = Date.now();
-  let record = uploadAttempts.get(ip);
-  if (!record || now - record.startTime > UPLOAD_WINDOW_MS) {
-    record = { count: 0, startTime: now };
-    uploadAttempts.set(ip, record);
-  }
-  if (record.count >= UPLOAD_MAX_PER_WINDOW) {
-    res.writeHead(429, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Upload rate limit exceeded. Try again later." }));
+/** Shared upload rate-limit check (Redis when configured). */
+export async function checkUploadRateLimit(req, res) {
+  const result = await takeRateLimit(`upload:ip:${getClientIp(req)}`, {
+    limit: UPLOAD_MAX_PER_WINDOW, windowMs: UPLOAD_WINDOW_MS,
+  });
+  if (result.unavailable) {
+    res.writeHead(503, { "Content-Type": "application/json", "Retry-After": "1" });
+    res.end(JSON.stringify({ error: "Rate-limit service unavailable. Retry shortly." }));
     return false;
   }
-  record.count++;
-  // Cleanup old entries
-  if (uploadAttempts.size > 500) {
-    for (const [key, val] of uploadAttempts.entries()) {
-      if (now - val.startTime > UPLOAD_WINDOW_MS) uploadAttempts.delete(key);
-    }
+  if (!result.allowed) {
+    res.writeHead(429, { "Content-Type": "application/json", "Retry-After": String(result.retryAfterSec) });
+    res.end(JSON.stringify({ error: "Upload rate limit exceeded. Try again later." }));
+    return false;
   }
   return true;
 }
 
-/**
- * Rebuild rate limiter (for self-improvement endpoints).
- */
-let lastRebuildTime = 0;
+/** Shared rebuild cooldown, global across all instances. */
 const REBUILD_COOLDOWN_MS = 10000;
-
-export function checkRateLimit(res) {
-  const now = Date.now();
-  if (now - lastRebuildTime < REBUILD_COOLDOWN_MS) {
-    const waitSec = Math.ceil((REBUILD_COOLDOWN_MS - (now - lastRebuildTime)) / 1000);
-    res.writeHead(429, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error: `Too many requests. Please wait ${waitSec}s before rebuilding again.`,
-      }),
-    );
+export async function checkRateLimit(res) {
+  const result = await takeRateLimit("self-improve:rebuild", { limit: 1, windowMs: REBUILD_COOLDOWN_MS });
+  if (result.unavailable) {
+    res.writeHead(503, { "Content-Type": "application/json", "Retry-After": "1" });
+    res.end(JSON.stringify({ error: "Rate-limit service unavailable. Retry shortly." }));
     return false;
   }
-  lastRebuildTime = now;
+  if (!result.allowed) {
+    res.writeHead(429, { "Content-Type": "application/json", "Retry-After": String(result.retryAfterSec) });
+    res.end(JSON.stringify({ error: `Too many requests. Please wait ${result.retryAfterSec}s before rebuilding again.` }));
+    return false;
+  }
   return true;
 }

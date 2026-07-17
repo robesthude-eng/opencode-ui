@@ -20,8 +20,21 @@ export default defineConfig({
     include: ["src/**/*.test.{ts,tsx}", "server/**/*.test.mjs"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "html"],
+      // Keep a browsable HTML report for engineers and machine-readable output
+      // for CI artifacts / external coverage tooling.
+      reporter: ["text", "html", "json-summary", "lcov"],
+      reportsDirectory: "coverage",
       include: ["src/api/**", "src/store/**", "server/**"],
+      exclude: ["**/__tests__/**", "**/*.test.*"],
+      // Baseline guardrail: intentionally attainable for the current suite,
+      // while preventing coverage from silently falling below the existing
+      // level. Raise these values as tests are added.
+      thresholds: {
+        branches: 15,
+        functions: 20,
+        lines: 20,
+        statements: 20,
+      },
     },
   },
 });

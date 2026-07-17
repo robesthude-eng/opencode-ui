@@ -106,10 +106,10 @@ describe("readBody", () => {
 });
 
 describe("checkRateLimit", () => {
-  test("allows first request", () => {
+  test("allows first request", async () => {
     const res = { writeHead: vi.fn(), end: vi.fn() };
     // Use a unique mock to avoid state leakage
-    expect(checkRateLimit(res)).toBe(true);
+    expect(await checkRateLimit(res)).toBe(true);
     expect(res.writeHead).not.toHaveBeenCalled();
   });
 });

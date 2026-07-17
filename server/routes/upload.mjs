@@ -7,8 +7,8 @@ import AdmZip from "adm-zip";
 import { MAX_BODY_BYTES, readBody } from "../middleware.mjs";
 import { parseMultipart } from "../upload.mjs";
 
-export function handleUploadFolder(req, res, { WORKDIR, extractSessionId, checkUploadRateLimit }) {
-  if (!checkUploadRateLimit(req, res)) return;
+export async function handleUploadFolder(req, res, { WORKDIR, extractSessionId, checkUploadRateLimit }) {
+  if (!(await checkUploadRateLimit(req, res))) return;
   readBody(req, MAX_BODY_BYTES)
     .then((buffer) => {
       const contentType = req.headers["content-type"] || "";
@@ -57,8 +57,8 @@ export function handleUploadFolder(req, res, { WORKDIR, extractSessionId, checkU
     });
 }
 
-export function handleUpload(req, res, { WORKDIR, checkUploadRateLimit }) {
-  if (!checkUploadRateLimit(req, res)) return;
+export async function handleUpload(req, res, { WORKDIR, checkUploadRateLimit }) {
+  if (!(await checkUploadRateLimit(req, res))) return;
   let sessionId = "";
   try {
     sessionId = new URL(req.url, "http://localhost").searchParams.get("sessionId") || "";

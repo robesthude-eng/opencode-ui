@@ -36,7 +36,6 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
   clearAttachments: () => set({ attachments: [] }),
 
   send: async (text) => {
-    console.info("[send] START, text=", text?.slice(0, 60));
     const { currentID, newSession, selectedModel } = get();
     let sid = currentID;
     // Handle tmp_ optimistic IDs — wait for real session or create new one (Claude-like)
@@ -141,7 +140,6 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         const done = (reason: string) => {
           if (settled) return;
           settled = true;
-          console.info(`[send] turn completed via: ${reason}`);
           resolve();
         };
 

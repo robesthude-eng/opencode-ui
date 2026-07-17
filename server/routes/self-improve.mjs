@@ -184,7 +184,7 @@ export async function handleCreatePr(
     res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
     return;
   }
-  if (!checkRateLimit(res)) return;
+  if (!(await checkRateLimit(res))) return;
   if (!tryAcquireBuildLock()) {
     res.writeHead(409, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Another build/PR/rollback is in progress. Wait and retry." }));
@@ -311,7 +311,7 @@ export async function handleRebuild(_req, res, { WORKDIR, userEmail, checkRateLi
     res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
     return;
   }
-  if (!checkRateLimit(res)) return;
+  if (!(await checkRateLimit(res))) return;
   if (!tryAcquireBuildLock()) {
     res.writeHead(409, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress." }));
@@ -338,7 +338,7 @@ export async function handleResetUi(_req, res, { WORKDIR, userEmail, checkRateLi
     res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
     return;
   }
-  if (!checkRateLimit(res)) return;
+  if (!(await checkRateLimit(res))) return;
   if (!tryAcquireBuildLock()) {
     res.writeHead(409, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress." }));
@@ -398,7 +398,7 @@ export function handleDistSnapshots(_req, res, { isRequestAdmin }) {
   res.end(JSON.stringify(listDistSnapshots()));
 }
 
-export function handleInstantRollback(
+export async function handleInstantRollback(
   req,
   res,
   { WORKDIR, userEmail, isRequestAdmin, checkRateLimit, readBody },
@@ -413,7 +413,7 @@ export function handleInstantRollback(
     res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
     return;
   }
-  if (!checkRateLimit(res)) return;
+  if (!(await checkRateLimit(res))) return;
   readBody(req, MAX_JSON_BODY_BYTES)
     .then((buf) => {
       try {
@@ -450,7 +450,7 @@ export async function handleRollback(req, res, { WORKDIR, userEmail, checkRateLi
     res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
     return;
   }
-  if (!checkRateLimit(res)) return;
+  if (!(await checkRateLimit(res))) return;
   if (!tryAcquireBuildLock()) {
     res.writeHead(409, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Another build/reset/rollback is already in progress." }));
@@ -594,7 +594,7 @@ export async function handleProposalExecute(
     res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled on the server." }));
     return;
   }
-  if (!checkRateLimit(res)) return;
+  if (!(await checkRateLimit(res))) return;
   if (!tryAcquireBuildLock()) {
     res.writeHead(409, { "Content-Type": "application/json" });
     res.end(

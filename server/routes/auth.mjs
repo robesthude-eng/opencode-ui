@@ -22,7 +22,7 @@ export async function handleRegister(req, res, { USERS_FILE, SESSIONS_FILE, SESS
     res.end();
     return;
   }
-  if (!checkAuthRateLimit(req, res)) return;
+  if (!(await checkAuthRateLimit(req, res))) return;
   try {
     const buf = await readBody(req, 16384);
     const body = JSON.parse(buf.toString("utf8") || "{}");
@@ -77,7 +77,7 @@ export async function handleRegister(req, res, { USERS_FILE, SESSIONS_FILE, SESS
     const sessions = loadJson(SESSIONS_FILE, {});
     sessions[token] = { email: cleanEmail, createdAt: Date.now() };
     saveAuthJson(SESSIONS_FILE, sessions);
-    resetAuthRateLimit(req);
+    await resetAuthRateLimit(req);
     logger.info({ email: cleanEmail, role }, "user registered");
     res.writeHead(200, {
       "Content-Type": "application/json",
@@ -96,7 +96,7 @@ export async function handleLogin(req, res, { USERS_FILE, SESSIONS_FILE, SESSION
     res.end();
     return;
   }
-  if (!checkAuthRateLimit(req, res)) return;
+  if (!(await checkAuthRateLimit(req, res))) return;
   try {
     const buf = await readBody(req, 16384);
     const { email, password } = JSON.parse(buf.toString("utf8") || "{}");
@@ -112,7 +112,7 @@ export async function handleLogin(req, res, { USERS_FILE, SESSIONS_FILE, SESSION
     const sessions = loadJson(SESSIONS_FILE, {});
     sessions[token] = { email: cleanEmail, createdAt: Date.now() };
     saveAuthJson(SESSIONS_FILE, sessions);
-    resetAuthRateLimit(req);
+    await resetAuthRateLimit(req);
     logger.info({ email: cleanEmail }, "user logged in");
     res.writeHead(200, {
       "Content-Type": "application/json",

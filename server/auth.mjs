@@ -4,9 +4,11 @@
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { USER_KEYS_DIR } from "./config.mjs";
 import { loadJson, saveAuthJson } from "./db.mjs";
+import { resetRateLimitKey, takeRateLimit } from "./rate-limit-store.mjs";
 
 export const SESSION_COOKIE = "opencode_session";
 
@@ -132,17 +134,50 @@ export function extractToken(req, { allowQueryToken = false } = {}) {
   }
 }
 
+/**
+ * Reverse proxies are not discoverable safely from request headers. Only peers
+ * explicitly listed in TRUSTED_PROXY_IPS may supply forwarding headers.
+ * Example: TRUSTED_PROXY_IPS=127.0.0.1,::1,172.18.0.2
+ */
+function normalizeIp(value) {
+  const ip = String(value || "").trim();
+  return ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+}
+
+function trustedProxyIps() {
+  return new Set(
+    String(process.env.TRUSTED_PROXY_IPS || "")
+      .split(",")
+      .map(normalizeIp)
+      .filter((ip) => net.isIP(ip) !== 0),
+  );
+}
+
+export function isTrustedProxy(req) {
+  const peerIp = normalizeIp(req?.socket?.remoteAddress);
+  return peerIp !== "" && trustedProxyIps().has(peerIp);
+}
+
+function trustedForwardedHeader(req, name) {
+  return isTrustedProxy(req) ? req?.headers?.[name] : undefined;
+}
+
 export function getClientIp(req) {
-  const xff = req.headers?.["x-forwarded-for"];
+  const peerIp = normalizeIp(req?.socket?.remoteAddress) || "unknown";
+  const xff = trustedForwardedHeader(req, "x-forwarded-for");
   if (xff && typeof xff === "string") {
-    return xff.split(",")[0].trim();
+    // The left-most address is the original client in the conventional XFF
+    // chain. Reject malformed values rather than creating attacker-controlled
+    // rate-limit keys.
+    const clientIp = normalizeIp(xff.split(",")[0]);
+    if (net.isIP(clientIp)) return clientIp;
   }
-  return req.socket?.remoteAddress || "unknown";
+  return peerIp;
 }
 
 export function buildSessionCookie(token, maxAgeMs, req) {
   const maxAge = Math.max(0, Math.floor((maxAgeMs || 7 * 24 * 60 * 60 * 1000) / 1000));
-  const forwardedProto = String(req?.headers?.["x-forwarded-proto"] || "")
+  const forwardedProto = String(trustedForwardedHeader(req, "x-forwarded-proto") || "")
     .split(",")[0]
     .trim()
     .toLowerCase();
@@ -174,9 +209,9 @@ export function checkCsrf(req, res) {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return true;
   const cookies = parseCookies(req);
   if (!cookies[SESSION_COOKIE]) return true;
-  const host = req.headers["x-forwarded-host"] || req.headers.host || "";
+  const host = trustedForwardedHeader(req, "x-forwarded-host") || req.headers.host || "";
   if (!host) return true;
-  const proto = (req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
+  const proto = (trustedForwardedHeader(req, "x-forwarded-proto") || "http").split(",")[0].trim();
   const allowedOrigins = new Set([`${proto}://${host}`, `https://${host}`, `http://${host}`]);
   if (process.env.NODE_ENV !== "production") {
     allowedOrigins.add("http://localhost:3000");
@@ -214,13 +249,18 @@ export function checkCsrf(req, res) {
   return false;
 }
 
+/** True when a persisted session is older than the configured TTL. */
+export function isSessionExpired(session, sessionTtlMs, now = Date.now()) {
+  return Boolean(session?.email) && sessionTtlMs > 0 && now - (session.createdAt || 0) > sessionTtlMs;
+}
+
 export function getUserEmail(req, sessionsFile, sessionTtlMs) {
   const token = extractToken(req);
   if (!token) return null;
   const sessions = loadJson(sessionsFile, {});
   const s = sessions[token];
   if (!s?.email) return null;
-  if (sessionTtlMs > 0 && Date.now() - (s.createdAt || 0) > sessionTtlMs) return null;
+  if (isSessionExpired(s, sessionTtlMs)) return null;
   return s.email;
 }
 
@@ -229,7 +269,7 @@ export function checkAuth(req, res, usersFile, sessionsFile, sessionTtlMs) {
   const sessions = loadJson(sessionsFile, {});
   const sess = token ? sessions[token] : null;
   if (sess?.email) {
-    if (sessionTtlMs > 0 && Date.now() - (sess.createdAt || 0) > sessionTtlMs) {
+    if (isSessionExpired(sess, sessionTtlMs)) {
       delete sessions[token];
       saveAuthJson(sessionsFile, sessions);
     } else {
@@ -250,17 +290,27 @@ export function checkAuth(req, res, usersFile, sessionsFile, sessionTtlMs) {
   return true;
 }
 
-export function checkAuthRateLimit(req, res) {
+function authRateLimitKey(req) {
+  return `auth:ip:${getClientIp(req)}`;
+}
+
+export async function checkAuthRateLimit(req, res) {
   const ip = getClientIp(req);
-  const now = Date.now();
-  let record = authAttempts.get(ip);
-  if (!record || now - record.startTime > AUTH_WINDOW_MS) {
-    record = { count: 0, startTime: now };
-    authAttempts.set(ip, record);
+  const result = await takeRateLimit(authRateLimitKey(req), {
+    limit: AUTH_MAX_ATTEMPTS,
+    windowMs: AUTH_WINDOW_MS,
+  });
+  if (result.unavailable) {
+    res.writeHead(503, { "Content-Type": "application/json", "Retry-After": "1" });
+    res.end(JSON.stringify({ error: "Rate-limit service unavailable. Retry shortly." }));
+    return false;
   }
-  if (record.count >= AUTH_MAX_ATTEMPTS) {
-    const waitMin = Math.ceil((AUTH_WINDOW_MS - (now - record.startTime)) / 60000);
-    res.writeHead(429, { "Content-Type": "application/json" });
+  if (!result.allowed) {
+    const waitMin = Math.max(1, Math.ceil(result.retryAfterSec / 60));
+    res.writeHead(429, {
+      "Content-Type": "application/json",
+      "Retry-After": String(result.retryAfterSec),
+    });
     res.end(
       JSON.stringify({
         error: `Слишком много попыток входа. Пожалуйста, подождите ${waitMin} мин.`,
@@ -268,20 +318,12 @@ export function checkAuthRateLimit(req, res) {
     );
     return false;
   }
-  record.count++;
-  if (authAttempts.size > 100) {
-    for (const [key, val] of authAttempts.entries()) {
-      if (now - val.startTime > AUTH_WINDOW_MS) authAttempts.delete(key);
-    }
-  }
   return true;
 }
 
-export function resetAuthRateLimit(req) {
-  const ip = getClientIp(req);
-  authAttempts.delete(ip);
+export async function resetAuthRateLimit(req) {
+  await resetRateLimitKey(authRateLimitKey(req));
 }
 
-const authAttempts = new Map();
 const AUTH_WINDOW_MS = 5 * 60 * 1000;
 const AUTH_MAX_ATTEMPTS = 10;

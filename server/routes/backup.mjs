@@ -24,7 +24,7 @@ export function handleBackupsList(_req, res, { WORKDIR, isRequestAdmin }) {
   );
 }
 
-export function handleBackupCreate(
+export async function handleBackupCreate(
   _req,
   res,
   { WORKDIR, userEmail, isRequestAdmin, checkRateLimit },
@@ -34,7 +34,7 @@ export function handleBackupCreate(
     res.end(JSON.stringify({ error: "Admin access required." }));
     return;
   }
-  if (!checkRateLimit(res)) return;
+  if (!(await checkRateLimit(res))) return;
   try {
     const result = createDbBackup(WORKDIR);
     logAudit(WORKDIR, userEmail, "DB_BACKUP", result.name);
@@ -84,7 +84,7 @@ export async function handleBackupRestore(
     res.end(JSON.stringify({ error: "Admin access required." }));
     return;
   }
-  if (!checkRateLimit(res)) return;
+  if (!(await checkRateLimit(res))) return;
   try {
     const buf = await readBody(req, MAX_JSON_BODY_BYTES);
     const { name } = JSON.parse(buf.toString("utf8") || "{}");
