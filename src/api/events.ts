@@ -118,7 +118,7 @@ export class EventStream {
           type: "stream.reconnected",
           properties: {},
         } as unknown as AppEvent;
-        for (const h of this.handlers) h(ev);
+        this.emit(ev);
       }
     };
     this.es.onerror = () => {
@@ -148,7 +148,7 @@ export class EventStream {
         type: "stream.corrupted",
         properties: { raw: rawData, sourceType: namedType },
       } as unknown as AppEvent;
-      for (const h of this.handlers) h(ev);
+      this.emit(ev);
       return;
     }
     const ev: AppEvent =
@@ -165,7 +165,20 @@ export class EventStream {
     ) {
       console.log("[SSE] event:", namedType, "data:", parsed, "ev:", ev);
     }
-    for (const h of this.handlers) h(ev);
+    this.emit(ev);
+  }
+
+  // P0-fix: исключение в одном подписчике не должно прерывать доставку
+  // события остальным и ломать жизненный цикл подключения
+  // (бросок из onopen/onmessage). Ошибку логируем и продолжаем.
+  private emit(ev: AppEvent) {
+    for (const h of this.handlers) {
+      try {
+        h(ev);
+      } catch (err) {
+        console.error("[SSE] handler error for event:", ev.type, err);
+      }
+    }
   }
 
   private scheduleReconnect() {
