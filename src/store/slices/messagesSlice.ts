@@ -18,6 +18,7 @@ import {
 import { sessionFsm } from "../sessionFsm";
 import type { MessagesSlice, Slice } from "../types";
 import { byUpdated } from "../types";
+import { waitForSessionCreation } from "./sessionsSlice";
 
 // P1.6 FSM: per-session состояние busy/idle и idle-резолверы вынесены в
 // ../sessionFsm.ts (бывшие __locallyBusy / __idleResolvers). Поведение 1:1.
@@ -62,9 +63,11 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     // Handle tmp_ optimistic IDs — wait for real session or create new one (Claude-like)
     if (!sid || sid.startsWith("tmp_")) {
       if (sid?.startsWith("tmp_")) {
-        // If we have a temp ID, wait a bit for real ID to appear (optimistic creation in progress)
-        // Like Claude, don't send to temp ID, wait for real session
-        await new Promise((r) => setTimeout(r, 300));
+        // Optimistic creation is in progress — await its completion event
+        // instead of a fixed 300ms nap: on a slow backend the nap ended
+        // before the real id appeared, the forced newSession() bailed out on
+        // the creatingSession guard, and the message was silently dropped.
+        await waitForSessionCreation();
         sid = get().currentID;
         if (sid?.startsWith("tmp_")) {
           // Still temp, force create real session

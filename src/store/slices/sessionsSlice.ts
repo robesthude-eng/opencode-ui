@@ -7,6 +7,18 @@ import { byUpdated } from "../types";
 // Prevent concurrent optimistic session creation from rapid "New chat" clicks.
 let creatingSession = false;
 
+// Settles when the in-flight newSession() finishes: either the real session
+// id is already in the store or the optimistic tmp_ session was rolled back.
+// send() awaits this event instead of napping a fixed 300ms and hoping the
+// backend is fast enough.
+let sessionCreationSettled: Promise<void> = Promise.resolve();
+let settleSessionCreation: () => void = () => {};
+
+/** Wait until the in-flight optimistic session creation (if any) settles. */
+export function waitForSessionCreation(): Promise<void> {
+  return sessionCreationSettled;
+}
+
 // UX-fix: чтобы React StrictMode / URL-effect не делали 3 select() подряд
 // с уходом в сеть, помним какие sid мы уже начинали проверять.
 // Комбо с __deadSessions в client.ts даёт полное подавление флудa 410.
@@ -96,6 +108,9 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
   newSession: async () => {
     if (creatingSession) return;
     creatingSession = true;
+    sessionCreationSettled = new Promise((resolve) => {
+      settleSessionCreation = resolve;
+    });
 
     const { sessions, messages } = get();
 
@@ -108,6 +123,7 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
       // Just select existing empty chat instead of creating new one
       set({ currentID: emptySession.id });
       creatingSession = false;
+      settleSessionCreation();
       return;
     }
 
@@ -157,6 +173,7 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
       }));
     } finally {
       creatingSession = false;
+      settleSessionCreation();
     }
   },
 
