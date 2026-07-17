@@ -117,10 +117,22 @@ export default function ChatView() {
   // кнопка «вниз»). Programmatic scroll сам поднимет onScroll и обновит
   // atBottomRef/isScrolledUp консистентно. behavior:"auto" — мгновенно, чтобы
   // не отставать от токенов.
+  // P2-fix: троттлинг через rAF — стор может обновиться несколько раз
+  // за кадр, а scrollIntoView каждый раз форсирует layout. Коалесцируем
+  // все срабатывания в один скролл на кадр; позицию «внизу»
+  // перепроверяем уже в момент кадра.
+  const autoScrollRafRef = useRef<ReturnType<
+    typeof requestAnimationFrame
+  > | null>(null);
   useEffect(() => {
-    if (streamSignal && atBottomRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: "auto" });
-    }
+    if (!streamSignal || !atBottomRef.current) return;
+    if (autoScrollRafRef.current !== null) return;
+    autoScrollRafRef.current = requestAnimationFrame(() => {
+      autoScrollRafRef.current = null;
+      if (atBottomRef.current) {
+        bottomRef.current?.scrollIntoView({ behavior: "auto" });
+      }
+    });
   }, [streamSignal]);
 
   // Отмена pending RAF от onScroll только при размонтировании — держим
@@ -129,6 +141,9 @@ export default function ChatView() {
   useEffect(() => {
     return () => {
       if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+      if (autoScrollRafRef.current !== null) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+      }
     };
   }, []);
 
@@ -252,7 +267,7 @@ export default function ChatView() {
                     <span>Сбой автоматического тестирования песочницы</span>
                   </div>
                   <p className="text-xs text-muted-foreground/80 mb-3">
-                    Внесенные изменения вызывают ошибки компил��ции или
+                    Внесенные изменения вызывают ошибки компиляции или
                     заваливают автотесты Vitest. Лог ошибок:
                   </p>
                   <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 font-mono text-[12px] leading-relaxed text-rose-300 max-h-60 border border-black/10 whitespace-pre-wrap break-all">
