@@ -153,7 +153,10 @@ describe("EventStream", () => {
       stream.connect();
 
       setTimeout(() => {
-        MockEventSource.instances[0].simulateEvent("message", "not json at all");
+        MockEventSource.instances[0].simulateEvent(
+          "message",
+          "not json at all",
+        );
       }, 10);
     }));
 
