@@ -378,7 +378,11 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
   const input = fmt(getInput(part));
   const output = getOutput(part);
   const summary = getSummary(part);
-  const hasBody = Boolean(input || output);
+  // Пока модель генерирует аргументы вызова, сервер отдаёт пустой input ({}):
+  // частичный JSON аргументов распарсить нельзя, поэтому вместо «{}»
+  // показываем честный плейсхолдер «Генерирует содержимое…».
+  const inputPending = running && (!input || input === "{}");
+  const hasBody = Boolean(input || output || inputPending);
   const duration = useDuration(getTime(part), running);
   const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
   const expanded = manuallyToggled ?? running;
@@ -435,7 +439,17 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
       {/* Раскрытые секции в стиле Arena: COMMAND / STDOUT etc */}
       {hasBody && expanded && (
         <div className="mt-1.5 ml-6 space-y-1.5">
-          {input && <CodeBlock label={isBash ? "COMMAND" : "INPUT"} text={input} />}
+          {inputPending ? (
+            <div className="flex items-center gap-2 px-1 py-1 text-[12px] text-muted-foreground/70">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 animate-pulse" />
+              Генерирует содержимое…
+            </div>
+          ) : (
+            input &&
+            input !== "{}" && (
+              <CodeBlock label={isBash ? "COMMAND" : "INPUT"} text={input} />
+            )
+          )}
           {output && <CodeBlock label={isBash ? "STDOUT" : "OUTPUT"} text={output} />}
         </div>
       )}
