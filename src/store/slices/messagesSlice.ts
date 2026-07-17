@@ -26,6 +26,21 @@ import { byUpdated } from "../types";
 // ordinary multi-tool self-improvement runs to avoid false completion.
 const SEND_HARD_TIMEOUT_MS = 15 * 60 * 1000; // 15 min safety limit
 
+/**
+ * Collision-free id for optimistic local messages. `Date.now()` collides on
+ * a fast double send (same millisecond); `crypto.randomUUID()` cannot. The
+ * fallback covers non-secure contexts (plain HTTP), where randomUUID is
+ * unavailable. The `local_` prefix is load-bearing: all optimistic-message
+ * correlation checks `id.startsWith("local_")`.
+ */
+function newLocalMessageId(): string {
+  const uuid =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `local_${uuid}`;
+}
+
 export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
   messages: {},
   attachments: [],
@@ -75,7 +90,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     }));
 
     const userMsg: Message = {
-      id: `local_${Date.now()}`,
+      id: newLocalMessageId(),
       role: "user",
       parts: [...attachmentParts, { type: "text", text }],
     };
