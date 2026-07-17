@@ -20,7 +20,12 @@ export default function Composer() {
   const attachments = useStore((s) => s.attachments);
   const addAttachments = useStore((s) => s.addAttachments);
   const removeAttachment = useStore((s) => s.removeAttachment);
+  const failedSendText = useStore((s) => s.failedSendText);
+  const clearFailedSendText = useStore((s) => s.clearFailedSendText);
   const [text, setText] = useState("");
+  // P2-fix: очередь сообщений — набранное во время генерации не теряется,
+  // а отправляется автоматически, как только сессия освободится.
+  const [queued, setQueued] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -52,9 +57,37 @@ export default function Composer() {
     }
   }, [text]);
 
+  // P2-fix: отправка упала — возвращаем текст в поле ввода, чтобы
+  // пользователь не набирал его заново.
+  useEffect(() => {
+    if (failedSendText) {
+      setText((t) => (t ? t : failedSendText));
+      clearFailedSendText();
+    }
+  }, [failedSendText, clearFailedSendText]);
+
+  // P2-fix: сессия освободилась — отправляем следующее из очереди.
+  // send() ставит busy синхронно, поэтому двойной отправки не будет.
+  useEffect(() => {
+    if (!busy && queued.length > 0) {
+      const [next, ...rest] = queued;
+      setQueued(rest);
+      if (next) void send(next);
+    }
+  }, [busy, queued, send]);
+
   const submit = async () => {
     const value = text.trim();
-    if ((!value && attachments.length === 0) || busy) return;
+    if (!value && attachments.length === 0) return;
+    // P2-fix: во время генерации Enter не теряет сообщение,
+    // а ставит его в очередь.
+    if (busy) {
+      if (value) {
+        setQueued((q) => [...q, value]);
+        setText("");
+      }
+      return;
+    }
     setText("");
     await send(value);
   };
@@ -126,6 +159,30 @@ export default function Composer() {
         onDrop={onDrop}
       >
         <div className="flex flex-col gap-1">
+          {/* P2-fix: очередь сообщений, ожидающих окончания генерации */}
+          {queued.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-2 pb-1">
+              {queued.map((q, i) => (
+                <div
+                  key={`${i}-${q.slice(0, 12)}`}
+                  className="flex items-center gap-2 rounded-full bg-muted border border-border px-2 py-1 text-xs text-muted-foreground"
+                  title={q}
+                >
+                  <span className="opacity-60">⏳</span>
+                  <span className="truncate max-w-[160px]">{q}</span>
+                  <button
+                    type="button"
+                    className="hover:text-destructive"
+                    onClick={() =>
+                      setQueued((prev) => prev.filter((_, j) => j !== i))
+                    }
+                  >
+                    <CloseIcon size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           {/* Attachments row */}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 px-2 pb-2">

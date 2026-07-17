@@ -197,3 +197,40 @@ describe("EventStream", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 });
+
+// P3: конфигурируемый список именованных SSE-событий
+describe("EventStream — configurable named types (P3)", () => {
+  test("registers custom named event types passed via constructor", () => {
+    const stream = new EventStream("http://localhost:3000/api/event", null, [
+      "custom.event",
+    ]);
+    const received: Array<{ type: string }> = [];
+    stream.on((e) => {
+      received.push(e);
+    });
+    const es = MockEventSource.instances.at(-1);
+    es?.simulateEvent(
+      "custom.event",
+      JSON.stringify({ type: "custom.event", properties: { foo: 1 } }),
+    );
+    expect(received).toHaveLength(1);
+    expect(received[0]?.type).toBe("custom.event");
+    stream.close();
+  });
+
+  test("still registers default named types when none are passed", () => {
+    const stream = new EventStream("http://localhost:3000/api/event");
+    const received: Array<{ type: string }> = [];
+    stream.on((e) => {
+      received.push(e);
+    });
+    const es = MockEventSource.instances.at(-1);
+    es?.simulateEvent(
+      "session.idle",
+      JSON.stringify({ type: "session.idle", properties: {} }),
+    );
+    expect(received).toHaveLength(1);
+    expect(received[0]?.type).toBe("session.idle");
+    stream.close();
+  });
+});

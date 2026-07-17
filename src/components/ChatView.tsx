@@ -94,10 +94,21 @@ export default function ChatView() {
     if (!messages || messages.length === 0) return "";
     const last = messages[messages.length - 1];
     const textLen =
-      last?.parts?.reduce(
-        (n, p) => n + ((p as { text?: string }).text?.length ?? 0),
-        0,
-      ) ?? 0;
+      last?.parts?.reduce((n, p) => {
+        const anyP = p as {
+          text?: string;
+          state?: { output?: unknown } | string;
+        };
+        // P2-fix: учитываем и растущий вывод инструментов — иначе
+        // автоскролл не следует за длинным выводом команд.
+        const state =
+          typeof anyP.state === "object" && anyP.state !== null
+            ? anyP.state
+            : undefined;
+        const outLen =
+          typeof state?.output === "string" ? state.output.length : 0;
+        return n + (anyP.text?.length ?? 0) + outLen;
+      }, 0) ?? 0;
     return `${messages.length}:${last?.id ?? ""}:${last?.parts?.length ?? 0}:${textLen}`;
   }, [messages]);
 
@@ -241,7 +252,7 @@ export default function ChatView() {
                     <span>Сбой автоматического тестирования песочницы</span>
                   </div>
                   <p className="text-xs text-muted-foreground/80 mb-3">
-                    Внесенные изменения вызывают ошибки компиляции или
+                    Внесенные изменения вызывают ошибки компил��ции или
                     заваливают автотесты Vitest. Лог ошибок:
                   </p>
                   <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 font-mono text-[12px] leading-relaxed text-rose-300 max-h-60 border border-black/10 whitespace-pre-wrap break-all">

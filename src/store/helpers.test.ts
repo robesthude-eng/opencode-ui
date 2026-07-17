@@ -219,3 +219,114 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
     });
   });
 });
+
+// P3: дополнительные тесты стриминговых патчей — patchPart / patchPartDelta.
+describe("patchPart() / patchPartDelta() — P3 edge cases", () => {
+  const shell = (parts: Part[] = []): Message => ({
+    id: "m1",
+    role: "assistant",
+    parts,
+  });
+
+  describe("patchPartDelta()", () => {
+    it("creates a hidden 'stub' part when a non-text delta arrives before the message exists", () => {
+      const res = patchPartDelta([], "m1", "p1", "output", "chunk");
+      expect(res).toHaveLength(1);
+      const part = res[0]?.parts[0] as any;
+      expect(part.id).toBe("p1");
+      expect(part.type).toBe("stub");
+      expect(part.output).toBe("chunk");
+    });
+
+    it("creates a real 'text' part when a text delta arrives before the message exists", () => {
+      const res = patchPartDelta([], "m1", "p1", "text", "Hel");
+      const part = res[0]?.parts[0] as any;
+      expect(part.type).toBe("text");
+      expect(part.text).toBe("Hel");
+    });
+
+    it("creates a 'stub' part inside an existing message when partID is unknown and field is not text", () => {
+      const res = patchPartDelta([shell()], "m1", "p1", "reasoning", "Thin");
+      const part = res[0]?.parts[0] as any;
+      expect(part.type).toBe("stub");
+      expect(part.reasoning).toBe("Thin");
+    });
+
+    it("appends string deltas to the existing field value", () => {
+      let msgs = patchPartDelta([], "m1", "p1", "text", "Hello, ");
+      msgs = patchPartDelta(msgs, "m1", "p1", "text", "world");
+      msgs = patchPartDelta(msgs, "m1", "p1", "text", "!");
+      expect((msgs[0]?.parts[0] as any).text).toBe("Hello, world!");
+    });
+
+    it("replaces the field for non-string deltas (e.g. tool state object)", () => {
+      const start = [shell([{ id: "p1", type: "tool", tool: "bash" } as any])];
+      const state = { status: "running" };
+      const res = patchPartDelta(start, "m1", "p1", "state", state);
+      expect((res[0]?.parts[0] as any).state).toEqual(state);
+    });
+
+    it("returns the input array untouched when identifiers or delta are missing", () => {
+      const msgs = [shell()];
+      expect(patchPartDelta(msgs, "", "p1", "text", "x")).toBe(msgs);
+      expect(patchPartDelta(msgs, "m1", "", "text", "x")).toBe(msgs);
+      expect(patchPartDelta(msgs, "m1", "p1", "", "x")).toBe(msgs);
+      expect(patchPartDelta(msgs, "m1", "p1", "text", undefined)).toBe(msgs);
+    });
+
+    it("does not touch other messages", () => {
+      const other: Message = {
+        id: "m2",
+        role: "assistant",
+        parts: [{ id: "px", type: "text", text: "keep" } as any],
+      };
+      const res = patchPartDelta(
+        [shell([{ id: "p1", type: "text", text: "a" } as any]), other],
+        "m1",
+        "p1",
+        "text",
+        "b",
+      );
+      expect((res[0]?.parts[0] as any).text).toBe("ab");
+      expect(res[1]).toBe(other);
+    });
+  });
+
+  describe("patchPart() ↔ patchPartDelta() integration", () => {
+    it("upgrades a streamed 'stub' part to the real tool part keeping accumulated fields", () => {
+      let msgs = patchPartDelta([], "m1", "p1", "output", "npm ins");
+      msgs = patchPartDelta(msgs, "m1", "p1", "output", "tall done");
+      msgs = patchPart(msgs, "m1", {
+        id: "p1",
+        type: "tool",
+        tool: "bash",
+      } as any);
+      const part = msgs[0]?.parts[0] as any;
+      expect(part.type).toBe("tool");
+      expect(part.tool).toBe("bash");
+      // накопленный стриминговый output не теряется при апгрейде
+      expect(part.output).toBe("npm install done");
+      expect(msgs[0]?.parts).toHaveLength(1);
+    });
+
+    it("merges an update into the part matched by id instead of appending a duplicate", () => {
+      const start = [shell([{ id: "p1", type: "text", text: "draft" } as any])];
+      const res = patchPart(start, "m1", {
+        id: "p1",
+        type: "text",
+        text: "final",
+      } as any);
+      expect(res[0]?.parts).toHaveLength(1);
+      expect((res[0]?.parts[0] as any).text).toBe("final");
+    });
+
+    it("normalizes object tool references to undefined (React error #31 guard)", () => {
+      const res = patchPart([shell()], "m1", {
+        id: "p1",
+        type: "tool",
+        tool: { messageID: "m1", callID: "c1" },
+      } as any);
+      expect((res[0]?.parts[0] as any).tool).toBeUndefined();
+    });
+  });
+});

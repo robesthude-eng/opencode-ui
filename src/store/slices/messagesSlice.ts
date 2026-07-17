@@ -1,4 +1,5 @@
 import { api, SessionGoneError } from "../../api/client";
+import { getActiveStreamStatus } from "../../api/events";
 import { mergeMessages as mergeMessagesDeterministic } from "../../api/messageMerge";
 import type {
   Message,
@@ -14,17 +15,12 @@ import {
   patchPartDelta,
   upsertMessage,
 } from "../helpers";
+import { sessionFsm } from "../sessionFsm";
 import type { MessagesSlice, Slice } from "../types";
 import { byUpdated } from "../types";
 
-// UX-fix: пока клиент активно ждёт ответа на свой send(), запрещаем
-// сбрасывать busy по промежуточным событиям (finish:"stop" на reasoning-стадии,
-// session.idle между tool-calls). Ключ — sessionID.
-// P0.4 FSM: moved to sessionFsm.ts but kept here for backward compat until fully migrated
-const __locallyBusy = new Set<string>();
-// UX-fix: колбэки, которые ждут *настоящего* завершения сессии от сервера
-// (событие session.idle). Ключ — sessionID.
-const __idleResolvers = new Map<string, () => void>();
+// P1.6 FSM: per-session состояние busy/idle и idle-резолверы вынесены в
+// ../sessionFsm.ts (бывшие __locallyBusy / __idleResolvers). Поведение 1:1.
 // Safety watchdog only; normal completion comes from SSE session.idle,
 // the final prompt response, or HTTP reconciliation. Keep it longer than
 // ordinary multi-tool self-improvement runs to avoid false completion.
@@ -33,6 +29,7 @@ const SEND_HARD_TIMEOUT_MS = 15 * 60 * 1000; // 15 min safety limit
 export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
   messages: {},
   attachments: [],
+  failedSendText: null,
 
   addAttachments: (files) =>
     set((s) => ({ attachments: [...s.attachments, ...files] })),
@@ -41,6 +38,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     set((s) => ({ attachments: s.attachments.filter((a) => a.name !== name) })),
 
   clearAttachments: () => set({ attachments: [] }),
+
+  clearFailedSendText: () => set({ failedSendText: null }),
 
   send: async (text) => {
     const { currentID, newSession, selectedModel } = get();
@@ -80,7 +79,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       role: "user",
       parts: [...attachmentParts, { type: "text", text }],
     };
-    __locallyBusy.add(sidStr);
+    sessionFsm.markBusy(sidStr);
     set((s) => ({
       status: { ...s.status, [sidStr]: "busy" },
       messages: {
@@ -145,6 +144,10 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         systemInstruction,
       );
 
+      // P2-fix: вложения уже ушли в prompt — очищаем композер сразу,
+      // не дожидаясь конца генерации. При ошибке send() вернём их обратно.
+      set({ attachments: [] });
+
       await new Promise<void>((resolve, reject) => {
         let settled = false;
         const done = (reason: string) => {
@@ -155,13 +158,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
 
         // --- Регистрируем SSE-резолвер, поддерживая множественные send() ---
         // Если для этой сессии уже есть резолвер (юзер быстро жмёт 2 раза),
-        // не теряем его — цепочкой вызываем оба
-        const prevResolver = __idleResolvers.get(sidStr);
-        __idleResolvers.set(sidStr, () => {
-          if (prevResolver)
-            try {
-              prevResolver();
-            } catch {}
+        // не теряем его — sessionFsm вызывает оба цепочкой.
+        sessionFsm.onIdle(sidStr, () => {
           done("sse:session.idle");
         });
 
@@ -187,7 +185,13 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             // локальный стриминговый текст (длиннее и является префиксным
             // расширением серверного) сохраняется, пока сервер не финализирует
             // сообщение. Поллер остаётся только страховкой от битого SSE.
-            if (Array.isArray(msgs) && msgs.length > 0) {
+            // P0-fix: пока SSE здоров ("open"), поллер служит ТОЛЬКО
+            // детектором финала и НЕ пишет снапшот в стор — снапшот на
+            // мгновение отстаёт от SSE-дельт и откатывал стриминговые
+            // reasoning/tool-части (дёргание карточек). Мержим в стор
+            // только когда SSE реально не работает.
+            const sseHealthy = getActiveStreamStatus() === "open";
+            if (!sseHealthy && Array.isArray(msgs) && msgs.length > 0) {
               set((s) => {
                 const existing = s.messages[sidStr] ?? [];
                 const merged = mergeMessages(
@@ -211,7 +215,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               if (stableCount >= 1) {
                 clearInterval(httpPoller);
                 clearTimeout(timeoutId);
-                __idleResolvers.delete(sidStr);
+                sessionFsm.clearIdleResolver(sidStr);
                 done("http:stable-finish");
               }
             } else {
@@ -221,7 +225,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               if (isDone && completedAt) {
                 clearInterval(httpPoller);
                 clearTimeout(timeoutId);
-                __idleResolvers.delete(sidStr);
+                sessionFsm.clearIdleResolver(sidStr);
                 done("http:completed-immediate");
               }
             }
@@ -230,7 +234,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             if (pollErr instanceof SessionGoneError) {
               clearInterval(httpPoller);
               clearTimeout(timeoutId);
-              __idleResolvers.delete(sidStr);
+              sessionFsm.clearIdleResolver(sidStr);
               if (!settled) {
                 settled = true;
                 reject(pollErr);
@@ -248,7 +252,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             `[send] hard timeout after ${SEND_HARD_TIMEOUT_MS}ms — forcing completion`,
           );
           clearInterval(httpPoller);
-          __idleResolvers.delete(sidStr);
+          sessionFsm.clearIdleResolver(sidStr);
           done("hard-timeout");
         }, SEND_HARD_TIMEOUT_MS);
 
@@ -260,7 +264,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             if (finish === "stop" || finish === "error" || completed) {
               clearInterval(httpPoller);
               clearTimeout(timeoutId);
-              __idleResolvers.delete(sidStr);
+              sessionFsm.clearIdleResolver(sidStr);
               done(
                 finish === "error"
                   ? "prompt:finish-error"
@@ -271,7 +275,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
           .catch((e) => {
             clearInterval(httpPoller);
             clearTimeout(timeoutId);
-            __idleResolvers.delete(sidStr);
+            sessionFsm.clearIdleResolver(sidStr);
             if (!settled) {
               settled = true;
               reject(e);
@@ -280,9 +284,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       }).finally(() => {
         // no extra poll interval
       });
-      set({ attachments: [] });
     } catch (e) {
-      __locallyBusy.delete(sidStr);
+      sessionFsm.markIdle(sidStr);
       if (e instanceof SessionGoneError) {
         console.warn(
           "[send] session gone on backend, recreating:",
@@ -302,6 +305,10 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
           await get().newSession();
           const newSid = get().currentID;
           if (newSid && !newSid.startsWith("tmp_")) {
+            // P2-fix: вложения были очищены при первой попытке — вернём,
+            // чтобы повторная отправка ушла с ними.
+            if (currentAttachments.length > 0)
+              set({ attachments: currentAttachments });
             void get().send(text);
           }
         } catch (recErr) {
@@ -311,6 +318,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       }
       set((s) => ({
         error: (e as Error).message,
+        // P2-fix: не терять набранный текст — Composer вернёт его в поле ввода.
+        failedSendText: text,
         status: { ...s.status, [sidStr]: "error" },
         messages: {
           ...s.messages,
@@ -318,6 +327,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             (m) => m.id !== userMsg.id,
           ),
         },
+        // P2-fix: вложения были очищены при отправке — возвращаем.
+        attachments:
+          s.attachments.length === 0 ? currentAttachments : s.attachments,
       }));
       return;
     }
@@ -325,7 +337,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     await doFinalFetch();
     set((s) => {
       const currentStatus = s.status[sidStr];
-      __locallyBusy.delete(sidStr);
+      sessionFsm.markIdle(sidStr);
       const finalStatus: SessionStatus =
         currentStatus === "error" ? "error" : "idle";
       return {
@@ -377,12 +389,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             : (p.status as { type?: string }).type || "idle";
         // Fix Stop button hang: when locallyBusy and st===idle (real end), resolve AND set idle immediately
         // Previously it only resolved and broke without setting status, causing Stop to hang until http polling stable
-        if (__locallyBusy.has(sid) && st === "idle") {
-          const resolve = __idleResolvers.get(sid);
-          if (resolve) {
-            __idleResolvers.delete(sid);
-            resolve();
-          }
+        if (sessionFsm.isBusy(sid) && st === "idle") {
+          sessionFsm.resolveIdle(sid);
           // P0.4: Set idle immediately, not waiting for http polling
           set((s) => ({
             status: { ...s.status, [sid]: "idle" as SessionStatus },
@@ -394,12 +402,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       }
       case "session.idle": {
         if (!sid) break;
-        if (__locallyBusy.has(sid)) {
-          const resolve = __idleResolvers.get(sid);
-          if (resolve) {
-            __idleResolvers.delete(sid);
-            resolve();
-          }
+        if (sessionFsm.isBusy(sid)) {
+          sessionFsm.resolveIdle(sid);
           // Fix: set idle immediately on session.idle even during send() — was previously breaking without status update
           set((s) => ({
             status: { ...s.status, [sid]: "idle" as SessionStatus },
@@ -449,10 +453,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             const isFinal =
               !!completed || finish === "stop" || finish === "error";
             if (isFinal) {
-              const resolve = __idleResolvers.get(sid);
-              if (__locallyBusy.has(sid) && resolve) {
-                __idleResolvers.delete(sid);
-                resolve();
+              if (sessionFsm.isBusy(sid)) {
+                sessionFsm.resolveIdle(sid);
               }
               set((s) => ({
                 status: {
@@ -462,7 +464,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
                     : "idle") as SessionStatus,
                 },
               }));
-            } else if (!__locallyBusy.has(sid)) {
+            } else if (!sessionFsm.isBusy(sid)) {
               // Non-final intermediate finish — only reset if not locallyBusy (preserve old behavior for reasoning stage)
               set((s) => {
                 const current = s.status[sid];
@@ -534,6 +536,31 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
           );
           return { messages: { ...s.messages, [sid]: updated } };
         });
+        break;
+      }
+      case "stream.reconnected": {
+        // P1-fix: SSE переподключился после разрыва — события за время
+        // разрыва потеряны (нет Last-Event-ID replay). Один раз
+        // дотягиваем историю активной сессии и мержим детерминированно.
+        const cur = get().currentID;
+        if (!cur || cur.startsWith("tmp_")) break;
+        void (async () => {
+          try {
+            const msgs = normalizeMessages(await api.listMessages(cur));
+            if (msgs.length === 0) return;
+            set((s) => {
+              const existing = s.messages[cur] ?? [];
+              return {
+                messages: {
+                  ...s.messages,
+                  [cur]: mergeMessagesDeterministic(msgs, existing),
+                },
+              };
+            });
+          } catch {
+            /* non-fatal — следующий reconnect или поллер дотянет */
+          }
+        })();
         break;
       }
       case "permission.asked": {

@@ -190,7 +190,13 @@ export function patchPartDelta(
   if (!messageID || !partID || !field || delta === undefined) return messages;
   const exists = messages.some((m) => m.id === messageID);
   if (!exists) {
-    const stubPart: Record<string, unknown> = { id: partID, type: "text" };
+    // Delta arrived before the part itself. For non-text fields we don't know
+    // the real part type yet — mark it "stub" so PartView hides it until
+    // message.part.updated brings the real type (patchPart merges it in).
+    const stubPart: Record<string, unknown> = {
+      id: partID,
+      type: field === "text" ? "text" : "stub",
+    };
     stubPart[field] = typeof delta === "string" ? delta : delta;
     return [
       ...messages,
@@ -205,14 +211,20 @@ export function patchPartDelta(
     if (m.id !== messageID) return m;
     const idx = m.parts.findIndex((p) => (p as { id?: string }).id === partID);
     if (idx === -1) {
-      const newPart: Record<string, unknown> = { id: partID, type: "text" };
+      const newPart: Record<string, unknown> = {
+        id: partID,
+        type: field === "text" ? "text" : "stub",
+      };
       newPart[field] = typeof delta === "string" ? delta : delta;
       return { ...m, parts: [...m.parts, normalizePartTool(newPart as Part)] };
     }
     const parts = m.parts.slice();
     const existingPart = parts[idx];
     if (existingPart === undefined) {
-      const newPart: Record<string, unknown> = { id: partID, type: "text" };
+      const newPart: Record<string, unknown> = {
+        id: partID,
+        type: field === "text" ? "text" : "stub",
+      };
       newPart[field] = typeof delta === "string" ? delta : delta;
       return { ...m, parts: [...m.parts, normalizePartTool(newPart as Part)] };
     }

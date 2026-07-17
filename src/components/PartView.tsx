@@ -115,7 +115,9 @@ const SAFE_MD_COMPONENTS = {
   },
 } as Components;
 
-const HIDDEN_TYPES = new Set(["file"]);
+// "stub" — synthetic placeholder created by patchPartDelta when a delta
+// arrives before its part; hidden until the real part type arrives.
+const HIDDEN_TYPES = new Set(["file", "stub"]);
 
 const KIND_ICONS: Record<string, ReactNode> = {
   image: <ImageIcon className="h-4 w-4" />,

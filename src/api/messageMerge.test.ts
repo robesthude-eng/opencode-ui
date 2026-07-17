@@ -22,6 +22,94 @@ describe("mergeMessages deterministic", () => {
     expect((merged[0].parts[0] as any).text).toBe("first second");
   });
 
+  test("keeps longer local streaming reasoning when server not final", () => {
+    const server = [
+      {
+        id: "msg_1",
+        role: "assistant" as const,
+        parts: [{ id: "p1", type: "reasoning", text: "think" } as any],
+        info: { finish: undefined },
+      },
+    ];
+    const local = [
+      {
+        id: "msg_1",
+        role: "assistant" as const,
+        parts: [{ id: "p1", type: "reasoning", text: "think more" } as any],
+      },
+    ];
+    const merged = mergeMessages(server, local);
+    expect((merged[0].parts[0] as any).text).toBe("think more");
+  });
+
+  test("does not downgrade local completed tool part to stale running snapshot", () => {
+    const server = [
+      {
+        id: "msg_1",
+        role: "assistant" as const,
+        parts: [
+          {
+            id: "p1",
+            type: "tool",
+            tool: "bash",
+            state: { status: "running" },
+          } as any,
+        ],
+        info: { finish: undefined },
+      },
+    ];
+    const local = [
+      {
+        id: "msg_1",
+        role: "assistant" as const,
+        parts: [
+          {
+            id: "p1",
+            type: "tool",
+            tool: "bash",
+            state: { status: "completed", output: "done" },
+          } as any,
+        ],
+      },
+    ];
+    const merged = mergeMessages(server, local);
+    expect((merged[0].parts[0] as any).state.status).toBe("completed");
+  });
+
+  test("server tool state wins when message is final", () => {
+    const server = [
+      {
+        id: "msg_1",
+        role: "assistant" as const,
+        parts: [
+          {
+            id: "p1",
+            type: "tool",
+            tool: "bash",
+            state: { status: "error" },
+          } as any,
+        ],
+        info: { finish: "stop", time: { completed: Date.now() } },
+      },
+    ];
+    const local = [
+      {
+        id: "msg_1",
+        role: "assistant" as const,
+        parts: [
+          {
+            id: "p1",
+            type: "tool",
+            tool: "bash",
+            state: { status: "completed" },
+          } as any,
+        ],
+      },
+    ];
+    const merged = mergeMessages(server, local);
+    expect((merged[0].parts[0] as any).state.status).toBe("error");
+  });
+
   test("server wins when final", () => {
     const server = [
       {

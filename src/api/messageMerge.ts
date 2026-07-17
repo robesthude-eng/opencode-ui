@@ -14,12 +14,29 @@
  * 5. Never use JSON.stringify length — use actual text length and part-level comparison.
  */
 import type { Message as MergeMessage } from "./types";
+
 // export interface MergeMessage {
 //   id: string;
 //   role: "user" | "assistant" | "system";
 //   parts: { id?: string; type: string; text?: string; [k: string]: unknown }[];
 //   info?: { finish?: string; time?: { completed?: number } };
 // }
+
+// Tool part lifecycle rank — higher means further along. Used to avoid
+// downgrading a tool card that SSE already marked completed back to a
+// stale "running"/"pending" state from an HTTP snapshot.
+const TOOL_STATUS_RANK: Record<string, number> = {
+  pending: 0,
+  running: 1,
+  completed: 2,
+  error: 2,
+};
+
+function toolStatus(p: unknown): string | undefined {
+  const state = (p as { state?: { status?: string } | string }).state;
+  if (typeof state === "string") return state;
+  return state?.status;
+}
 
 export function mergeMessages(
   serverMsgs: MergeMessage[],
@@ -76,18 +93,35 @@ export function mergeMessages(
     const mergedParts = sMsg.parts.map((sPart) => {
       const lPart = lMsg.parts.find((p) => p.id === sPart.id);
       if (!lPart) return sPart;
-      // Only text parts need special handling
-      if (sPart.type !== "text" || lPart.type !== "text") return sPart;
-      const sText = (sPart as any).text || "";
-      const lText = (lPart as any).text || "";
-      // If server is NOT final and local text is longer and is prefix-extended from server, keep local
-      // Example: server "first", local "first second" — keep local because server hasn't finished streaming
-      // But if server text is different (not prefix), take server (authoritative)
-      if (!isFinal && lText.length > sText.length && lText.startsWith(sText)) {
-        return { ...sPart, text: lText };
+      // Streaming text preservation applies to text AND reasoning parts:
+      // the HTTP poller snapshot may lag behind SSE deltas, so never roll
+      // streamed text back while the message is not final.
+      if (
+        (sPart.type === "text" || sPart.type === "reasoning") &&
+        lPart.type === sPart.type
+      ) {
+        const sText = (sPart as any).text || "";
+        const lText = (lPart as any).text || "";
+        // If server is NOT final and local text is longer and is prefix-extended from server, keep local
+        // Example: server "first", local "first second" — keep local because server hasn't finished streaming
+        // But if server text is different (not prefix), take server (authoritative)
+        if (
+          !isFinal &&
+          lText.length > sText.length &&
+          lText.startsWith(sText)
+        ) {
+          return { ...sPart, text: lText };
+        }
+        // Deterministic: server wins when final, local wins when non-final and longer
+        return sPart;
       }
-      // If local is longer but not prefix (diverged), still keep server as authoritative unless non-final and local is extension
-      // Deterministic: server wins when final, local wins when non-final and longer
+      // Tool parts: never downgrade a local state that is further along
+      // (completed/error via SSE) to an older server snapshot (pending/running).
+      if (sPart.type === "tool" && lPart.type === "tool" && !isFinal) {
+        const sRank = TOOL_STATUS_RANK[toolStatus(sPart) ?? ""] ?? -1;
+        const lRank = TOOL_STATUS_RANK[toolStatus(lPart) ?? ""] ?? -1;
+        if (lRank > sRank) return lPart;
+      }
       return sPart;
     });
 

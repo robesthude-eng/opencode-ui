@@ -96,10 +96,14 @@ export interface SessionsSlice {
 export interface MessagesSlice {
   messages: Record<string, Message[]>;
   attachments: ProcessedFile[];
+  // P2-fix: текст сообщения, отправка которого упала — Composer
+  // возвращает его в поле ввода, чтобы он не потерялся.
+  failedSendText: string | null;
   send: (text: string) => Promise<void>;
   addAttachments: (files: ProcessedFile[]) => void;
   removeAttachment: (name: string) => void;
   clearAttachments: () => void;
+  clearFailedSendText: () => void;
   applyEvent: (e: AppEvent) => void;
 }
 

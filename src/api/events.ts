@@ -6,7 +6,11 @@ type Handler = (event: AppEvent) => void;
 // OpenCode emits these as *named* SSE events (`event: <type>`).
 // We register a listener for each so they are captured (EventSource only fires
 // `onmessage` for unnamed events).
-const NAMED_TYPES = [
+// P3: список вынесен в конфиг — по умолчанию используется DEFAULT_NAMED_TYPES,
+// но EventStream принимает свой список третьим аргументом конструктора
+// (когда новая версия opencode добавит типы событий, их можно подключить
+// без правки этого файла).
+export const DEFAULT_NAMED_TYPES: readonly string[] = [
   "session.created",
   "session.updated",
   "session.removed",
@@ -22,6 +26,14 @@ const NAMED_TYPES = [
 
 export type StreamStatus = "connecting" | "open" | "closed";
 
+// Module-level mirror of the latest EventStream status. The app runs a single
+// EventStream instance (see router.tsx), so consumers outside React (e.g. the
+// send() HTTP poller in messagesSlice) can cheaply ask "is SSE healthy now?".
+let activeStreamStatus: StreamStatus = "closed";
+export function getActiveStreamStatus(): StreamStatus {
+  return activeStreamStatus;
+}
+
 export class EventStream {
   private es: EventSource | null = null;
   private handlers = new Set<Handler>();
@@ -30,11 +42,25 @@ export class EventStream {
   private sessionId: string | null;
   private attempt = 0;
   private maxAttempts = 50; // stop after ~50 attempts (several minutes of backoff)
+  // True after a real transport error — used to trigger a one-shot catch-up
+  // refetch on the next successful open (SSE has no Last-Event-ID replay).
+  private hadDrop = false;
+  private namedTypes: readonly string[];
   status: StreamStatus = "connecting";
 
-  constructor(url?: string, sessionId?: string | null) {
+  private setStatus(s: StreamStatus) {
+    this.status = s;
+    activeStreamStatus = s;
+  }
+
+  constructor(
+    url?: string,
+    sessionId?: string | null,
+    namedTypes?: readonly string[],
+  ) {
     this.sessionId = sessionId ?? null;
     this.url = url ?? eventUrl(this.sessionId);
+    this.namedTypes = namedTypes ?? DEFAULT_NAMED_TYPES;
   }
 
   /** Rebuild the URL with a fresh token (call after re-login). */
@@ -71,7 +97,7 @@ export class EventStream {
 
   connect() {
     if (this.es) this.es.close();
-    this.status = "connecting";
+    this.setStatus("connecting");
     try {
       this.es = new EventSource(this.url);
     } catch {
@@ -80,17 +106,30 @@ export class EventStream {
     }
 
     this.es.onopen = () => {
-      this.status = "open";
+      const hadDrop = this.hadDrop;
+      this.hadDrop = false;
+      this.setStatus("open");
       this.attempt = 0; // reset backoff on successful connection
+      // P1-fix: SSE не докидывает пропущенные во время разрыва события —
+      // после реального дропа шлём синтетическое событие, по которому
+      // стор один раз дотягивает историю активной сессии.
+      if (hadDrop) {
+        const ev = {
+          type: "stream.reconnected",
+          properties: {},
+        } as unknown as AppEvent;
+        for (const h of this.handlers) h(ev);
+      }
     };
     this.es.onerror = () => {
-      this.status = "closed";
+      this.hadDrop = true;
+      this.setStatus("closed");
       this.es?.close();
       this.scheduleReconnect();
     };
 
     this.es.onmessage = (m) => this.dispatch("message", m.data);
-    for (const t of NAMED_TYPES) {
+    for (const t of this.namedTypes) {
       this.es.addEventListener(t, ((e: MessageEvent) =>
         this.dispatch(t, e.data)) as EventListener);
     }
@@ -124,7 +163,7 @@ export class EventStream {
     if (this.retry) return;
     if (this.attempt >= this.maxAttempts) {
       console.warn("[SSE] Max reconnect attempts reached. Giving up.");
-      this.status = "closed";
+      this.setStatus("closed");
       return;
     }
     // Exponential backoff: 1s, 2s, 4s, 8s, ... capped at 30s.
@@ -141,10 +180,20 @@ export class EventStream {
     return () => this.handlers.delete(handler);
   }
 
+  /** Reset backoff and reconnect immediately (call on window online/focus). */
+  wake() {
+    this.attempt = 0;
+    if (this.retry) {
+      clearTimeout(this.retry);
+      this.retry = null;
+    }
+    if (this.status !== "open" && this.handlers.size > 0) this.connect();
+  }
+
   close() {
     if (this.retry) clearTimeout(this.retry);
     this.es?.close();
     this.es = null;
-    this.status = "closed";
+    this.setStatus("closed");
   }
 }

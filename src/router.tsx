@@ -56,6 +56,7 @@ function AppShell() {
   const loadModels = useStore((s) => s.loadModels);
   const checkConnection = useStore((s) => s.checkConnection);
   const serverConnected = useStore((s) => s.serverConnected);
+  const connection = useStore((s) => s.connection);
   const currentUser = useStore((s) => s.currentUser);
   const select = useStore((s) => s.select);
   const currentID = useStore((s) => s.currentID);
@@ -133,9 +134,16 @@ function AppShell() {
         if (!modelsPoll)
           modelsPoll = setInterval(() => loadModels(true), 60000);
         checkConnection(); // immediate check on resume
+        // P1-fix: после возврата на вкладку SSE мог умереть (телефон спал,
+        // ноутбук закрыт) — сбрасываем backoff и переподключаемся сразу.
+        stream.wake();
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
+    // P1-fix: сеть вернулась (Wi-Fi/VPN) — немедленный reconnect вместо
+    // ожидания хвоста экспоненциального backoff (до 30s) или "give up".
+    const onOnline = () => stream.wake();
+    window.addEventListener("online", onOnline);
 
     return () => {
       off();
@@ -145,6 +153,7 @@ function AppShell() {
       if (healthPoll) clearInterval(healthPoll);
       if (modelsPoll) clearInterval(modelsPoll);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
     };
   }, [
     currentUser,
@@ -232,6 +241,11 @@ function AppShell() {
                 {serverConnected === false && (
                   <ConnectionBanner onRetry={checkConnection} />
                 )}
+                {serverConnected !== false && connection === "closed" && (
+                  <SseReconnectBanner
+                    onRetry={() => streamRef.current?.wake()}
+                  />
+                )}
                 <Outlet />
               </main>
 
@@ -290,6 +304,30 @@ function ConnectionBanner({ onRetry }: { onRetry: () => void }) {
         onClick={onRetry}
       >
         Retry
+      </Button>
+    </div>
+  );
+}
+
+function SseReconnectBanner({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 border-b border-sky-500/30",
+        "bg-sky-500/10 px-3 py-2 text-sm text-sky-200",
+      )}
+    >
+      <span className="inline-flex items-center gap-2">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-sky-400" />
+        Потеряно соединение с потоком событий — переподключение…
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 border-sky-500/40 text-sky-100 hover:bg-sky-500/15"
+        onClick={onRetry}
+      >
+        Переподключить
       </Button>
     </div>
   );
