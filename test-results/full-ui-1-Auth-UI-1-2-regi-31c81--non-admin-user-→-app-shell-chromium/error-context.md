@@ -6,73 +6,121 @@
 
 # Test info
 
-- Name: full-ui.spec.ts >> 2. Sidebar >> 2.1 New chat button works
-- Location: e2e/full-ui.spec.ts:155:3
+- Name: full-ui.spec.ts >> 1. Auth UI >> 1.2 register a new (non-admin) user → app shell
+- Location: e2e/full-ui.spec.ts:81:3
 
 # Error details
 
 ```
-TimeoutError: locator.click: Timeout 8000ms exceeded.
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('button:has(img):has-text("New chat")').first()
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
 Call log:
+  - Expect "toBeVisible" with timeout 5000ms
   - waiting for locator('button:has(img):has-text("New chat")').first()
 
 ```
 
-# Page snapshot
-
 ```yaml
-- generic [ref=e3]:
-  - banner [ref=e4]:
-    - button "Hide sidebar" [ref=e5]:
-      - img [ref=e6]
-    - button "DeepSeek V4 Flash Free FREE" [ref=e12]:
-      - generic [ref=e13]:
-        - generic [ref=e14]: DeepSeek V4 Flash Free
-        - generic [ref=e15]: FREE
-      - img [ref=e17]
-    - button "Open terminal" [disabled]:
-      - img
-    - button "Open preview" [disabled]:
-      - img
-    - button "Toggle workspace" [ref=e19]:
-      - img [ref=e20]
-  - generic [ref=e22]:
-    - complementary [ref=e25]:
-      - button "New chat" [ref=e28]:
-        - img [ref=e29]
-        - generic [ref=e31]: New chat
-      - navigation [ref=e35]:
-        - paragraph [ref=e36]: No conversations yet
-      - generic [ref=e37]:
-        - generic [ref=e38]:
-          - button "Settings" [ref=e39]:
-            - img [ref=e40]
-            - generic [ref=e43]: Settings
-          - button "Toggle theme" [ref=e44]:
-            - img [ref=e45]
-        - generic [ref=e47]:
-          - button "👤 admin@local.test" [ref=e49]:
-            - generic [ref=e50]: 👤
-            - generic [ref=e51]: admin@local.test
-          - button "Выйти (admin@local.test)" [ref=e52]:
-            - img [ref=e53]
-    - generic [ref=e58]:
-      - main [ref=e59]:
-        - generic [ref=e61]:
-          - heading "Чем могу помочь?" [level=1] [ref=e62]
-          - paragraph [ref=e63]: Твой персональный AI-ассистент для кода. Напиши свой запрос.
-      - generic [ref=e66]:
-        - button "Attach file" [ref=e67]:
-          - img [ref=e68]
-        - textbox "Что хотите сделать?" [ref=e70]
-        - generic [ref=e71]:
-          - button "Send" [disabled]:
-            - img
+- banner:
+  - button "Hide sidebar":
+    - img
+  - button "DeepSeek V4 Flash Free FREE":
+    - text: DeepSeek V4 Flash Free FREE
+    - img
+  - button "Open terminal" [disabled]:
+    - img
+  - button "Open preview" [disabled]:
+    - img
+  - button "Toggle workspace":
+    - img
+- complementary:
+  - button "New chat":
+    - img
+    - text: New chat
+  - navigation:
+    - paragraph: No conversations yet
+  - button "Settings":
+    - img
+    - text: Settings
+  - button "Toggle theme":
+    - img
+  - button "👤 user+1784295256538@local.test"
+  - button "Выйти (user+1784295256538@local.test)":
+    - img
+- main:
+  - heading "Чем могу помочь?" [level=1]
+  - paragraph: Твой персональный AI-ассистент для кода. Напиши свой запрос.
+- button "Attach file":
+  - img
+- textbox "Что хотите сделать?"
+- button "Send" [disabled]:
+  - img
 ```
 
 # Test source
 
 ```ts
+  1   | /**
+  2   |  * UI Test Suite — opencode-ui
+  3   |  *
+  4   |  * Tests every interactive element in the app that doesn't require OpenCode backend:
+  5   |  * - Login / register flow
+  6   |  * - Sidebar (New chat, Settings, Theme toggle, Logout, email display)
+  7   |  * - TopBar (Workspace toggle, Theme toggle, mobile menu)
+  8   |  * - ChatView (suggestions, empty state, scroll-to-bottom button)
+  9   |  * - Composer (textarea, attach button, send/stop, drag-drop, key bindings)
+  10  |  * - Workspace panel (open/close, refresh, search filter, upload folder button)
+  11  |  * - Settings panel (all tabs: self-improve, free-models, providers, about)
+  12  |  *   - Toggle self-improve, rebuild, reset UI (visible only to admin)
+  13  |  *   - Save/remove provider key form (without actually saving real API keys)
+  14  |  *   - About info
+  15  |  * - Permission dialog (closed state at least)
+  16  |  * - Mobile responsive layout
+  17  |  * - Theme persistence (refresh)
+  18  |  * - Error boundary — connection banner when OpenCode unreachable
+  19  |  *
+  20  |  * Run with:  PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 npx playwright test --reporter=list
+  21  |  */
+  22  | import { expect, test } from "@playwright/test";
+  23  | 
+  24  | const _BASE = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000";
+  25  | // Pre-seeded admin user (see /home/z/my-project/scripts/reset-and-seed.sh)
+  26  | const ADMIN = { email: "admin@local.test", password: "testpass123" };
+  27  | const _USER2 = {
+  28  |   email: `user+${Date.now()}@local.test`,
+  29  |   password: "userpass123",
+  30  | };
+  31  | 
+  32  | async function register(page, creds) {
+  33  |   await page.goto("/");
+  34  |   // Switch to register tab
+  35  |   await page.getByRole("button", { name: "Регистрация" }).click();
+  36  |   await page.locator('input[id="email"]').fill(creds.email);
+  37  |   await page.locator('input[id="password"]').fill(creds.password);
+  38  |   // Confirm password field appears when registering
+  39  |   await page.waitForSelector('input[id="confirm"]', { timeout: 2000 });
+  40  |   await page.locator('input[id="confirm"]').fill(creds.password);
+  41  |   await page.getByRole("button", { name: "Зарегистрироваться" }).click();
+  42  |   // Wait for redirect to app shell. The left sidebar is hidden (translated off-screen)
+  43  |   // on mobile viewports, so waiting for 'aside' to be visible times out. Wait for the
+  44  |   // topbar/header instead — it's always visible in the authenticated shell regardless
+  45  |   // of viewport size — and for the login form to disappear.
+  46  |   await page.waitForSelector("header", { timeout: 10000 });
+  47  |   await expect(page.getByRole("button", { name: "Войти" })).toHaveCount(0);
+  48  | }
+  49  | 
+  50  | async function login(page, creds) {
+  51  |   await page.goto("/");
+  52  |   // Already on login tab by default
+  53  |   await page.locator('input[id="email"]').fill(creds.email);
+  54  |   await page.locator('input[id="password"]').fill(creds.password);
+  55  |   await page.getByRole("button", { name: "Войти" }).click();
+  56  |   // See note in register(): sidebar may be off-screen on mobile; wait for topbar.
   57  |   await page.waitForSelector("header", { timeout: 10000 });
   58  |   await expect(page.getByRole("button", { name: "Войти" })).toHaveCount(0);
   59  | }
@@ -107,7 +155,8 @@ Call log:
   88  |       password: "userpass123",
   89  |     };
   90  |     await register(page, newUser);
-  91  |     await expect(newChatButton(page)).toBeVisible();
+> 91  |     await expect(newChatButton(page)).toBeVisible();
+      |                                       ^ Error: expect(locator).toBeVisible() failed
   92  |     await ctx.close();
   93  |   });
   94  | 
@@ -173,8 +222,7 @@ Call log:
   154 | 
   155 |   test("2.1 New chat button works", async ({ page }) => {
   156 |     // Click New chat — will try /api/session POST which will 502, but UI should react
-> 157 |     await newChatButton(page).click();
-      |                               ^ TimeoutError: locator.click: Timeout 8000ms exceeded.
+  157 |     await newChatButton(page).click();
   158 |     // Wait a moment for the optimistic UI
   159 |     await page.waitForTimeout(500);
   160 |     // Sidebar should still be visible (no crash)
@@ -209,70 +257,4 @@ Call log:
   189 |     expect(before).not.toBe(after);
   190 |   });
   191 | 
-  192 |   test("2.4 Theme persists across reload", async ({ page }) => {
-  193 |     const themeBtn = page.locator('button[title="Toggle theme"]').first();
-  194 |     await themeBtn.click();
-  195 |     await page.waitForTimeout(300);
-  196 |     const theme = await page.evaluate(
-  197 |       () => document.documentElement.dataset.theme,
-  198 |     );
-  199 |     await page.reload();
-  200 |     // Wait for the topbar to reappear (app shell mounted) instead of networkidle —
-  201 |     // long-polling / SSE requests can keep networkidle hanging forever.
-  202 |     await page.waitForSelector("header", { timeout: 10000 });
-  203 |     await page.waitForTimeout(500);
-  204 |     const themeAfter = await page.evaluate(
-  205 |       () => document.documentElement.dataset.theme,
-  206 |     );
-  207 |     expect(theme).toBe(themeAfter);
-  208 |   });
-  209 | 
-  210 |   test("2.5 Email display in sidebar", async ({ page }) => {
-  211 |     // Email should be visible in sidebar — it's inside a button with truncate
-  212 |     const emailButton = page
-  213 |       .locator(`button:has-text("${ADMIN.email}")`)
-  214 |       .first();
-  215 |     await expect(emailButton).toBeVisible({ timeout: 3000 });
-  216 |   });
-  217 | 
-  218 |   test("2.6 Click email shows full email tooltip", async ({ page }) => {
-  219 |     // The email button toggles a tooltip with the full email
-  220 |     const emailBtn = page.locator('button[title*="email" i]').first();
-  221 |     if (await emailBtn.isVisible().catch(() => false)) {
-  222 |       await emailBtn.click();
-  223 |       // Tooltip should appear
-  224 |       await page.waitForTimeout(200);
-  225 |     }
-  226 |   });
-  227 | 
-  228 |   test("2.7 Logout button confirms and logs out", async ({ page }) => {
-  229 |     // Set up dialog handler BEFORE clicking
-  230 |     page.on("dialog", (dialog) => dialog.accept());
-  231 |     // The logout button has title containing "Выйти" (Logout in Russian)
-  232 |     const logoutBtn = page.locator('button[title*="Выйти"]').first();
-  233 |     await expect(logoutBtn).toBeVisible({ timeout: 3000 });
-  234 |     await logoutBtn.click();
-  235 |     await page.waitForTimeout(1500);
-  236 |     // Should be back on login page
-  237 |     await expect(page.getByRole("button", { name: "Войти" })).toBeVisible({
-  238 |       timeout: 5000,
-  239 |     });
-  240 |   });
-  241 | 
-  242 |   test("2.8 Hide sidebar (desktop)", async ({ page }) => {
-  243 |     const hideBtn = page.locator('button[title="Hide sidebar"]').first();
-  244 |     if (await hideBtn.isVisible().catch(() => false)) {
-  245 |       await hideBtn.click();
-  246 |       await page.waitForTimeout(500);
-  247 |       // A "show sidebar" button should appear (title may be "Show sidebar")
-  248 |       const showBtn = page
-  249 |         .locator('button[title="Show sidebar"], button[title="Show chats"]')
-  250 |         .first();
-  251 |       await expect(showBtn).toBeVisible({ timeout: 2000 });
-  252 |       // Click to show again
-  253 |       await showBtn.click();
-  254 |       await page.waitForTimeout(300);
-  255 |     }
-  256 |   });
-  257 | 
 ```

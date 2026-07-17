@@ -58,13 +58,24 @@ async function login(page, creds) {
   await expect(page.getByRole("button", { name: "Войти" })).toHaveCount(0);
 }
 
+// The primary "New chat" button — the top-most button in the sidebar with the
+// pencil icon and "New chat" text (NOT the temporary list-item button inside the
+// chat list, and NOT the delete button whose aria-label contains "New chat").
+function newChatButton(page) {
+  // Match a "New chat" button that is a direct child of the sidebar layout and
+  // has the pencil icon (an <img> as first child) — that's the primary action.
+  return page
+    .locator('button:has(img):has-text("New chat")')
+    .first();
+}
+
 // ============================================================================
 // 1. LOGIN / REGISTER
 // ============================================================================
 test.describe("1. Auth UI", () => {
   test("1.1 login as pre-seeded admin → app shell", async ({ page }) => {
     await login(page, ADMIN);
-    await expect(page.getByRole("button", { name: /New chat/i })).toBeVisible();
+    await expect(newChatButton(page)).toBeVisible();
   });
 
   test("1.2 register a new (non-admin) user → app shell", async ({
@@ -77,7 +88,7 @@ test.describe("1. Auth UI", () => {
       password: "userpass123",
     };
     await register(page, newUser);
-    await expect(page.getByRole("button", { name: /New chat/i })).toBeVisible();
+    await expect(newChatButton(page)).toBeVisible();
     await ctx.close();
   });
 
@@ -85,7 +96,7 @@ test.describe("1. Auth UI", () => {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await login(page, ADMIN);
-    await expect(page.getByRole("button", { name: /New chat/i })).toBeVisible();
+    await expect(newChatButton(page)).toBeVisible();
     await ctx.close();
   });
 
@@ -143,11 +154,11 @@ test.describe("2. Sidebar", () => {
 
   test("2.1 New chat button works", async ({ page }) => {
     // Click New chat — will try /api/session POST which will 502, but UI should react
-    await page.getByRole("button", { name: /New chat/i }).click();
+    await newChatButton(page).click();
     // Wait a moment for the optimistic UI
     await page.waitForTimeout(500);
     // Sidebar should still be visible (no crash)
-    await expect(page.getByRole("button", { name: /New chat/i })).toBeVisible();
+    await expect(newChatButton(page)).toBeVisible();
   });
 
   test("2.2 Settings button opens panel", async ({ page }) => {
@@ -186,7 +197,10 @@ test.describe("2. Sidebar", () => {
       () => document.documentElement.dataset.theme,
     );
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    // Wait for the topbar to reappear (app shell mounted) instead of networkidle —
+    // long-polling / SSE requests can keep networkidle hanging forever.
+    await page.waitForSelector("header", { timeout: 10000 });
+    await page.waitForTimeout(500);
     const themeAfter = await page.evaluate(
       () => document.documentElement.dataset.theme,
     );
@@ -229,15 +243,14 @@ test.describe("2. Sidebar", () => {
     const hideBtn = page.locator('button[title="Hide sidebar"]').first();
     if (await hideBtn.isVisible().catch(() => false)) {
       await hideBtn.click();
-      await page.waitForTimeout(300);
-      // A "show sidebar" button should appear
-      await expect(
-        page.locator('button[title="Show chats"]').first(),
-      ).toBeVisible({
-        timeout: 2000,
-      });
+      await page.waitForTimeout(500);
+      // A "show sidebar" button should appear (title may be "Show sidebar")
+      const showBtn = page
+        .locator('button[title="Show sidebar"], button[title="Show chats"]')
+        .first();
+      await expect(showBtn).toBeVisible({ timeout: 2000 });
       // Click to show again
-      await page.locator('button[title="Show chats"]').first().click();
+      await showBtn.click();
       await page.waitForTimeout(300);
     }
   });
@@ -266,24 +279,35 @@ test.describe("3. TopBar", () => {
     const wsBtn = page.locator('button[title="Toggle workspace"]').first();
     await wsBtn.click();
     await page.waitForTimeout(300);
-    // Workspace panel should be visible — look for "Workspace" header
-    await expect(page.locator("text=/Workspace/i").first()).toBeVisible({
+    // Workspace panel is now labelled "Files" in the header
+    await expect(page.locator("text=/^Files$/").first()).toBeVisible({
       timeout: 2000,
     });
     // Close it
     await wsBtn.click();
     await page.waitForTimeout(300);
+    await expect(page.locator("text=/^Files$/")).toHaveCount(0);
   });
 
-  test("3.2 Theme toggle in TopBar works", async ({ page }) => {
+  test("3.2 Theme toggle (any visible one) works", async ({ page }) => {
     await page.waitForTimeout(500);
+    // Only one theme toggle is visible at a time (in the sidebar). Click the
+    // first visible one.
     const themeBtns = page.locator('button[title="Toggle theme"]');
     const count = await themeBtns.count();
     expect(count).toBeGreaterThan(0);
+    let visibleIdx = -1;
+    for (let i = 0; i < count; i++) {
+      if (await themeBtns.nth(i).isVisible().catch(() => false)) {
+        visibleIdx = i;
+        break;
+      }
+    }
+    expect(visibleIdx).toBeGreaterThanOrEqual(0);
     const before = await page.evaluate(
       () => document.documentElement.dataset.theme,
     );
-    await themeBtns.nth(count - 1).click();
+    await themeBtns.nth(visibleIdx).click();
     await page.waitForTimeout(500);
     const after = await page.evaluate(
       () => document.documentElement.dataset.theme,
@@ -307,26 +331,27 @@ test.describe("4. ChatView empty state", () => {
     await login(page, ADMIN);
   });
 
-  test("4.1 Welcome screen with suggestions", async ({ page }) => {
-    await expect(
-      page.locator("text=/Чем могу помочь|How can I help/i"),
-    ).toBeVisible();
-    // 4 suggestion cards
-    const suggestions = page.locator(
-      'button:has-text("Написать код"), button:has-text("Объяснить код"), button:has-text("Создать файл"), button:has-text("Отладить")',
-    );
-    expect(await suggestions.count()).toBeGreaterThanOrEqual(4);
-  });
-
-  test("4.2 Click suggestion triggers send (will fail because no OpenCode)", async ({
+  test("4.1 Welcome screen renders (no suggestions in current UI)", async ({
     page,
   }) => {
-    const suggestion = page.locator('button:has-text("Написать код")').first();
-    await suggestion.click();
-    await page.waitForTimeout(1000);
-    // UI should not crash. Either it created a tmp_ session and shows error, or shows the prompt
-    // Either way the page should still be responsive
-    await expect(page.locator("body")).toBeVisible();
+    // Welcome headline appears before the first session is created. The earlier
+    // suggestion cards ("Написать код" / "Объяснить код" / ...) have been removed
+    // from ChatView (SUGGESTIONS constant exists but is not rendered).
+    await expect(
+      page.locator("text=/Чем могу помочь|How can I help/i"),
+    ).toBeVisible({ timeout: 5000 });
+    // Personal subtitle should also be visible
+    await expect(
+      page.locator("text=/AI-ассистент для кода|персональный/i"),
+    ).toBeVisible();
+  });
+
+  test("4.2 Composer is reachable from empty state", async ({ page }) => {
+    // With suggestions removed, verify the empty state doesn't crash and the
+    // composer textarea is reachable and typeable.
+    const ta = page.locator("textarea").first();
+    await ta.fill("hello");
+    await expect(ta).toHaveValue("hello");
   });
 });
 
@@ -379,8 +404,10 @@ test.describe("5. Composer", () => {
   });
 
   test("5.6 Attach button opens file picker (click)", async ({ page }) => {
-    // Just verify the button exists and is clickable
-    const attachBtn = page.locator('button[title="Attach files"]').first();
+    // Attach button in Composer — title may be "Attach file" (singular) in the current build
+    const attachBtn = page
+      .locator('button[title="Attach file"], button[title="Attach files"]')
+      .first();
     await expect(attachBtn).toBeVisible();
     await expect(attachBtn).toBeEnabled();
   });
@@ -394,10 +421,13 @@ test.describe("5. Composer", () => {
     expect(finalHeight).toBeGreaterThanOrEqual(initialHeight);
   });
 
-  test("5.8 Helper text visible", async ({ page }) => {
-    await expect(
-      page.locator("text=/Shift\\+Enter|Drag & drop/i"),
-    ).toBeVisible();
+  test("5.8 Composer placeholder visible", async ({ page }) => {
+    // Helper text "Shift+Enter for newline" was removed; Composer now just shows
+    // the placeholder. Verify it renders.
+    await expect(page.locator("textarea").first()).toHaveAttribute(
+      "placeholder",
+      /Что хотите/i,
+    );
   });
 });
 
@@ -424,16 +454,17 @@ test.describe("6. Workspace panel", () => {
   });
 
   test("6.3 Close button hides panel", async ({ page }) => {
-    // Find close button INSIDE the workspace panel (the sidebar's mobile close button has md:hidden)
-    // Workspace panel header text: 'Workspace' — the close button is in the same header
-    const wsHeader = page.locator("header", { hasText: "Workspace" }).first();
-    const closeBtn = wsHeader.locator('button[title="Close"]');
-    await expect(closeBtn).toBeVisible({ timeout: 2000 });
-    await closeBtn.click();
+    // The Workspace panel header is now labelled "Files" and doesn't have a
+    // dedicated close button. Toggle it closed via the TopBar toggle button instead.
+    const wsToggle = page.locator('button[title="Toggle workspace"]').first();
+    await expect(page.locator("text=/^Files$/").first()).toBeVisible();
+    await wsToggle.click();
     await page.waitForTimeout(500);
-    // Workspace panel should be hidden now
-    const wsHeaders = page.locator('header:has-text("Workspace")');
-    expect(await wsHeaders.count()).toBe(0);
+    // Workspace panel should be hidden (Files label gone)
+    await expect(page.locator("text=/^Files$/")).toHaveCount(0);
+    // Re-open for subsequent tests
+    await wsToggle.click();
+    await page.waitForTimeout(300);
   });
 
   test("6.4 Search filter input", async ({ page }) => {
@@ -443,9 +474,13 @@ test.describe("6. Workspace panel", () => {
     await expect(search).toHaveValue("test");
   });
 
-  test("6.5 Upload folder button visible", async ({ page }) => {
-    const uploadBtn = page.locator('button:has-text("Upload folder")').first();
-    await expect(uploadBtn).toBeVisible();
+  test("6.5 Filter files input visible", async ({ page }) => {
+    // "Upload folder" button was removed; the Files panel always shows the
+    // filter input at the top.
+    const filterInput = page
+      .locator('input[placeholder*="Filter"]')
+      .first();
+    await expect(filterInput).toBeVisible();
   });
 
   test("6.6 Empty state message when no chat selected", async ({ page }) => {
@@ -613,34 +648,32 @@ test.describe("8. Settings — non-admin restrictions", () => {
 });
 
 // ============================================================================
-// 9. CONNECTION BANNER (when OpenCode unreachable)
+// 9. CONNECTION BANNER
 // ============================================================================
+// NOTE: In the CI E2E job a mock OpenCode server is running on :4096, so the
+// "Can't connect" banner is NOT expected to appear. We just verify the chat
+// shell renders and no uncaught errors fire when the backend is healthy.
 test.describe("9. Connection banner", () => {
   test.beforeEach(async ({ page }) => {
     await login(page, ADMIN);
   });
 
-  test("9.1 Connection banner appears because OpenCode is down", async ({
+  test("9.1 App shell is healthy (mock OpenCode reachable)", async ({
     page,
   }) => {
-    // The amber banner should appear: "Can't connect to the OpenCode server"
-    await expect(
-      page.locator("text=/Can't connect to the OpenCode|opencode serve/i"),
-    ).toBeVisible({
-      timeout: 5000,
-    });
+    // With the mock running, the shell renders without the error banner.
+    await expect(page.locator("header")).toBeVisible();
+    await expect(page.locator("textarea").first()).toBeVisible();
   });
 
-  test("9.2 Retry button in banner", async ({ page }) => {
-    const retryBtn = page.locator('button:has-text("Retry")').first();
-    await expect(retryBtn).toBeVisible();
-    // Click retry — should re-attempt connection, still fail
-    await retryBtn.click();
-    await page.waitForTimeout(500);
-    // Banner should still be visible
-    await expect(
-      page.locator("text=/Can't connect to the OpenCode|opencode serve/i"),
-    ).toBeVisible();
+  test("9.2 No connection retry banner when healthy", async ({ page }) => {
+    // Wait a moment for the health check to complete
+    await page.waitForTimeout(1000);
+    // The banner should NOT appear when the mock is alive
+    const banner = page.locator(
+      "text=/Can't connect to the OpenCode|opencode serve/i",
+    );
+    await expect(banner).toHaveCount(0);
   });
 });
 
@@ -663,9 +696,10 @@ test.describe("10. Mobile responsive", () => {
   test("10.2 Open sidebar via hamburger", async ({ page }) => {
     const menuBtn = page.locator('button[title="Menu"]').first();
     await menuBtn.click();
-    await page.waitForTimeout(300);
-    // New chat button should now be visible
-    await expect(page.getByRole("button", { name: /New chat/i })).toBeVisible();
+    await page.waitForTimeout(500);
+    // New chat button should now be visible (use the sidebar-scoped locator to
+    // avoid strict-mode violations from the list item "New chat")
+    await expect(newChatButton(page)).toBeVisible();
   });
 
   test("10.3 Backdrop closes sidebar (via tap on backdrop)", async ({
