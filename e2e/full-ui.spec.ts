@@ -58,15 +58,10 @@ async function login(page, creds) {
   await expect(page.getByRole("button", { name: "Войти" })).toHaveCount(0);
 }
 
-// The primary "New chat" button — the top-most button in the sidebar with the
-// pencil icon and "New chat" text (NOT the temporary list-item button inside the
-// chat list, and NOT the delete button whose aria-label contains "New chat").
+// The primary "New chat" button — uses data-testid from Sidebar.tsx for stability
+// regardless of markup / icon changes.
 function newChatButton(page) {
-  // Match a "New chat" button that is a direct child of the sidebar layout and
-  // has the pencil icon (an <img> as first child) — that's the primary action.
-  return page
-    .locator('button:has(img):has-text("New chat")')
-    .first();
+  return page.getByTestId("new-chat-btn").first();
 }
 
 // ============================================================================

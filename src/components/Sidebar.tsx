@@ -94,6 +94,7 @@ export default function Sidebar() {
         <div className="flex flex-col gap-2 border-b border-[#2b2b2b] px-3 pb-3 pt-3">
           <div className="flex items-center gap-2 w-full">
             <Button
+              data-testid="new-chat-btn"
               className="h-9 flex-1 justify-start gap-2 rounded-lg border border-[#454545] bg-[#2b2b2b] text-[12px] font-medium text-white shadow-none hover:bg-[#363636]"
               onClick={() => {
                 newSession();
