@@ -691,10 +691,10 @@ test.describe("10. Mobile responsive", () => {
   test("10.2 Open sidebar via hamburger", async ({ page }) => {
     const menuBtn = page.locator('button[title="Menu"]').first();
     await menuBtn.click();
-    await page.waitForTimeout(500);
-    // New chat button should now be visible (use the sidebar-scoped locator to
-    // avoid strict-mode violations from the list item "New chat")
-    await expect(newChatButton(page)).toBeVisible();
+    // Wait for the sidebar panel to slide in and become interactable. Use a
+    // longer wait for the CSS translate animation to finish, then poll visibility.
+    const newChat = newChatButton(page);
+    await newChat.waitFor({ state: "visible", timeout: 10000 });
   });
 
   test("10.3 Backdrop closes sidebar (via tap on backdrop)", async ({
