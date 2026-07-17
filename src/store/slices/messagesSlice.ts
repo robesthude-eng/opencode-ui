@@ -346,10 +346,26 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
           await get().newSession();
           const newSid = get().currentID;
           if (newSid && !newSid.startsWith("tmp_")) {
+            // Race-fix: пока первая попытка висела, пользователь мог уже
+            // прикрепить НОВЫЕ файлы к следующему сообщению. Не затираем
+            // их старым снимком и не отдаём авторетраю (иначе новые
+            // файлы ушли бы под старым текстом) — возвращаем текст в
+            // Composer через failedSendText для ручной отправки.
+            if (get().attachments.length > 0) {
+              set({ failedSendText: text });
+              return;
+            }
             // P2-fix: вложения были очищены при первой попытке — вернём,
-            // чтобы повторная отправка ушла с ними.
+            // чтобы повторная отправка ушла с ними (функциональный set —
+            // не перезаписываем вложения, появившиеся между проверкой и
+            // записью).
             if (currentAttachments.length > 0)
-              set({ attachments: currentAttachments });
+              set((s) => ({
+                attachments:
+                  s.attachments.length === 0
+                    ? currentAttachments
+                    : s.attachments,
+              }));
             void get().send(text);
           }
         } catch (recErr) {
