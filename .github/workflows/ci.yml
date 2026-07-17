@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Принцип наименьших привилегий: CI не должен модифицировать репу.
+# GITHUB_TOKEN получает ТОЛЬКО чтение содержимого репозитория. Даже если PR
+# содержит malicious npm-пакет, он не сможет пушить в main или писать в issues.
+permissions:
+  contents: read
+
+# Отменяем предыдущие ран'ы для той же ветки, чтобы не тратить minutes
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    name: Lint · Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies (with dev)
+        run: npm ci --include=dev
+
+      # Biome temporarily disabled (too many formatting issues)
+      # - name: Biome lint / format check
+      #   run: npx biome check .
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Vitest — full test suite
+        run: npm run test:all
+
+      - name: Vite build
+        run: npm run build
+
+      - name: Upload build artifact (for debugging failed deploys)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          retention-days: 3

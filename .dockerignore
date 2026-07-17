@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.gitignore
+.arena
+.vite
+coverage
+e2e
+.github

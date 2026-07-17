@@ -1,0 +1,53 @@
+name: Deploy to VDS
+
+on:
+  # Триггерится ТОЛЬКО когда CI прошёл успешно на main
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+  # Плюс возможность запустить вручную из UI
+  workflow_dispatch:
+
+# Deploy — только SSH до VDS, ни в один API GitHub не пишет
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: SSH deploy to production VDS
+    runs-on: ubuntu-latest
+    # Не деплоим если CI упал
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 10
+
+    steps:
+      - name: Add SSH key from secrets
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VDS_DEPLOY_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pinned host key stored as an Actions secret. Never trust a key fetched
+          # during deployment: that would let a network attacker impersonate the VDS.
+          printf '%s\n' "${{ secrets.VDS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Trigger remote deploy
+        run: |
+          # Docker build can be silent for several minutes. Keep the SSH transport
+          # alive so an idle network device cannot report a failed deploy after the
+          # remote script has successfully rebuilt the container.
+          # authorized_keys ограничен command="/root/deploy.sh" — любой ssh вызовет только его
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o ConnectTimeout=15 \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=3 \
+              root@${{ secrets.VDS_HOST }} 2>&1
+
+      - name: Cleanup key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
