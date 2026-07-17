@@ -691,10 +691,12 @@ test.describe("10. Mobile responsive", () => {
   test("10.2 Open sidebar via hamburger", async ({ page }) => {
     const menuBtn = page.locator('button[title="Menu"]').first();
     await menuBtn.click();
-    // Wait for the sidebar panel to slide in and become interactable. Use a
-    // longer wait for the CSS translate animation to finish, then poll visibility.
-    const newChat = newChatButton(page);
-    await newChat.waitFor({ state: "visible", timeout: 10000 });
+    // The mobile-only "Close" (X) button inside the sidebar is rendered with
+    // md:hidden, so it only appears once the slide-in completes.
+    const closeBtn = page
+      .locator("aside button[title=\"Close\"]")
+      .first();
+    await expect(closeBtn).toBeVisible({ timeout: 5000 });
   });
 
   test("10.3 Backdrop closes sidebar (via tap on backdrop)", async ({
