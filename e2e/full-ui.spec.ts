@@ -39,8 +39,12 @@ async function register(page, creds) {
   await page.waitForSelector('input[id="confirm"]', { timeout: 2000 });
   await page.locator('input[id="confirm"]').fill(creds.password);
   await page.getByRole("button", { name: "Зарегистрироваться" }).click();
-  // Wait for redirect to app shell (sidebar appears)
-  await page.waitForSelector('aside, [class*="sidebar"]', { timeout: 5000 });
+  // Wait for redirect to app shell. The left sidebar is hidden (translated off-screen)
+  // on mobile viewports, so waiting for 'aside' to be visible times out. Wait for the
+  // topbar/header instead — it's always visible in the authenticated shell regardless
+  // of viewport size — and for the login form to disappear.
+  await page.waitForSelector("header", { timeout: 10000 });
+  await expect(page.getByRole("button", { name: "Войти" })).toHaveCount(0);
 }
 
 async function login(page, creds) {
@@ -49,7 +53,9 @@ async function login(page, creds) {
   await page.locator('input[id="email"]').fill(creds.email);
   await page.locator('input[id="password"]').fill(creds.password);
   await page.getByRole("button", { name: "Войти" }).click();
-  await page.waitForSelector('aside, [class*="sidebar"]', { timeout: 5000 });
+  // See note in register(): sidebar may be off-screen on mobile; wait for topbar.
+  await page.waitForSelector("header", { timeout: 10000 });
+  await expect(page.getByRole("button", { name: "Войти" })).toHaveCount(0);
 }
 
 // ============================================================================
