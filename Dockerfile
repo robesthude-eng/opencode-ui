@@ -17,6 +17,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 make g+
   && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
+# Docker CLI (только клиент): управление контейнерами-раннерами сессий
+# через смонтированный /var/run/docker.sock (см. server/runner.mjs).
+ARG DOCKER_CLI_VERSION=27.5.1
+RUN curl -fsSL "https://download.docker.com/linux/static/stable/$(uname -m)/docker-${DOCKER_CLI_VERSION}.tgz" \
+  | tar -xz --strip-components=1 -C /usr/local/bin docker/docker
+
 RUN npm install -g opencode-ai@1.18.3
 
 # Full install: self-improve sandbox needs tsc/vitest/biome/vite

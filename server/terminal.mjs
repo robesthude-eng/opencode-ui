@@ -29,6 +29,13 @@ import { OWNERS_FILE, SESSIONS_FILE } from "./config.mjs";
 import { loadJson } from "./db.mjs";
 import { getSessionWorkspace, isValidSessionId } from "./isolation.mjs";
 import { logger } from "./logger.mjs";
+import {
+  containerName,
+  ensureRunner,
+  hasRunner,
+  RUNNER_WORKSPACE,
+  RUNNERS_ENABLED,
+} from "./runner.mjs";
 
 // Динамическая загрузка node-pty (optionalDependency, см. docstring).
 let ptySpawn = null;
@@ -186,6 +193,98 @@ function startPipeShell(socket, workdir) {
   };
 }
 
+/**
+ * Терминал внутри контейнера-раннера сессии (RUNNER_ISOLATION=1):
+ * docker exec bash. Терминал и процессы агента живут в одном изолированном
+ * контейнере — платформа и чужие сессии недостижимы физически.
+ */
+function dockerExecArgs(sid, withTty) {
+  const args = ["exec", "-i"];
+  if (withTty) args.push("-t");
+  args.push(
+    "-w",
+    RUNNER_WORKSPACE,
+    "-e",
+    "TERM=xterm-256color",
+    containerName(sid),
+    "bash",
+  );
+  if (!withTty) args.push("-i");
+  return args;
+}
+
+function startPtyDockerShell(socket, sid) {
+  const shell = ptySpawn("docker", dockerExecArgs(sid, true), {
+    name: "xterm-256color",
+    cols: DEFAULT_COLS,
+    rows: DEFAULT_ROWS,
+    cwd: "/",
+    env: buildSafeEnv(),
+  });
+  shell.onData((data) => socket.emit("data", data));
+  shell.onExit(({ exitCode, signal }) => {
+    socket.emit(
+      "data",
+      `\r\n\x1b[33m*** shell завершился (${signal || exitCode}) ***\x1b[0m\r\n`,
+    );
+    socket.disconnect(true);
+  });
+  return {
+    write: (data) => shell.write(String(data)),
+    resize: (cols, rows) => {
+      try {
+        shell.resize(cols, rows);
+      } catch {
+        // resize после смерти процесса — игнорируем
+      }
+    },
+    kill: () => {
+      try {
+        shell.kill();
+      } catch {}
+    },
+  };
+}
+
+function startPipeDockerShell(socket, sid) {
+  socket.emit(
+    "data",
+    "\x1b[33m*** node-pty недоступен: терминал в ограниченном режиме " +
+      "(нет Ctrl+C, эха при вводе и интерактивных программ) ***\x1b[0m\r\n",
+  );
+  const shell = spawn("docker", dockerExecArgs(sid, false), {
+    env: buildSafeEnv(),
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  shell.on("error", (err) => {
+    socket.emit(
+      "data",
+      `\r\n\x1b[31mОшибка запуска shell: ${err.message}\x1b[0m\r\n`,
+    );
+    socket.disconnect(true);
+  });
+  shell.on("exit", (code, signal) => {
+    socket.emit(
+      "data",
+      `\r\n\x1b[33m*** shell завершился (${signal || code}) ***\x1b[0m\r\n`,
+    );
+    socket.disconnect(true);
+  });
+  shell.stdout.on("data", (data) => socket.emit("data", data.toString()));
+  shell.stderr.on("data", (data) => socket.emit("data", data.toString()));
+  return {
+    write: (data) => {
+      if (shell.stdin.writable) shell.stdin.write(String(data));
+    },
+    resize: null,
+    kill: () => {
+      try {
+        shell.kill("SIGKILL");
+      } catch {}
+    },
+  };
+}
+
 export function initTerminalServer(httpServer, options = {}) {
   const sessionTtlMs = options.sessionTtlMs ?? 7 * 24 * 60 * 60 * 1000;
 
@@ -205,7 +304,7 @@ export function initTerminalServer(httpServer, options = {}) {
     },
   });
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     const req = socket.request;
     const email = getUserEmail(req, SESSIONS_FILE, sessionTtlMs);
 
@@ -246,11 +345,29 @@ export function initTerminalServer(httpServer, options = {}) {
       "Terminal socket connected",
     );
 
+    const useRunner = RUNNERS_ENABLED && hasRunner(sid);
+    if (useRunner) {
+      try {
+        socket.emit("data", "\x1b[90mЗапускаю контейнер сессии…\x1b[0m\r\n");
+        await ensureRunner(sid);
+      } catch (e) {
+        fail(`Не удалось запустить контейнер сессии: ${e.message}`);
+        return;
+      }
+      if (socket.disconnected) return;
+    }
+
     let shell;
     try {
-      shell = ptySpawn
-        ? startPtyShell(socket, workdir)
-        : startPipeShell(socket, workdir);
+      if (useRunner) {
+        shell = ptySpawn
+          ? startPtyDockerShell(socket, sid)
+          : startPipeDockerShell(socket, sid);
+      } else {
+        shell = ptySpawn
+          ? startPtyShell(socket, workdir)
+          : startPipeShell(socket, workdir);
+      }
     } catch (e) {
       fail(`Ошибка запуска shell: ${e.message}`);
       return;

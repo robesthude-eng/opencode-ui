@@ -1,3 +1,8 @@
+# Режим изоляции «новый чат = новый контейнер» (RUNNER_ISOLATION=1):
+#  - данные лежат в bind-каталоге хоста (OPENCODE_DATA_DIR), а не в named volume,
+#    чтобы раннеры могли монтировать ОТДЕЛЬНЫЕ подкаталоги сессий;
+#  - прокси управляет раннерами через /var/run/docker.sock (в раннеры сокет НЕ монтируется);
+#  - миграция со старого volume: см. RUNNER_ISOLATION.md.
 services:
   opencode-ui:
     build: .
@@ -5,7 +10,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - opencode_data:/app/workspace
+      - ${OPENCODE_DATA_DIR:-/srv/opencode-data}:/app/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - .env
     environment:
@@ -15,10 +21,32 @@ services:
       - OPENCODE_WORKDIR=/app/workspace
       # Override with a managed Redis URL in .env for multi-host deployments.
       - RATE_LIMIT_REDIS_URL=${RATE_LIMIT_REDIS_URL:-redis://redis:6379}
+      # --- изоляция через контейнеры-раннеры ---
+      - RUNNER_ISOLATION=${RUNNER_ISOLATION:-1}
+      - HOST_WORKSPACE_DIR=${OPENCODE_DATA_DIR:-/srv/opencode-data}
+      - RUNNER_IMAGE=${RUNNER_IMAGE:-opencode-runner:latest}
+      - RUNNER_NETWORK=${RUNNER_NETWORK:-opencode-runners}
+      - RUNNER_MEMORY=${RUNNER_MEMORY:-1g}
+      - RUNNER_CPUS=${RUNNER_CPUS:-1}
+      - RUNNER_PIDS_LIMIT=${RUNNER_PIDS_LIMIT:-512}
+      - RUNNER_IDLE_STOP_MIN=${RUNNER_IDLE_STOP_MIN:-30}
+      - RUNNER_PUBLISH_PORTS=${RUNNER_PUBLISH_PORTS:-3001}
+    networks:
+      - default
+      - runners
     depends_on:
       redis:
         condition: service_healthy
     restart: always
+
+  # Сборка образа раннера: docker compose --profile build-runner build runner-image
+  runner-image:
+    build:
+      context: .
+      dockerfile: Dockerfile.runner
+    image: opencode-runner:latest
+    command: ["echo", "runner image built"]
+    profiles: ["build-runner"]
 
   redis:
     image: redis:7-alpine
@@ -30,5 +58,6 @@ services:
       retries: 10
     restart: always
 
-volumes:
-  opencode_data:
+networks:
+  runners:
+    name: opencode-runners

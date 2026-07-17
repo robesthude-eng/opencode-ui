@@ -48,6 +48,27 @@ import {
   setSecurityHeaders,
 } from "./middleware.mjs";
 import { handlePreviewRoute, PREVIEW_PREFIX } from "./preview.mjs";
+import {
+  ensureRunner,
+  getRunnerInfo,
+  hasRunner,
+  RUNNER_WORKSPACE,
+  RUNNERS_ENABLED,
+  runnerTarget,
+  startRunnerReaper,
+} from "./runner.mjs";
+
+// Прокси к контейнерам-раннерам сессий (создаются лениво, кэшируются по sid).
+const runnerProxies = new Map();
+function getRunnerProxy(sid) {
+  let proxy = runnerProxies.get(sid);
+  if (!proxy) {
+    proxy = createProxy(runnerTarget(sid));
+    runnerProxies.set(sid, proxy);
+  }
+  return proxy;
+}
+
 import { checkUserRateLimit } from "./rate-limit.mjs";
 import {
   handleLogin as handleAuthLogin,
@@ -557,6 +578,52 @@ const server = http.createServer(async (req, res) => {
     systemProxy.web(req, res);
     return;
   }
+  // Инфо о контейнере-раннере сессии (статус, опубликованные порты приложений
+  // пользователя — например, WS-сервер игры на 3001).
+  const runnerInfoMatch = urlPath.match(/^\/api\/session\/([^/?]+)\/runner$/);
+  if (RUNNERS_ENABLED && runnerInfoMatch && req.method === "GET") {
+    getRunnerInfo(sessionId)
+      .then((info) => {
+        res.writeHead(info ? 200 : 404, {
+          "Content-Type": "application/json",
+        });
+        res.end(
+          JSON.stringify(info || { error: "no runner for this session" }),
+        );
+      })
+      .catch((e) => {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: e.message }));
+      });
+    return;
+  }
+  // Изоляция «новый чат = новый контейнер»: сессии из реестра раннеров
+  // обслуживаются собственным контейнером (directory=/session/workspace внутри
+  // него). Legacy-сессии без раннера — по прежней схеме через системный инстанс.
+  if (RUNNERS_ENABLED && !isSelfImproveSession && hasRunner(sessionId)) {
+    ensureRunner(sessionId)
+      .then(() => {
+        const baseUrl = req.url.startsWith("/api") ? req.url.slice(4) : req.url;
+        const urlObj = new URL(baseUrl, "http://localhost");
+        urlObj.searchParams.set("directory", RUNNER_WORKSPACE);
+        req.url = urlObj.pathname + urlObj.search;
+        getRunnerProxy(sessionId).web(req, res);
+      })
+      .catch((err) => {
+        logger.error(
+          { sid: sessionId, err: err.message },
+          "[runner] route failed",
+        );
+        res.writeHead(502, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: "Failed to reach session runner",
+            detail: err.message,
+          }),
+        );
+      });
+    return;
+  }
   try {
     const sessionWorkspace = getSessionWorkspace(sessionId, WORKDIR);
     try {
@@ -636,6 +703,16 @@ server.on("upgrade", (req, socket, head) => {
   }
   const strippedUrl = req.url.startsWith("/api") ? req.url.slice(4) : req.url;
   req.url = strippedUrl;
+  // WebSocket-и раннер-сессий (например, /event) идут в контейнер сессии.
+  if (RUNNERS_ENABLED && sessionId && hasRunner(sessionId)) {
+    ensureRunner(sessionId)
+      .then(() => getRunnerProxy(sessionId).ws(req, socket, head))
+      .catch(() => {
+        socket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
+        socket.destroy();
+      });
+    return;
+  }
   systemProxy.ws(req, socket, head);
 });
 
@@ -694,6 +771,12 @@ void initSentryServer().finally(() => {
       if (snap) logger.info({ snap }, "initial dist snapshot ready");
     } catch (e) {
       logger.warn({ err: e.message }, "initial dist snapshot failed");
+    }
+    if (RUNNERS_ENABLED) {
+      startRunnerReaper();
+      logger.info(
+        "runner isolation enabled: each chat session gets its own container",
+      );
     }
   });
 });

@@ -12,33 +12,57 @@ import { isValidSessionId } from "../isolation.mjs";
 const require = createRequire(import.meta.url);
 
 import { SYSTEM_PORT } from "../config.mjs";
+import {
+  createSessionInNewRunner,
+  hasRunner,
+  listRunnerSessions,
+  RUNNERS_ENABLED,
+  removeRunner,
+} from "../runner.mjs";
 
-export function handleSessionList(_req, res, { userEmail, OWNERS_FILE }) {
-  http
-    .get(`http://127.0.0.1:${SYSTEM_PORT}/session`, (ocRes) => {
-      let body = "";
-      ocRes.on("data", (c) => (body += c));
-      ocRes.on("end", () => {
-        try {
-          const sessions = JSON.parse(body || "[]");
-          const owners = loadJson(OWNERS_FILE, {});
-          const filtered = userEmail
-            ? sessions.filter((s) => owners[s.id] === userEmail)
-            : sessions;
-          res.writeHead(ocRes.statusCode, {
-            "Content-Type": "application/json",
-          });
-          res.end(JSON.stringify(filtered));
-        } catch (_e) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Failed to parse sessions" }));
-        }
-      });
-    })
-    .on("error", () => {
-      res.writeHead(502, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "OpenCode unreachable" }));
-    });
+function fetchSystemSessions() {
+  return new Promise((resolve) => {
+    http
+      .get(`http://127.0.0.1:${SYSTEM_PORT}/session`, (ocRes) => {
+        let body = "";
+        ocRes.on("data", (c) => (body += c));
+        ocRes.on("end", () => {
+          try {
+            const parsed = JSON.parse(body || "[]");
+            resolve(Array.isArray(parsed) ? parsed : []);
+          } catch {
+            resolve([]);
+          }
+        });
+      })
+      .on("error", () => resolve([]));
+  });
+}
+
+export async function handleSessionList(_req, res, { userEmail, OWNERS_FILE }) {
+  try {
+    // Системный инстанс отдаёт legacy-сессии (созданные до включения
+    // RUNNER_ISOLATION); контейнеры-раннеры — по одной сессии на контейнер.
+    const [systemSessions, runnerSessions] = await Promise.all([
+      fetchSystemSessions(),
+      RUNNERS_ENABLED ? listRunnerSessions() : Promise.resolve([]),
+    ]);
+    const byId = new Map();
+    for (const s of systemSessions) if (s?.id) byId.set(s.id, s);
+    for (const s of runnerSessions) if (s?.id) byId.set(s.id, s);
+    const owners = loadJson(OWNERS_FILE, {});
+    const sessions = [...byId.values()];
+    const filtered = userEmail
+      ? sessions.filter((s) => owners[s.id] === userEmail)
+      : sessions;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(filtered));
+  } catch (e) {
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({ error: "Failed to list sessions", detail: e.message }),
+    );
+  }
 }
 
 export function handleSessionCreate(
@@ -51,6 +75,31 @@ export function handleSessionCreate(
     body += chunk;
   });
   req.on("end", () => {
+    if (RUNNERS_ENABLED) {
+      // «Новый чат = новый контейнер»: сессия создаётся сразу внутри
+      // собственного контейнера-раннера (см. server/runner.mjs).
+      createSessionInNewRunner(body)
+        .then((session) => {
+          if (session?.id && userEmail) {
+            const owners = loadJson(OWNERS_FILE, {});
+            owners[session.id] = userEmail;
+            saveJson(OWNERS_FILE, owners);
+          }
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(session));
+        })
+        .catch((e) => {
+          console.error("[New Chat] runner session create failed:", e.message);
+          res.writeHead(502, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              error: "Failed to create session container",
+              detail: e.message,
+            }),
+          );
+        });
+      return;
+    }
     const preIsolationDir = path.join(
       WORKDIR,
       "sessions",
@@ -253,6 +302,26 @@ export function handleSessionDelete(
     }
   } catch (e) {
     console.warn("Ignored error:", e);
+  }
+
+  if (RUNNERS_ENABLED && hasRunner(sid)) {
+    // Раннер-сессия: всё состояние opencode живёт внутри каталога сессии,
+    // поэтому достаточно удалить контейнер и каталог — системный инстанс
+    // об этой сессии ничего не знает.
+    removeRunner(sid)
+      .catch((e) =>
+        console.error("[Full-Purge] runner remove failed:", e.message),
+      )
+      .finally(() => {
+        try {
+          removeAll();
+        } catch (e) {
+          console.warn("Ignored error:", e);
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, deleted: sid }));
+      });
+    return;
   }
 
   const sessionWorkspace = path.join(WORKDIR, "sessions", sid, "workspace");
