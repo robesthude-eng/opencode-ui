@@ -183,7 +183,7 @@ export const api = {
   respondPermission: (
     id: string,
     permissionId: string,
-    response: "allow" | "deny",
+    response: "once" | "always" | "reject",
   ) =>
     req<void>(`/session/${id}/permissions/${permissionId}`, {
       method: "POST",

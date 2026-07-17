@@ -18,6 +18,11 @@ function fmt(value: unknown): string {
   }
 }
 
+// OpenCode 1.18+ expects "once" | "always" | "reject" for permission responses
+// (older versions used "allow" | "deny"). We send the new enum; the server
+// validates the body strictly, so anything else is a 400.
+type PermissionResponse = "once" | "always" | "reject";
+
 export default function PermissionDialog() {
   const permissions = useStore((s) => s.permissions);
   const respond = useStore((s) => s.respondPermission);
@@ -26,11 +31,16 @@ export default function PermissionDialog() {
   const req = permissions[0];
   const queueLen = permissions.length;
 
+  const answer = (r: PermissionResponse) => {
+    if (req) respond(req.id, r);
+  };
+
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next && req) respond(req.id, false);
+        // Dismiss via backdrop/Esc -> reject
+        if (!next && req) answer("reject");
       }}
     >
       <DialogContent className="max-w-md gap-0 p-0 sm:rounded-2xl">
@@ -64,10 +74,18 @@ export default function PermissionDialog() {
             )}
 
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" onClick={() => respond(req.id, false)}>
+              <Button variant="ghost" onClick={() => answer("reject")}>
                 Отклонить
               </Button>
-              <Button onClick={() => respond(req.id, true)}>Разрешить</Button>
+              {/* "once" is the safe default — allow this single call only */}
+              <Button onClick={() => answer("once")}>Разрешить</Button>
+              <Button
+                variant="secondary"
+                onClick={() => answer("always")}
+                title="Разрешать все такие вызовы до конца сессии"
+              >
+                Всегда
+              </Button>
             </div>
           </div>
         )}

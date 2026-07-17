@@ -216,18 +216,18 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
     }
   },
 
-  respondPermission: async (permissionId, allow) => {
+  // OpenCode 1.18+ permission response enum:
+  //  - "once":   allow this single tool call (the safe default; maps to old "allow")
+  //  - "always": allow every similar call until the session ends
+  //  - "reject": deny the call (maps to old "deny")
+  respondPermission: async (permissionId, response) => {
     const req = get().permissions.find((p) => p.id === permissionId);
     if (!req) return;
     set((s) => ({
       permissions: s.permissions.filter((p) => p.id !== permissionId),
     }));
     try {
-      await api.respondPermission(
-        req.sessionID,
-        req.id,
-        allow ? "allow" : "deny",
-      );
+      await api.respondPermission(req.sessionID, req.id, response);
     } catch (e) {
       set({ error: (e as Error).message });
     }

@@ -82,7 +82,13 @@ export interface SessionsSlice {
   ensureSelfImproveSession: () => Promise<string | null>;
   removeSession: (id: string) => Promise<void>;
   abort: () => Promise<void>;
-  respondPermission: (permissionId: string, allow: boolean) => Promise<void>;
+  // OpenCode 1.18+ permission response enum: "once" = allow this call,
+  // "always" = allow all similar calls for the rest of the session,
+  // "reject" = deny the call.
+  respondPermission: (
+    permissionId: string,
+    response: "once" | "always" | "reject",
+  ) => Promise<void>;
   setConnection: (c: SessionsSlice["connection"]) => void;
   checkConnection: () => Promise<void>;
 }
