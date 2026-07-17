@@ -1,4 +1,4 @@
-import type { Message, Part, TextPart } from "../api/types";
+import type { Message, Part, TextPart, ToolPart } from "../api/types";
 
 export function cleanSysText(t: string): string {
   if (!t || typeof t !== "string") return t || "";
@@ -18,6 +18,37 @@ function hasId(p: Part): p is Part & { id: string } {
   return typeof (p as { id?: unknown }).id === "string";
 }
 
+/**
+ * Normalize a tool-part's `tool` field.
+ *
+ * In newer opencode versions, `tool` can be an object reference
+ * `{ messageID, callID }` during streaming instead of the actual tool name
+ * string. Rendering that object directly as a React child causes error #31
+ * ("Objects are not valid as a React child"). We guard defensively:
+ *  - string -> returned as-is
+ *  - object/anything else -> undefined (UI falls back to a generic "tool" label)
+ */
+export function normalizePartTool(p: Part): Part {
+  if (p && p.type === "tool") {
+    const tp = p as ToolPart;
+    const tool = typeof tp.tool === "string" && tp.tool ? tp.tool : undefined;
+    if (tool === tp.tool) return p;
+    return { ...tp, tool } as Part;
+  }
+  return p;
+}
+
+function normalizeParts(parts: Part[] | undefined): Part[] {
+  return (parts || []).map((p) => {
+    const normalized = normalizePartTool(p);
+    if (normalized.type === "text" && typeof (normalized as TextPart).text === "string") {
+      // user-message system text cleanup
+      return normalized;
+    }
+    return normalized;
+  });
+}
+
 // Normalize a message from the API: ensure `id` and `role` are at the top level.
 // In opencode 1.17.x, `id` is inside `info.id` and `role` is inside `info.role`.
 export function normalizeMessage(msg: Message): Message {
@@ -25,11 +56,13 @@ export function normalizeMessage(msg: Message): Message {
   const id = msg.id || info?.id || "";
   const role: Message["role"] =
     msg.role || (info?.role as Message["role"] | undefined) || "assistant";
-  const parts = (msg.parts || []).map((p) => {
-    if (role === "user" && isTextPart(p)) {
-      return { ...p, text: cleanSysText(p.text) };
+  const rawParts = msg.parts || [];
+  const parts = rawParts.map((p) => {
+    const np = normalizePartTool(p);
+    if (role === "user" && isTextPart(np)) {
+      return { ...np, text: cleanSysText(np.text) };
     }
-    return p;
+    return np;
   });
   return { ...msg, id, role, parts };
 }
@@ -71,6 +104,7 @@ export function upsertMessage(messages: Message[], msg: Message): Message[] {
 }
 
 export function patchPart(messages: Message[], messageID: string, part: Part): Message[] {
+  const cleanedPart0 = normalizePartTool(part);
   const targetID = messageID;
   const exists = messages.some((m) => m.id === targetID);
   if (!exists) {
@@ -79,16 +113,16 @@ export function patchPart(messages: Message[], messageID: string, part: Part): M
     );
     if (localIdx !== -1) {
       const copy = messages.slice();
-      const cleanedPart = isTextPart(part) ? { ...part, text: cleanSysText(part.text) } : part;
+      const cleanedPart = isTextPart(cleanedPart0) ? { ...cleanedPart0, text: cleanSysText(cleanedPart0.text) } : cleanedPart0;
       copy[localIdx] = { ...copy[localIdx], id: targetID, parts: [cleanedPart] };
       return copy;
     }
-    return [...messages, { id: targetID, role: "assistant", parts: [part] }];
+    return [...messages, { id: targetID, role: "assistant", parts: [cleanedPart0] }];
   }
   return messages.map((m) => {
     if (m.id !== targetID) return m;
     const cleanedPart =
-      m.role === "user" && isTextPart(part) ? { ...part, text: cleanSysText(part.text) } : part;
+      m.role === "user" && isTextPart(cleanedPart0) ? { ...cleanedPart0, text: cleanSysText(cleanedPart0.text) } : cleanedPart0;
     const pid = hasId(cleanedPart) ? cleanedPart.id : undefined;
     let idx = pid ? m.parts.findIndex((p) => hasId(p) && p.id === pid) : -1;
     if (idx === -1) {
@@ -130,7 +164,7 @@ export function patchPartDelta(
   if (!exists) {
     const stubPart: Record<string, unknown> = { id: partID, type: "text" };
     stubPart[field] = typeof delta === "string" ? delta : delta;
-    return [...messages, { id: messageID, role: "assistant", parts: [stubPart as Part] }];
+    return [...messages, { id: messageID, role: "assistant", parts: [normalizePartTool(stubPart as Part)] }];
   }
   return messages.map((m) => {
     if (m.id !== messageID) return m;
@@ -138,14 +172,14 @@ export function patchPartDelta(
     if (idx === -1) {
       const newPart: Record<string, unknown> = { id: partID, type: "text" };
       newPart[field] = typeof delta === "string" ? delta : delta;
-      return { ...m, parts: [...m.parts, newPart as Part] };
+      return { ...m, parts: [...m.parts, normalizePartTool(newPart as Part)] };
     }
     const parts = m.parts.slice();
     const existingPart = parts[idx];
     if (existingPart === undefined) {
       const newPart: Record<string, unknown> = { id: partID, type: "text" };
       newPart[field] = typeof delta === "string" ? delta : delta;
-      return { ...m, parts: [...m.parts, newPart as Part] };
+      return { ...m, parts: [...m.parts, normalizePartTool(newPart as Part)] };
     }
     const target = { ...existingPart } as Record<string, unknown>;
     const cur = target[field];

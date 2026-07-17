@@ -56,7 +56,15 @@ export interface ToolOutput {
 
 export interface ToolPart extends BasePart {
   type: "tool";
-  tool: string;
+  /**
+   * Tool name. Wire value MAY be an object reference `{ messageID, callID }`
+   * during streaming in newer opencode versions; normalizeMessage /
+   * normalizePartTool in store/helpers.ts coerces such values to `undefined`
+   * before data reaches React so error #31 ("Objects are not valid as a React
+   * child") can't fire. After normalization this is either a non-empty string
+   * or undefined (UI should fall back to a generic "tool" label).
+   */
+  tool?: string;
   callID?: string;
   // In opencode 1.17.x, `state` is an OBJECT, not a string.
   state?: ToolState | string;

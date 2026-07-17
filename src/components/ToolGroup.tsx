@@ -14,8 +14,9 @@ function getState(part: ToolPart): string {
   return "running";
 }
 
-function groupLabel(tool: string, count: number): string {
-  const t = tool.toLowerCase();
+function groupLabel(tool: string | undefined, count: number): string {
+  const safeTool = typeof tool === "string" && tool ? tool : "tool";
+  const t = safeTool.toLowerCase();
   if (t === "bash" || t === "shell" || t === "cmd") {
     return count === 1 ? "Ran command" : `Ran commands ${count}`;
   }
@@ -23,7 +24,7 @@ function groupLabel(tool: string, count: number): string {
     return count === 1 ? "Edited file" : `Edited files ${count}`;
   }
   if (t === "read") return count === 1 ? "Read file" : `Read files ${count}`;
-  return `${tool} ×${count}`;
+  return `${safeTool} ×${count}`;
 }
 
 const ToolGroup = ({ tool, parts }: { tool: string; parts: ToolPart[] }) => {

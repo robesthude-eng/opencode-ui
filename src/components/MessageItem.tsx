@@ -36,23 +36,31 @@ interface ToolGroupData {
 }
 type RenderItem = Part | ToolGroupData;
 
+function toolName(p: { tool?: unknown }): string | undefined {
+  // Defensive: opencode can send `tool` as {messageID, callID} object reference
+  // during streaming. Treat non-strings as "unknown tool" so grouping/rendering
+  // never sees an object (prevents React error #31).
+  return typeof p.tool === "string" && p.tool ? p.tool : undefined;
+}
+
 function groupParts(parts: Part[]): RenderItem[] {
   const result: RenderItem[] = [];
   let i = 0;
   while (i < parts.length) {
-    const part = parts[i] as { type?: string; tool?: string };
-    if (part.type === "tool" && part.tool) {
+    const part = parts[i] as { type?: string; tool?: unknown };
+    const name = toolName(part);
+    if (part.type === "tool" && name) {
       const group: ToolPart[] = [parts[i] as ToolPart];
       let j = i + 1;
       while (j < parts.length) {
-        const next = parts[j] as { type?: string; tool?: string };
-        if (next.type === "tool" && next.tool === part.tool) {
+        const next = parts[j] as { type?: string; tool?: unknown };
+        if (next.type === "tool" && toolName(next) === name) {
           group.push(parts[j] as ToolPart);
           j++;
         } else break;
       }
       if (group.length > 1) {
-        result.push({ kind: "group", tool: part.tool, parts: group });
+        result.push({ kind: "group", tool: name, parts: group });
       } else {
         result.push(parts[i]);
       }

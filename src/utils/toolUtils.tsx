@@ -14,7 +14,10 @@ import {
   WriteIcon,
 } from "../components/icons";
 
-export function toolIcon(name: string): ReactNode {
+export function toolIcon(name?: string | null): ReactNode {
+  // Defensive: callers can accidentally pass an object (e.g. opencode tool
+  // reference {messageID, callID} during streaming); fall back to default.
+  if (typeof name !== "string" || !name) return <DefaultToolIcon size={13} />;
   const n = name.toLowerCase();
   if (n === "read") return <FileIcon size={13} />;
   if (n === "edit" || n === "applypatch") return <EditIcon size={13} />;

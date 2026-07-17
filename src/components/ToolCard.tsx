@@ -381,7 +381,11 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
   const duration = useDuration(getTime(part), running);
   const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
   const expanded = manuallyToggled ?? running;
-  const toolName = part.tool;
+  // Defensive: opencode may send an object {messageID, callID} in `tool` field
+  // during streaming. After store normalization this should never reach UI,
+  // but if anything slips through, fall back to undefined rather than
+  // crashing with React error #31 (Objects are not valid as a React child).
+  const toolName = typeof part.tool === "string" && part.tool ? part.tool : undefined;
   const label = friendlyToolLabel(toolName);
   const isBash = ["bash", "shell", "cmd"].includes((toolName || "").toLowerCase());
 
@@ -453,7 +457,8 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
 }
 
 const ToolCard = ({ part }: { part: ToolPart }) => {
-  if ((part.tool || "").toLowerCase() === "question") return <QuestionCard part={part} />;
+  const toolName = typeof part.tool === "string" ? part.tool : "";
+  if (toolName.toLowerCase() === "question") return <QuestionCard part={part} />;
   return <DefaultToolCard part={part} />;
 };
 
