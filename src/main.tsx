@@ -1,18 +1,37 @@
 // SW_KILLSWITCH: чистим устаревший Service Worker и кеши один раз
 // (после того как мы отключили VitePWA — старые клиенты держат stale bundle)
 if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-  navigator.serviceWorker
+  const swCleanup: Promise<boolean> = navigator.serviceWorker
     .getRegistrations()
-    .then((regs) => {
-      for (const r of regs) r.unregister().catch(() => {});
-    })
-    .catch(() => {});
-  if ("caches" in window) {
-    caches
-      .keys()
-      .then((keys) => keys.forEach((k) => caches.delete(k).catch(() => {})))
-      .catch(() => {});
-  }
+    .then((regs) =>
+      Promise.all(regs.map((r) => r.unregister().catch(() => false))),
+    )
+    .then((results) => results.some(Boolean))
+    .catch(() => false);
+  const cacheCleanup: Promise<boolean> =
+    "caches" in window
+      ? caches
+          .keys()
+          .then((keys) =>
+            Promise.all(keys.map((k) => caches.delete(k).catch(() => false))),
+          )
+          .then((results) => results.some(Boolean))
+          .catch(() => false)
+      : Promise.resolve(false);
+  // P1-fix (ChunkLoadError): текущая вкладка могла загрузиться из stale
+  // SW-кэша — её lazy-чанки после очистки падают с ChunkLoadError.
+  // После РЕАЛЬНОЙ очистки (что-то удалено) один раз перезагружаем
+  // страницу; флаг в sessionStorage защищает от цикла перезагрузок.
+  Promise.all([swCleanup, cacheCleanup]).then(([swCleaned, cachesCleaned]) => {
+    if (!swCleaned && !cachesCleaned) return;
+    try {
+      if (sessionStorage.getItem("sw_killswitch_reloaded") === "1") return;
+      sessionStorage.setItem("sw_killswitch_reloaded", "1");
+    } catch {
+      return; // без защиты от цикла не рискуем перезагружать
+    }
+    window.location.reload();
+  });
 }
 
 import React from "react";
