@@ -17,3 +17,4 @@ vitest.config.d.ts
 *.bak2
 test-results/
 playwright-report/
+coverage/

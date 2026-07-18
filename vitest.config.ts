@@ -30,10 +30,10 @@ export default defineConfig({
       // while preventing coverage from silently falling below the existing
       // level. Raise these values as tests are added.
       thresholds: {
-        branches: 15,
-        functions: 20,
-        lines: 20,
-        statements: 20,
+        branches: 28,
+        functions: 30,
+        lines: 27,
+        statements: 27,
       },
     },
   },
