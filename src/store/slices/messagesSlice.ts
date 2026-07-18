@@ -28,6 +28,63 @@ import { waitForSessionCreation } from "./sessionsSlice";
 // ordinary multi-tool self-improvement runs to avoid false completion.
 const SEND_HARD_TIMEOUT_MS = 15 * 60 * 1000; // 15 min safety limit
 
+// Релиз 3: буферизация стрим-дельт. Сотни SSE-дельт в секунду превращаются
+// в максимум ~60 обновлений стора в секунду (раз в DELTA_FLUSH_MS) — иначе
+// каждый токен заставляет React пересчитывать всё дерево сообщений.
+const DELTA_FLUSH_MS = 16;
+type DeltaSet = (
+  updater: (s: { messages: Record<string, Message[]> }) => {
+    messages: Record<string, Message[]>;
+  },
+) => void;
+const deltaBuffer = new Map<
+  string,
+  {
+    sid: string;
+    messageID: string;
+    partID: string;
+    field: string;
+    text: string;
+  }
+>();
+let deltaFlushTimer: ReturnType<typeof setTimeout> | null = null;
+let deltaFlushSet: DeltaSet | null = null;
+
+/**
+ * Досылает накопленные стрим-дельты одним обновлением стора.
+ * Экспортируется для тестов (там нет ожидания 16мс-таймера).
+ */
+export function flushStreamDeltas() {
+  if (deltaFlushTimer) {
+    clearTimeout(deltaFlushTimer);
+    deltaFlushTimer = null;
+  }
+  if (deltaBuffer.size === 0) return;
+  const setFn = deltaFlushSet;
+  if (!setFn) {
+    deltaBuffer.clear();
+    return;
+  }
+  const pending = [...deltaBuffer.values()];
+  deltaBuffer.clear();
+  setFn((s) => {
+    let messages = s.messages;
+    for (const d of pending) {
+      messages = {
+        ...messages,
+        [d.sid]: patchPartDelta(
+          messages[d.sid] ?? [],
+          d.messageID,
+          d.partID,
+          d.field,
+          d.text,
+        ),
+      };
+    }
+    return { messages };
+  });
+}
+
 // Circuit Breaker (Релиз 2): не более CB_MAX_TOOL_CALLS завершённых вызовов
 // инструментов подряд без участия пользователя — зациклившийся агент
 // иначе сжигает баланс API за ночь. Счётчики держим вне стора (React они
@@ -204,7 +261,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       // Fire-and-forget prompt: сервер сам стримит события через SSE.
       // Не полагаемся на возврат promptWithParts как индикатор финиша —
       // ждём ЛИБО session.idle из SSE, ЛИБО подтверждённый через HTTP-polling
-      // финал (два опроса подряд показывают одинаковое finish + отсутствие новых сообщений).
+      // финал (два опроса подряд показывают одинаковое finish + отсутствие ��овых сообщений).
       // Это защищает от нестабильного SSE (мобильная сеть, VPN).
       const promptPromise = api.promptWithParts(
         sidStr,
@@ -436,6 +493,10 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
   },
 
   applyEvent: (e) => {
+    // Релиз 3: любое не-дельтовое событие сначала досылает буфер дельт,
+    // чтобы не нарушать порядок применения (например, message.part.updated
+    // затирает поле целиком и должен видеть уже применённые дельты).
+    if (e.type !== "message.part.delta") flushStreamDeltas();
     const p = e.properties;
     const sid = (p.sessionID ||
       p.session_id ||
@@ -645,6 +706,29 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         if (!sid || !messageID || !partID || !field || delta === undefined) {
           break;
         }
+        deltaFlushSet = set;
+        if (typeof delta === "string") {
+          // Релиз 3: строковые дельты копим и применяем пачкой раз в 16мс.
+          const key = `${sid}\u0000${messageID}\u0000${partID}\u0000${field}`;
+          const buffered = deltaBuffer.get(key);
+          if (buffered) {
+            buffered.text += delta;
+          } else {
+            deltaBuffer.set(key, {
+              sid,
+              messageID,
+              partID,
+              field,
+              text: delta,
+            });
+          }
+          if (!deltaFlushTimer) {
+            deltaFlushTimer = setTimeout(flushStreamDeltas, DELTA_FLUSH_MS);
+          }
+          break;
+        }
+        // Не-строковая дельта — досылаем буфер и применяем сразу (порядок!).
+        flushStreamDeltas();
         set((s) => {
           const updated = patchPartDelta(
             s.messages[sid] ?? [],

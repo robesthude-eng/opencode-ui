@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api, SessionGoneError } from "../../api/client";
 import type { AppEvent, Message, SessionInfo } from "../../api/types";
 import type { State } from "../types";
-import { createMessagesSlice } from "./messagesSlice";
+import { createMessagesSlice, flushStreamDeltas } from "./messagesSlice";
 
 type Store = State & ReturnType<typeof createMessagesSlice>;
 
@@ -108,6 +108,8 @@ describe("messagesSlice streaming event reducer", () => {
         delta: " + delta",
       }),
     );
+    // Релиз 3: дельты буферизуются (16мс) — в тесте досылаем явно.
+    flushStreamDeltas();
 
     expect(store.messages[sid][0].parts[0]).toMatchObject({
       text: "first + delta",
@@ -124,6 +126,8 @@ describe("messagesSlice streaming event reducer", () => {
         delta: "arrived first",
       }),
     );
+    // Релиз 3: дельты буферизуются (16мс) — в тесте досылаем явно.
+    flushStreamDeltas();
 
     expect(store.messages[sid][0].parts).toContainEqual(
       expect.objectContaining({ id: "part_late", text: "arrived first" }),

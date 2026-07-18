@@ -151,6 +151,45 @@ const markdownPlugins = [remarkGfm, remarkBreaks];
 // hljs-классы добавляются после очистки и не страдают.
 const rehypePlugins = [rehypeSanitize, rehypeHighlight];
 
+// Релиз 3: лимит размера ответа для рендера. Markdown-рендер сообщений
+// в сотни килобайт (логи, дампы) замораживает вкладку; усечённый текст
+// с кнопкой «Показать полностью» держит интерфейс отзывчивым.
+const RENDER_TEXT_LIMIT = 30_000;
+
+const LimitedMarkdown = ({
+  text,
+  streaming,
+}: {
+  text: string;
+  streaming?: boolean;
+}) => {
+  const [showAll, setShowAll] = useState(false);
+  const truncated = !showAll && text.length > RENDER_TEXT_LIMIT;
+  const visible = truncated ? text.slice(0, RENDER_TEXT_LIMIT) : text;
+  return (
+    <>
+      <ReactMarkdown
+        remarkPlugins={markdownPlugins}
+        rehypePlugins={rehypePlugins}
+        components={SAFE_MD_COMPONENTS}
+      >
+        {visible}
+      </ReactMarkdown>
+      {streaming && !truncated && <span className="streaming-cursor" />}
+      {truncated && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-accent/40 transition"
+        >
+          Показать полностью (ещё{" "}
+          {(text.length - RENDER_TEXT_LIMIT).toLocaleString("ru-RU")} символов)
+        </button>
+      )}
+    </>
+  );
+};
+
 function useThinkingDuration(streaming?: boolean): string {
   const [startedAt] = useState(() => Date.now());
   const [, setTick] = useState(0);
@@ -395,8 +434,7 @@ const OptimizedPartView = ({
           )}
           {restText && (
             <div className="break-words text-[14.5px] leading-relaxed [&_p]:my-2 [&_pre]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2 [&_li]:my-1 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:my-3 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:my-2 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:my-2 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline">
-              {renderMarkdown(restText)}
-              {isLastStreaming && <span className="streaming-cursor" />}
+              <LimitedMarkdown text={restText} streaming={isLastStreaming} />
             </div>
           )}
         </>
@@ -413,8 +451,7 @@ const OptimizedPartView = ({
       if (!p.text) return null;
       return (
         <div className="break-words text-[14.5px] leading-relaxed [&_p]:my-2 [&_pre]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2 [&_li]:my-1 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:my-3 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:my-2 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:my-2 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline">
-          {renderMarkdown(asText(p.text))}
-          {isLastStreaming && <span className="streaming-cursor" />}
+          <LimitedMarkdown text={asText(p.text)} streaming={isLastStreaming} />
         </div>
       );
   }
