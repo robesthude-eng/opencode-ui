@@ -99,6 +99,10 @@ export interface MessagesSlice {
   // P2-fix: текст сообщения, отправка которого упала — Composer
   // возвращает его в поле ввода, чтобы он не потерялся.
   failedSendText: string | null;
+  // Circuit Breaker (Релиз 2): агент приостановлен после N вызовов инструментов
+  // подряд без участия пользователя; баннер в ChatView ждёт подтверждения.
+  cbTripped: Record<string, boolean>;
+  cbResume: (sid: string) => void;
   send: (text: string) => Promise<void>;
   addAttachments: (files: ProcessedFile[]) => void;
   removeAttachment: (name: string) => void;

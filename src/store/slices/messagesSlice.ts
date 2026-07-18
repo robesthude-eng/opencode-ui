@@ -7,6 +7,7 @@ import type {
   PermissionRequest,
   SessionInfo,
   SessionStatus,
+  ToolState,
 } from "../../api/types";
 import {
   normalizeMessage,
@@ -27,6 +28,21 @@ import { waitForSessionCreation } from "./sessionsSlice";
 // ordinary multi-tool self-improvement runs to avoid false completion.
 const SEND_HARD_TIMEOUT_MS = 15 * 60 * 1000; // 15 min safety limit
 
+// Circuit Breaker (Релиз 2): не более CB_MAX_TOOL_CALLS завершённых вызовов
+// инструментов подряд без участия пользователя — зациклившийся агент
+// иначе сжигает баланс API за ночь. Счётчики держим вне стора (React они
+// не нужны); реактивен только флаг cbTripped, который рисует баннер
+// подтверждения в ChatView.
+export const CB_MAX_TOOL_CALLS = 5;
+const cbCounts = new Map<string, number>();
+const cbCountedParts = new Map<string, Set<string>>();
+
+/** Любое участие пользователя (промпт, ответ на permission) сбрасывает счётчик. */
+export function cbUserParticipated(sid: string): void {
+  cbCounts.delete(sid);
+  cbCountedParts.delete(sid);
+}
+
 /**
  * Collision-free id for optimistic local messages. `Date.now()` collides on
  * a fast double send (same millisecond); `crypto.randomUUID()` cannot. The
@@ -46,6 +62,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
   messages: {},
   attachments: [],
   failedSendText: null,
+  cbTripped: {},
 
   addAttachments: (files) =>
     set((s) => ({ attachments: [...s.attachments, ...files] })),
@@ -56,6 +73,14 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
   clearAttachments: () => set({ attachments: [] }),
 
   clearFailedSendText: () => set({ failedSendText: null }),
+
+  cbResume: (sid) => {
+    cbUserParticipated(sid);
+    set((s) => ({ cbTripped: { ...s.cbTripped, [sid]: false } }));
+    // Подтверждение — само по себе участие пользователя: продолжаем работу
+    // агента новым промптом.
+    void get().send("Продолжай выполнение задачи.");
+  },
 
   send: async (text) => {
     const { currentID, newSession, selectedModel } = get();
@@ -97,9 +122,12 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       role: "user",
       parts: [...attachmentParts, { type: "text", text }],
     };
+    // Новый промпт — участие пользователя: сбрасываем Circuit Breaker.
+    cbUserParticipated(sidStr);
     sessionFsm.markBusy(sidStr);
     set((s) => ({
       status: { ...s.status, [sidStr]: "busy" },
+      cbTripped: { ...s.cbTripped, [sidStr]: false },
       messages: {
         ...s.messages,
         [sidStr]: [...(s.messages[sidStr] ?? []), userMsg],
@@ -569,6 +597,36 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
           const updated = patchPart(s.messages[sid] ?? [], messageID, part);
           return { messages: { ...s.messages, [sid]: updated } };
         });
+        // Circuit Breaker: считаем завершённые вызовы инструментов без участия
+        // пользователя; на CB_MAX_TOOL_CALLS-м — останавливаем сессию и ждём
+        // подтверждения в баннере (ChatView).
+        if (part.type === "tool") {
+          const st = (part as { state?: ToolState | string }).state;
+          const status = typeof st === "string" ? st : st?.status;
+          if (status === "completed" || status === "error") {
+            const partKey = String(
+              (part as { id?: string }).id || part.callID || "",
+            );
+            let counted = cbCountedParts.get(sid);
+            if (!counted) {
+              counted = new Set<string>();
+              cbCountedParts.set(sid, counted);
+            }
+            if (partKey && !counted.has(partKey)) {
+              counted.add(partKey);
+              const n = (cbCounts.get(sid) ?? 0) + 1;
+              cbCounts.set(sid, n);
+              if (n >= CB_MAX_TOOL_CALLS && !get().cbTripped[sid]) {
+                set((s) => ({
+                  cbTripped: { ...s.cbTripped, [sid]: true },
+                }));
+                // Останавливаем агента; статус idle придёт штатным событием
+                // после abort.
+                void api.abortSession(sid).catch(() => {});
+              }
+            }
+          }
+        }
         break;
       }
       case "message.part.delta": {

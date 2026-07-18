@@ -3,6 +3,9 @@ import type { SessionInfo, SessionStatus } from "../../api/types";
 import { normalizeMessages } from "../helpers";
 import type { SessionsSlice, Slice } from "../types";
 import { byUpdated } from "../types";
+// Циклический импорт с messagesSlice безопасен: cbUserParticipated —
+// хойстируемая function-декларация, вызывается только в рантайме.
+import { cbUserParticipated } from "./messagesSlice";
 
 // Prevent concurrent optimistic session creation from rapid "New chat" clicks.
 let creatingSession = false;
@@ -229,6 +232,8 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
   respondPermission: async (permissionId, response) => {
     const req = get().permissions.find((p) => p.id === permissionId);
     if (!req) return;
+    // Ответ на permission — участие пользователя: сбрасываем Circuit Breaker.
+    cbUserParticipated(req.sessionID);
     set((s) => ({
       permissions: s.permissions.filter((p) => p.id !== permissionId),
     }));
