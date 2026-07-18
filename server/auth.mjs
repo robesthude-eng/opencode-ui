@@ -164,8 +164,11 @@ function normalizeIp(value) {
 }
 
 function trustedProxyIps() {
+  // По умолчанию доверяем заголовкам форвардинга только локальному
+  // reverse-proxy (loopback): внешний пир не может подделать X-Forwarded-For
+  // и обойти рейт-лимит или отравить ключи лимитера.
   return new Set(
-    String(process.env.TRUSTED_PROXY_IPS || "")
+    String(process.env.TRUSTED_PROXY_IPS || "127.0.0.1,::1")
       .split(",")
       .map(normalizeIp)
       .filter((ip) => net.isIP(ip) !== 0),
@@ -194,11 +197,7 @@ export function getClientIp(req) {
   return peerIp;
 }
 
-export function buildSessionCookie(token, maxAgeMs, req) {
-  const maxAge = Math.max(
-    0,
-    Math.floor((maxAgeMs || 7 * 24 * 60 * 60 * 1000) / 1000),
-  );
+function isSecureRequest(req) {
   const forwardedProto = String(
     trustedForwardedHeader(req, "x-forwarded-proto") || "",
   )
@@ -211,7 +210,15 @@ export function buildSessionCookie(token, maxAgeMs, req) {
   // silently drop it, causing every subsequent API request to return 401.
   // HTTPS remains the default when the request actually arrived over HTTPS;
   // COOKIE_SECURE=1 can force it for a trusted TLS proxy.
-  const secure = forcedSecure === "1" || (forcedSecure !== "0" && isHttps);
+  return forcedSecure === "1" || (forcedSecure !== "0" && isHttps);
+}
+
+export function buildSessionCookie(token, maxAgeMs, req) {
+  const maxAge = Math.max(
+    0,
+    Math.floor((maxAgeMs || 7 * 24 * 60 * 60 * 1000) / 1000),
+  );
+  const secure = isSecureRequest(req);
   const parts = [
     `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     "Path=/",
@@ -232,6 +239,36 @@ export function buildClearSessionCookie() {
     "Max-Age=0",
   ];
   return parts.join("; ");
+}
+
+export const CSRF_COOKIE = "opencode_csrf";
+
+/**
+ * Double Submit Cookie: НЕ-HttpOnly кука, чтобы фронтенд мог прочитать
+ * её и продублировать в заголовке x-csrf-token. Сервер сверяет их,
+ * когда Origin/Referer отсутствуют (корпоративные фаерволы их режут).
+ */
+export function buildCsrfCookie(maxAgeMs, req) {
+  const token = crypto.randomBytes(32).toString("hex");
+  const maxAge = Math.max(
+    0,
+    Math.floor((maxAgeMs || 7 * 24 * 60 * 60 * 1000) / 1000),
+  );
+  const parts = [
+    `${CSRF_COOKIE}=${token}`,
+    "Path=/",
+    "SameSite=Lax",
+    `Max-Age=${maxAge}`,
+  ];
+  if (isSecureRequest(req)) parts.push("Secure");
+  return parts.join("; ");
+}
+
+function timingSafeEqualStr(a, b) {
+  const ab = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
 }
 
 export function checkCsrf(req, res) {
@@ -282,9 +319,19 @@ export function checkCsrf(req, res) {
       return false;
     }
   }
-  res.writeHead(403, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ error: "CSRF check failed (missing origin)" }));
-  return false;
+  // Нет ни Origin, ни Referer — НЕ блокируем: корпоративные фаерволы/прокси
+  // вырезают эти заголовки у легитимных пользователей, а кросс-сайтовые
+  // браузерные запросы всегда несут Origin. Второй рубеж — Double Submit
+  // Cookie: если CSRF-кука выдана, заголовок обязан совпадать с ней.
+  const csrfCookie = cookies[CSRF_COOKIE] || "";
+  if (csrfCookie) {
+    const csrfHeader = String(req.headers["x-csrf-token"] || "");
+    if (csrfHeader && timingSafeEqualStr(csrfHeader, csrfCookie)) return true;
+    res.writeHead(403, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "CSRF check failed (token)" }));
+    return false;
+  }
+  return true;
 }
 
 /** True when a persisted session is older than the configured TTL. */
@@ -362,7 +409,7 @@ export async function checkAuthRateLimit(req, res) {
     });
     res.end(
       JSON.stringify({
-        error: `Слишком много попыток входа. Пожалуйста, подождите ${waitMin} мин.`,
+        error: `Слишком много попыток входа. Пожалуй��та, подождите ${waitMin} мин.`,
       }),
     );
     return false;

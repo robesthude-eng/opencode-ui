@@ -148,17 +148,31 @@ function redisCommand(parts) {
   });
 }
 
+// LRU-лимит in-memory хранилища: защищает от OOM при флуде с поддельными
+// IP: не более 10 тысяч ключей, самые давно использованные вытесняются первыми.
+const LOCAL_BUCKETS_MAX = 10_000;
+
 function localTake(key, { limit, windowMs }) {
   const now = Date.now();
   let record = localBuckets.get(key);
+  // LRU: повторная вставка перемещает ключ в хвост Map — первые ключи
+  // при итерации всегда самые давно не использованные.
+  if (record) localBuckets.delete(key);
   if (!record || now - record.start >= windowMs) {
     record = { count: 0, start: now };
-    localBuckets.set(key, record);
   }
+  localBuckets.set(key, record);
   record.count += 1;
-  if (localBuckets.size > 5000) {
+  if (localBuckets.size > LOCAL_BUCKETS_MAX) {
+    // Сначала чистим истёкшие окна, затем вытесняем самые старые (LRU).
     for (const [bucketKey, bucket] of localBuckets) {
+      if (localBuckets.size <= LOCAL_BUCKETS_MAX) break;
       if (now - bucket.start >= windowMs) localBuckets.delete(bucketKey);
+    }
+    while (localBuckets.size > LOCAL_BUCKETS_MAX) {
+      const oldestKey = localBuckets.keys().next().value;
+      if (oldestKey === undefined) break;
+      localBuckets.delete(oldestKey);
     }
   }
   const retryAfterSec =

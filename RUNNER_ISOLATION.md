@@ -75,10 +75,33 @@ docker ps --format '{{.Names}}' | grep oc-ses-   # появился контей
 ## Порты приложений (например, игра с WebSocket на 3001)
 
 Каждый раннер публикует порты из RUNNER_PUBLISH_PORTS (по умолчанию 3001)
-на СЛУЧАЙНЫЕ порты хоста. Узнать какой порт достался:
+на СЛУЧАЙНЫЕ порты хоста, но ТОЛЬКО на 127.0.0.1 (см. RUNNER_PUBLISH_HOST) —
+приложения пользователей не торчат в интернет напрямую. Узнать какой порт достался:
 `GET /api/session/<sid>/runner` -> `{ "ports": { "3001": 32768 }, ... }`
-Значит игра доступна на `ws://<IP-сервера>:32768` (открой порты в фаерволе
-или ограничь диапазон в docker daemon).
+Значит игра доступна на `ws://127.0.0.1:32768` с самого сервера. Наружу
+отдавай через reverse-proxy (nginx/caddy) или SSH-туннель:
+`ssh -L 32768:127.0.0.1:32768 user@server`.
+
+## Изоляция сети раннеров (icc=false)
+
+Межконтейнерная связь в сети `opencode-runners` выключена
+(`com.docker.network.bridge.enable_icc: "false"` в docker-compose.yml):
+агент из сессии не может сканировать сеть и ходить в чужие сессии (SSRF).
+
+Чтобы при этом работал легитимный трафик прокси↔раннер, прокси имеет
+статический IP `172.28.0.10` в подсети `172.28.0.0/24`, и на хосте нужно
+ОДИН РАЗ добавить разрешающие правила (DOCKER-USER обходит запрет icc):
+
+```bash
+iptables -I DOCKER-USER -s 172.28.0.10 -d 172.28.0.0/24 -j ACCEPT
+iptables -I DOCKER-USER -s 172.28.0.0/24 -d 172.28.0.10 -j ACCEPT
+# сохранить правила между перезагрузками (Debian/Ubuntu):
+apt-get install -y iptables-persistent && netfilter-persistent save
+```
+
+⚠️ Миграция: сеть `opencode-runners` уже существует со старыми опциями,
+compose не пересоздаст её сам. Перед первым запуском с новым конфигом:
+`docker compose down && docker rm -f $(docker ps -aq --filter name=oc-ses-) 2>/dev/null; docker network rm opencode-runners`.
 
 ## Переменные окружения
 

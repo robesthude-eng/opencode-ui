@@ -32,9 +32,14 @@ services:
       - RUNNER_USER=${RUNNER_USER:-1000:1000}
       - RUNNER_IDLE_STOP_MIN=${RUNNER_IDLE_STOP_MIN:-30}
       - RUNNER_PUBLISH_PORTS=${RUNNER_PUBLISH_PORTS:-3001}
+      - RUNNER_PUBLISH_HOST=${RUNNER_PUBLISH_HOST:-127.0.0.1}
+      - TZ=UTC
     networks:
-      - default
-      - runners
+      default:
+      runners:
+        # Статический IP прокси в сети раннеров: на него завязано разрешающее
+        # правило DOCKER-USER при icc=false (см. RUNNER_ISOLATION.md).
+        ipv4_address: 172.28.0.10
     depends_on:
       redis:
         condition: service_healthy
@@ -62,3 +67,12 @@ services:
 networks:
   runners:
     name: opencode-runners
+    driver: bridge
+    driver_opts:
+      # Межконтейнерная связь выключена: раннер не может сканировать сеть
+      # и ходить в чужие сессии (SSRF). Трафик прокси↔раннер разрешается
+      # точечным правилом DOCKER-USER на хосте (см. RUNNER_ISOLATION.md).
+      com.docker.network.bridge.enable_icc: "false"
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

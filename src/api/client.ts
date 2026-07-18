@@ -28,7 +28,12 @@ export function getConfig() {
 
 /** Same-origin JSON headers. Auth is HttpOnly cookie (credentials: include). */
 function headers(): Record<string, string> {
-  return { "Content-Type": "application/json" };
+  const h: Record<string, string> = { "Content-Type": "application/json" };
+  // Double Submit Cookie: значение не-HttpOnly куки opencode_csrf дублируется
+  // в заголовке — сервер сверяет их, когда Origin/Referer вырезаны фаерволом.
+  const csrf = document.cookie.match(/(?:^|;\s*)opencode_csrf=([^;]+)/)?.[1];
+  if (csrf) h["x-csrf-token"] = decodeURIComponent(csrf);
+  return h;
 }
 
 async function req<T>(

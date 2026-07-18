@@ -16,6 +16,8 @@ COPY runner-entry.sh /usr/local/bin/runner-entry.sh
 RUN chmod +x /usr/local/bin/runner-entry.sh
 
 ENV HOME=/session/.home
+# Единая таймзона для таймстемпов независимо от хоста/датацентра.
+ENV TZ=UTC
 EXPOSE 4096
 
 # Процессы раннера не работают из-под root; прокси дополнительно передаёт

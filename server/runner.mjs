@@ -52,6 +52,9 @@ const RUNNER_PUBLISH_PORTS = (process.env.RUNNER_PUBLISH_PORTS || "3001")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+// Порты приложений публикуются только на loopback хоста: наружу их
+// отдаёт reverse-proxy/SSH-туннель, а не docker напрямую в интернет.
+const RUNNER_PUBLISH_HOST = process.env.RUNNER_PUBLISH_HOST || "127.0.0.1";
 // Абсолютный ХОСТОВЫЙ путь каталога, который в контейнере proxy смонтирован
 // как WORKDIR. Нужен, потому что docker run -v принимает пути хоста.
 const HOST_WORKSPACE_DIR = process.env.HOST_WORKSPACE_DIR || "";
@@ -180,6 +183,8 @@ function runnerEnvArgs() {
     OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY || "",
     OPENCODE_MODEL: process.env.OPENCODE_MODEL || "",
     UI_API_BASE: "http://opencode-ui:3000",
+    // Единая таймзона для таймстемпов и бэкапов независимо от хоста/ДЦ.
+    TZ: process.env.TZ || "UTC",
   };
   for (const [k, v] of Object.entries(env)) args.push("-e", `${k}=${v}`);
   return args;
@@ -246,7 +251,8 @@ async function runRunnerContainer(name, hostSessionDir, localSessionDir) {
     `${hostSessionDir}:${RUNNER_SESSION_MOUNT}`,
     ...runnerEnvArgs(),
   ];
-  for (const p of RUNNER_PUBLISH_PORTS) args.push("-p", String(p));
+  for (const p of RUNNER_PUBLISH_PORTS)
+    args.push("-p", `${RUNNER_PUBLISH_HOST}::${p}`);
   args.push(RUNNER_IMAGE);
   await docker(args, 60000);
 }

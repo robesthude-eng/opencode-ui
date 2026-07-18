@@ -64,6 +64,8 @@ RUN chmod +x start.sh
 
 ENV PORT=3000
 ENV NODE_ENV=production
+# Единая таймзона для бэкапов и таймстемпов независимо от хоста/ДЦ.
+ENV TZ=UTC
 EXPOSE 3000
 
 ENV OPENCODE_WORKDIR=/app/workspace

@@ -7,4 +7,6 @@ export const USERS_FILE = path.join(WORKDIR, ".users.json");
 export const SESSIONS_FILE = path.join(WORKDIR, ".sessions.json");
 export const OWNERS_FILE = path.join(WORKDIR, ".session_owners.json");
 export const USER_KEYS_DIR = path.join(WORKDIR, ".user_keys");
-export const MAX_JSON_BODY_BYTES = 256 * 1024;
+// Ровно 4МБ (см. BUGFIX_PLAN v2): большие промпты с кодом не отваливаются
+// с 413, при этом лимит конечный и защищает от OOM.
+export const MAX_JSON_BODY_BYTES = 4 * 1024 * 1024;

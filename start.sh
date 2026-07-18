@@ -135,7 +135,8 @@ echo "Model: ${OPENCODE_MODEL:-opencode/deepseek-v4-flash-free}"
 
 echo "Starting UI server on port 3000…"
 cd /app
-node server/index.mjs &
+# Sentry инициализируется первым, до загрузки остальных модулей (--import).
+node --import ./server/instrument.mjs server/index.mjs &
 UI_PID=$!
 sleep 1
 

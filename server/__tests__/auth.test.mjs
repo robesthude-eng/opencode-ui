@@ -222,6 +222,57 @@ describe("checkCsrf", () => {
     const res = { writeHead: vi.fn(), end: vi.fn() };
     expect(checkCsrf(req, res)).toBe(true);
   });
+
+  // Корпоративные фаерволы вырезают Origin/Referer — такие запросы не блокируем.
+  test("allows cookie POST without origin/referer and without csrf cookie", () => {
+    const req = {
+      method: "POST",
+      headers: { cookie: `${SESSION_COOKIE}=t`, host: "example.com" },
+    };
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+    expect(checkCsrf(req, res)).toBe(true);
+  });
+
+  test("double submit: allows when csrf header matches cookie", () => {
+    const req = {
+      method: "POST",
+      headers: {
+        cookie: `${SESSION_COOKIE}=t; opencode_csrf=abc123`,
+        host: "example.com",
+        "x-csrf-token": "abc123",
+      },
+    };
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+    expect(checkCsrf(req, res)).toBe(true);
+  });
+
+  test("double submit: blocks when csrf header mismatches cookie", () => {
+    const req = {
+      method: "POST",
+      headers: {
+        cookie: `${SESSION_COOKIE}=t; opencode_csrf=abc123`,
+        host: "example.com",
+        "x-csrf-token": "wrong",
+      },
+    };
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+    expect(checkCsrf(req, res)).toBe(false);
+    expect(res.writeHead).toHaveBeenCalledWith(403, {
+      "Content-Type": "application/json",
+    });
+  });
+
+  test("double submit: blocks when csrf cookie set but header missing", () => {
+    const req = {
+      method: "POST",
+      headers: {
+        cookie: `${SESSION_COOKIE}=t; opencode_csrf=abc123`,
+        host: "example.com",
+      },
+    };
+    const res = { writeHead: vi.fn(), end: vi.fn() };
+    expect(checkCsrf(req, res)).toBe(false);
+  });
 });
 
 describe("isSessionExpired", () => {

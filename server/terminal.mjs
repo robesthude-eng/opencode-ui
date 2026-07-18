@@ -67,6 +67,39 @@ const MIN_DIM = 2;
 const MAX_COLS = 500;
 const MAX_ROWS = 300;
 
+// Лимит вывода между вводами пользователя (см. BUGFIX_PLAN v2, Релиз 2):
+// защищает сервер и браузер от OOM при бесконечном выводе вроде
+// `while true; do echo spam; done`. Любой ввод (даже Enter) сбрасывает
+// счётчик, поэтому интерактивная работа не страдает.
+const TERMINAL_OUTPUT_LIMIT_BYTES = Math.max(
+  1024,
+  Number(process.env.TERMINAL_OUTPUT_LIMIT_BYTES) || 100 * 1024,
+);
+
+function makeOutputGuard(socket, killFn) {
+  let bytes = 0;
+  let tripped = false;
+  return {
+    emit(data) {
+      if (tripped) return;
+      const chunk = typeof data === "string" ? data : data.toString();
+      bytes += Buffer.byteLength(chunk);
+      socket.emit("data", chunk);
+      if (bytes > TERMINAL_OUTPUT_LIMIT_BYTES) {
+        tripped = true;
+        socket.emit(
+          "data",
+          `\r\n\x1b[31m*** вывод превысил ${Math.round(TERMINAL_OUTPUT_LIMIT_BYTES / 1024)}КБ без ввода пользователя — процесс остановлен ***\x1b[0m\r\n`,
+        );
+        killFn();
+      }
+    },
+    reset() {
+      bytes = 0;
+    },
+  };
+}
+
 function buildSafeEnv() {
   const env = {};
   for (const key of ENV_ALLOWLIST) {
@@ -181,11 +214,13 @@ function startPipeShell(socket, workdir) {
     socket.disconnect(true);
   });
 
-  shell.stdout.on("data", (data) => socket.emit("data", data.toString()));
-  shell.stderr.on("data", (data) => socket.emit("data", data.toString()));
+  const guard = makeOutputGuard(socket, kill);
+  shell.stdout.on("data", (data) => guard.emit(data));
+  shell.stderr.on("data", (data) => guard.emit(data));
 
   return {
     write: (data) => {
+      guard.reset();
       if (shell.stdin.writable) shell.stdin.write(String(data));
     },
     resize: null, // без pty размер окна передать некому
@@ -221,7 +256,13 @@ function startPtyDockerShell(socket, sid) {
     cwd: "/",
     env: buildSafeEnv(),
   });
-  shell.onData((data) => socket.emit("data", data));
+  const killPty = () => {
+    try {
+      shell.kill();
+    } catch {}
+  };
+  const guard = makeOutputGuard(socket, killPty);
+  shell.onData((data) => guard.emit(data));
   shell.onExit(({ exitCode, signal }) => {
     socket.emit(
       "data",
@@ -230,7 +271,10 @@ function startPtyDockerShell(socket, sid) {
     socket.disconnect(true);
   });
   return {
-    write: (data) => shell.write(String(data)),
+    write: (data) => {
+      guard.reset();
+      shell.write(String(data));
+    },
     resize: (cols, rows) => {
       try {
         shell.resize(cols, rows);
@@ -238,11 +282,7 @@ function startPtyDockerShell(socket, sid) {
         // resize после смерти процесса — игнорируем
       }
     },
-    kill: () => {
-      try {
-        shell.kill();
-      } catch {}
-    },
+    kill: killPty,
   };
 }
 
@@ -270,18 +310,21 @@ function startPipeDockerShell(socket, sid) {
     );
     socket.disconnect(true);
   });
-  shell.stdout.on("data", (data) => socket.emit("data", data.toString()));
-  shell.stderr.on("data", (data) => socket.emit("data", data.toString()));
+  const killPipe = () => {
+    try {
+      shell.kill("SIGKILL");
+    } catch {}
+  };
+  const guard = makeOutputGuard(socket, killPipe);
+  shell.stdout.on("data", (data) => guard.emit(data));
+  shell.stderr.on("data", (data) => guard.emit(data));
   return {
     write: (data) => {
+      guard.reset();
       if (shell.stdin.writable) shell.stdin.write(String(data));
     },
     resize: null,
-    kill: () => {
-      try {
-        shell.kill("SIGKILL");
-      } catch {}
-    },
+    kill: killPipe,
   };
 }
 

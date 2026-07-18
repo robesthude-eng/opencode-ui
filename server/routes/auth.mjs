@@ -5,6 +5,7 @@
  */
 import crypto from "node:crypto";
 import {
+  buildCsrfCookie,
   buildSessionCookie,
   checkAuthRateLimit,
   hashPassword,
@@ -93,7 +94,12 @@ export async function handleRegister(
     logger.info({ email: cleanEmail, role }, "user registered");
     res.writeHead(200, {
       "Content-Type": "application/json",
-      "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS, req),
+      // Сессионная кука + CSRF-кука (Double Submit): фронтенд читает вторую
+      // и шлёт её значение в заголовке x-csrf-token.
+      "Set-Cookie": [
+        buildSessionCookie(token, SESSION_TTL_MS, req),
+        buildCsrfCookie(SESSION_TTL_MS, req),
+      ],
     });
     res.end(
       JSON.stringify({
@@ -138,7 +144,12 @@ export async function handleLogin(
     logger.info({ email: cleanEmail }, "user logged in");
     res.writeHead(200, {
       "Content-Type": "application/json",
-      "Set-Cookie": buildSessionCookie(token, SESSION_TTL_MS, req),
+      // Сессионная кука + CSRF-кука (Double Submit): фронтенд читает вторую
+      // и шлёт её значение в заголовке x-csrf-token.
+      "Set-Cookie": [
+        buildSessionCookie(token, SESSION_TTL_MS, req),
+        buildCsrfCookie(SESSION_TTL_MS, req),
+      ],
     });
     res.end(
       JSON.stringify({

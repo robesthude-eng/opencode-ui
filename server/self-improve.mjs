@@ -98,11 +98,14 @@ const execFileP = promisify(execFile);
  * Run a git command inside the UI workspace. Resolves with { ok, stdout, stderr }.
  * When allowFail is true, failures are returned instead of thrown.
  */
-async function git(workdir, args, { allowFail = false } = {}) {
+async function git(workdir, args, { allowFail = false, env = null } = {}) {
   try {
     const { stdout, stderr } = await execFileP("git", args, {
       cwd: workdir,
       timeout: GIT_COMMAND_TIMEOUT_MS,
+      // Секреты (PAT) передаются через окружение, а не argv:
+      // аргументы процесса видны любому через /proc/<pid>/cmdline.
+      ...(env ? { env: { ...process.env, ...env } } : {}),
     });
     return {
       ok: true,
@@ -163,17 +166,19 @@ export async function syncUiSource(workdir) {
   // 3) Try to fetch the real latest from GitHub.
   let githubOk = false;
   const pat = process.env.GITHUB_PAT;
-  const fetchArgs = pat
-    ? [
-        "-c",
-        `url."https://${pat}@github.com/".insteadOf="https://github.com/"`,
-        "fetch",
-        "--depth=1",
-        "origin",
-        "main",
-      ]
-    : ["fetch", "--depth=1", "origin", "main"];
-  const fr = await git(uiDir, fetchArgs, { allowFail: true });
+  // Токен уходит в git через GIT_CONFIG_* переменные окружения, а не через
+  // argv `-c` (аргументы видны всем процессам через /proc/<pid>/cmdline).
+  const fetchEnv = pat
+    ? {
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: `url.https://${pat}@github.com/.insteadOf`,
+        GIT_CONFIG_VALUE_0: "https://github.com/",
+      }
+    : null;
+  const fr = await git(uiDir, ["fetch", "--depth=1", "origin", "main"], {
+    allowFail: true,
+    env: fetchEnv,
+  });
   if (fr.ok) {
     const co = await git(uiDir, ["checkout", "-f", "origin/main", "--", "."], {
       allowFail: true,
