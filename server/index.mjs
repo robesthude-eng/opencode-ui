@@ -106,6 +106,36 @@ const MIME = {
   ".woff2": "font/woff2",
   ".map": "application/json",
 };
+// Релиз 4: кольцевой буфер SSE-кадров с поддержкой Last-Event-ID.
+// Прокси присваивает каждому кадру монотонный `id: N` (счётчик живёт
+// в буфере и переживает реконнекты upstream) и хранит последние
+// SSE_RING_SIZE кадров на ключ (сессию). Клиент, переподключившись
+// с Last-Event-ID (заголовок или ?lastEventId=), получает пропущенные
+// за время разрыва кадры из буфера — кусочки ответа не теряются.
+const SSE_RING_SIZE = parseInt(process.env.SSE_RING_SIZE || "", 10) || 500;
+const SSE_RING_MAX_KEYS = 100;
+const SSE_RING_TTL_MS = 30 * 60 * 1000;
+const sseRings = new Map(); // key -> { nextSeq, frames: [{seq, payload}], lastUsed }
+function sseRingFor(key) {
+  const now = Date.now();
+  let ring = sseRings.get(key);
+  if (!ring) {
+    // Лёгкая уборка: сначала протухшие ключи, затем самые старые.
+    if (sseRings.size >= SSE_RING_MAX_KEYS) {
+      for (const [k, r] of sseRings) {
+        if (now - r.lastUsed > SSE_RING_TTL_MS) sseRings.delete(k);
+      }
+      while (sseRings.size >= SSE_RING_MAX_KEYS) {
+        sseRings.delete(sseRings.keys().next().value);
+      }
+    }
+    ring = { nextSeq: 1, frames: [], lastUsed: now };
+    sseRings.set(key, ring);
+  }
+  ring.lastUsed = now;
+  return ring;
+}
+
 function createProxy(targetBase) {
   const targetUrl = new URL(targetBase);
   function web(req, res) {
@@ -186,8 +216,53 @@ function createProxy(targetBase) {
         }, 15000);
         const cleanup = () => clearInterval(heartbeat);
         res.on("close", cleanup);
+        // Релиз 4: нумерация кадров + replay пропущенного по Last-Event-ID.
+        let ringKey = "global";
+        let lastEventId = Number.NaN;
+        try {
+          const u = new URL(req.url, "http://localhost");
+          ringKey = u.searchParams.get("sessionId") || u.pathname;
+          lastEventId = parseInt(
+            req.headers["last-event-id"] ||
+              u.searchParams.get("lastEventId") ||
+              "",
+            10,
+          );
+        } catch {
+          /* остаёмся на дефолтах */
+        }
+        const ring = sseRingFor(ringKey);
+        if (Number.isFinite(lastEventId)) {
+          for (const f of ring.frames) {
+            if (f.seq > lastEventId)
+              res.write(`${f.payload}\nid: ${f.seq}\n\n`);
+          }
+        }
+        let sseBuf = "";
         proxyRes.on("data", (chunk) => {
-          if (!res.write(chunk)) proxyRes.pause();
+          sseBuf += chunk.toString("utf8").replace(/\r\n/g, "\n");
+          let out = "";
+          let idx = sseBuf.indexOf("\n\n");
+          while (idx !== -1) {
+            const frame = sseBuf.slice(0, idx);
+            sseBuf = sseBuf.slice(idx + 2);
+            idx = sseBuf.indexOf("\n\n");
+            // Комментарии/пустые кадры (keep-alive) пропускаем без номера.
+            const isComment = frame
+              .split("\n")
+              .every((l) => l === "" || l.startsWith(":"));
+            if (isComment) {
+              out += `${frame}\n\n`;
+              continue;
+            }
+            const seq = ring.nextSeq++;
+            ring.frames.push({ seq, payload: frame });
+            if (ring.frames.length > SSE_RING_SIZE) ring.frames.shift();
+            // Наш id — последним полем кадра: по спеке SSE действует
+            // последнее встреченное поле id.
+            out += `${frame}\nid: ${seq}\n\n`;
+          }
+          if (out && !res.write(out)) proxyRes.pause();
         });
         res.on("drain", () => proxyRes.resume());
         proxyRes.on("end", () => {

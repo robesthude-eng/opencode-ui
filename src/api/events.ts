@@ -60,6 +60,14 @@ export class EventStream {
   // True after a real transport error — used to trigger a one-shot catch-up
   // refetch on the next successful open (SSE has no Last-Event-ID replay).
   private hadDrop = false;
+  // Релиз 4: последний обработанный порядковый номер кадра (id: N от
+  // прокси). Используется для дедупликации replay-повторов и для
+  // ?lastEventId= при ручном реконнекте (новый EventSource сам
+  // Last-Event-ID не посылает).
+  private lastSeq: number | null = null;
+  // Должно соответствовать SSE_RING_SIZE на сервере: повтор старее
+  // этого окна — не replay, а сброс счётчика (рестарт сервера).
+  private static readonly RING_REPLAY_WINDOW = 500;
   private namedTypes: readonly string[];
   status: StreamStatus = "connecting";
 
@@ -109,6 +117,8 @@ export class EventStream {
     this.sessionId = sessionId;
     activeStreamSessionId = sessionId;
     this.url = eventUrl(sessionId);
+    // Релиз 4: у другой сессии свой кольцевой буфер и своя нумерация.
+    this.lastSeq = null;
     this.attempt = 0;
     if (this.retry) {
       clearTimeout(this.retry);
@@ -136,7 +146,14 @@ export class EventStream {
     if (this.es) this.es.close();
     this.setStatus("connecting");
     try {
-      this.es = new EventSource(this.url);
+      // Релиз 4: при реконнекте просим у прокси replay пропущенных
+      // кадров из кольцевого буфера (новый EventSource не шлёт
+      // Last-Event-ID сам — передаём через query-параметр).
+      const url =
+        this.lastSeq === null
+          ? this.url
+          : `${this.url}${this.url.includes("?") ? "&" : "?"}lastEventId=${this.lastSeq}`;
+      this.es = new EventSource(url);
     } catch {
       this.scheduleReconnect();
       return;
@@ -171,14 +188,41 @@ export class EventStream {
       this.scheduleReconnect();
     };
 
-    this.es.onmessage = (m) => this.dispatch("message", m.data);
+    this.es.onmessage = (m) => this.dispatch("message", m.data, m.lastEventId);
     for (const t of this.namedTypes) {
       this.es.addEventListener(t, ((e: MessageEvent) =>
-        this.dispatch(t, e.data)) as EventListener);
+        this.dispatch(t, e.data, e.lastEventId)) as EventListener);
     }
   }
 
-  private dispatch(namedType: string, rawData: string) {
+  private dispatch(namedType: string, rawData: string, eventId?: string) {
+    // Релиз 4: прокси нумерует кадры монотонным id. Повтор (replay по
+    // Last-Event-ID) отбрасываем — обработка становится идемпотентной
+    // на уровне транспорта (включая append-дельты). Дырка в нумерации
+    // или сброс счётчика (рестарт сервера) — один раз дотягиваем
+    // историю через stream.reconnected. Внутри одного TCP-соединения SSE
+    // упорядочен, поэтому буферизация «не по порядку» не требуется.
+    const seq = Number.parseInt(eventId ?? "", 10);
+    if (Number.isFinite(seq)) {
+      if (this.lastSeq !== null && seq <= this.lastSeq) {
+        if (this.lastSeq - seq < EventStream.RING_REPLAY_WINDOW) return;
+        // Счётчик сервера сброшен — принимаем заново и дотягиваем историю.
+        this.lastSeq = seq;
+        this.emit({
+          type: "stream.reconnected",
+          properties: {},
+        } as unknown as AppEvent);
+      } else {
+        const gap = this.lastSeq !== null && seq > this.lastSeq + 1;
+        this.lastSeq = seq;
+        if (gap) {
+          this.emit({
+            type: "stream.reconnected",
+            properties: {},
+          } as unknown as AppEvent);
+        }
+      }
+    }
     let parsed: Record<string, unknown> = {};
     try {
       parsed = JSON.parse(rawData);
@@ -226,7 +270,7 @@ export class EventStream {
 
   private scheduleReconnect() {
     if (this.retry) return;
-    // P1-fix: после исчерпания быстрого экспоненциального бэкоффа
+    // P1-fix: после исчерпания быстрого экспоненци��льного бэкоффа
     // не сдаёмся навсегда (раньше вкладка оставалась «мёртвой» до
     // ручной перезагрузки) — переходим на редкие попытки раз в
     // минуту, пока сервер не вернётся.
