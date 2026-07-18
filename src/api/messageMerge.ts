@@ -88,6 +88,53 @@ export function findLocalUserMessageIndex(
   return -1;
 }
 
+// Релиз 4: dev-инварианты после merge. Сломанное состояние (дубликаты ID,
+// сообщения без parts, битые ссылки на вложения) детектится сразу
+// в dev-режиме и в тестах, а не через неделю на проде. В проде — no-op.
+const IS_DEV = Boolean(import.meta.env?.DEV);
+
+export function assertMergeInvariants(messages: MergeMessage[]): void {
+  if (!IS_DEV) return;
+  const seenIds = new Set<string>();
+  for (const m of messages) {
+    if (!m || typeof m.id !== "string" || !m.id) {
+      console.error("[merge-invariant] сообщение без id:", m);
+      continue;
+    }
+    if (seenIds.has(m.id)) {
+      console.error("[merge-invariant] дубликат id сообщения:", m.id);
+    }
+    seenIds.add(m.id);
+    if (m.role !== "user" && m.role !== "assistant" && m.role !== "system") {
+      console.error("[merge-invariant] невалидная роль:", m.id, m.role);
+    }
+    if (!Array.isArray(m.parts)) {
+      console.error("[merge-invariant] сообщение без parts:", m.id);
+      continue;
+    }
+    const partIds = new Set<string>();
+    for (const p of m.parts) {
+      const pid = (p as { id?: string }).id;
+      if (pid) {
+        if (partIds.has(pid)) {
+          console.error("[merge-invariant] дубликат id части:", m.id, pid);
+        }
+        partIds.add(pid);
+      }
+      if (p.type === "attachment") {
+        const att = p as { path?: string; dataUrl?: string; name?: string };
+        if (!att.path && !att.dataUrl) {
+          console.error(
+            "[merge-invariant] вложение без path/dataUrl:",
+            m.id,
+            att.name,
+          );
+        }
+      }
+    }
+  }
+}
+
 export function mergeMessages(
   serverMsgs: MergeMessage[],
   localMsgs: MergeMessage[],
@@ -215,6 +262,9 @@ export function mergeMessages(
       merged.push(lMsg);
     }
   }
+
+  // Релиз 4: проверка инвариантов результата (только dev/тесты).
+  assertMergeInvariants(merged);
 
   return merged;
 }

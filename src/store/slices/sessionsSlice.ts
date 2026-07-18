@@ -171,10 +171,13 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
 
   // Claude-like delete: delete everything - messages, files, workspace, no recovery
   removeSession: async (id) => {
-    // Optimistic delete like Claude — immediately remove from UI
-    const prevSessions = get().sessions;
-    const prevMessages = get().messages;
-    const prevCurrent = get().currentID;
+    // Optimistic delete like Claude — immediately remove from UI.
+    // Релиз 4: снимаем только удаляемую сессию, а не целые коллекции —
+    // откат не должен затирать сессии/сообщения, пришедшие по SSE
+    // за время ожидания ответа сервера.
+    const removedSession = get().sessions.find((x) => x.id === id);
+    const removedMessages = get().messages[id];
+    const wasCurrent = get().currentID === id;
 
     set((s) => {
       const messages = { ...s.messages };
@@ -205,13 +208,20 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
         }
       }
     } catch (e) {
-      // Rollback on error
-      set({
-        sessions: prevSessions,
-        messages: prevMessages,
-        currentID: prevCurrent,
+      // Rollback on error — функциональная форма: возвращаем только
+      // удалённую сессию, не трогая остальное текущее состояние.
+      set((s) => ({
+        sessions:
+          removedSession && !s.sessions.some((x) => x.id === id)
+            ? [...s.sessions, removedSession].sort(byUpdated)
+            : s.sessions,
+        messages:
+          removedMessages !== undefined && !(id in s.messages)
+            ? { ...s.messages, [id]: removedMessages }
+            : s.messages,
+        currentID: wasCurrent && s.currentID === null ? id : s.currentID,
         error: (e as Error).message,
-      });
+      }));
     }
   },
 
