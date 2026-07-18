@@ -225,7 +225,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
           parts.push(att.part);
           continue;
         }
-        // Текстовые файлы — полноценный file-part с file://-путём:
+        // Текстовые файлы — полноценный file-part с file://-путё��:
         // opencode сам прочитает содержимое из workspace сессии.
         if (att.kind === "text" && att.agentPath) {
           parts.push({
@@ -503,7 +503,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       p.sessionId ||
       (p.part as Record<string, unknown>)?.sessionID ||
       (p.info as Record<string, unknown>)?.sessionID ||
-      (p.message as any)?.sessionID ||
+      (p.message as unknown as Record<string, unknown>)?.sessionID ||
       "") as string;
 
     switch (e.type) {
@@ -569,7 +569,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         const messageID = (p.messageID ||
           p.message_id ||
           p.messageId ||
-          (p.message as any)?.id ||
+          (p.message as unknown as Record<string, unknown>)?.id ||
           "") as string;
         if (!sid || !messageID) break;
         set((s) => ({
@@ -754,7 +754,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       }
       case "stream.reconnected": {
         // P1-fix: SSE переподключился после разрыва — события за время
-        // разрыва потеряны (нет Last-Event-ID replay). Один раз
+        // разрыва п��теряны (нет Last-Event-ID replay). Один раз
         // дотягиваем историю активной сессии и мержим детерминированно.
         const cur = get().currentID;
         if (!cur || cur.startsWith("tmp_")) break;

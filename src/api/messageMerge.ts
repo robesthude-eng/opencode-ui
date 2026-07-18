@@ -188,8 +188,17 @@ export function mergeMessages(
       sMsg.info?.finish === "error" ||
       sMsg.info?.time?.completed
     );
+    // Релиз 4: Map вместо вложенного .find — убирает квадратичную сложность
+    // на длинных ответах. Как и .find, при дубликатах id берём первую часть.
+    const lPartsById = new Map<
+      string | undefined,
+      MergeMessage["parts"][number]
+    >();
+    for (const p of lMsg.parts) {
+      if (!lPartsById.has(p.id)) lPartsById.set(p.id, p);
+    }
     const mergedParts = sMsg.parts.map((sPart) => {
-      const lPart = lMsg.parts.find((p) => p.id === sPart.id);
+      const lPart = lPartsById.get(sPart.id);
       if (!lPart) return sPart;
       // Streaming text preservation applies to text AND reasoning parts:
       // the HTTP poller snapshot may lag behind SSE deltas, so never roll
@@ -198,8 +207,8 @@ export function mergeMessages(
         (sPart.type === "text" || sPart.type === "reasoning") &&
         lPart.type === sPart.type
       ) {
-        const sText = (sPart as any).text || "";
-        const lText = (lPart as any).text || "";
+        const sText = (sPart as { text?: string }).text || "";
+        const lText = (lPart as { text?: string }).text || "";
         // If server is NOT final and local text is longer and is prefix-extended from server, keep local
         // Example: server "first", local "first second" — keep local because server hasn't finished streaming
         // But if server text is different (not prefix), take server (authoritative)
@@ -224,9 +233,12 @@ export function mergeMessages(
     });
 
     // Also preserve any local parts that server hasn't yet sent (e.g., part_late that arrived out-of-order via delta)
+    // Релиз 4: Set вместо вложенного .find.
+    const mergedPartIds = new Set(mergedParts.map((p) => p.id));
     for (const lPart of lMsg.parts) {
-      if (!mergedParts.find((p) => p.id === lPart.id)) {
+      if (!mergedPartIds.has(lPart.id)) {
         mergedParts.push(lPart);
+        mergedPartIds.add(lPart.id);
       }
     }
 
@@ -236,22 +248,37 @@ export function mergeMessages(
 
   // Add remaining local messages that server doesn't know (optimistic, not local_? Already handled local_ skip)
   // Keep non-local_ local messages that are not yet on server (e.g., pending user message)
+  // Релиз 4: Set идентификаторов вместо merged.find на каждой итерации.
+  const mergedIds = new Set(merged.map((m) => m.id));
   for (const [id, lMsg] of localById) {
     if (id.startsWith("local_")) continue; // optimistic already handled or replaced
-    if (!merged.find((m) => m.id === id)) {
+    if (!mergedIds.has(id)) {
       merged.push(lMsg);
+      mergedIds.add(id);
     }
   }
 
   // Preserve original server order, but ensure optimistic local_ messages that weren't replaced stay at end
   // Actually we already filtered local_ during loop; re-add any remaining local_ if they weren't replaced
+  // Релиз 4: последний user-message отслеживаем инкрементально вместо
+  // копирования и разворота merged на каждой итерации.
+  let lastUser: MergeMessage | undefined;
+  for (let i = merged.length - 1; i >= 0; i--) {
+    if (merged[i]?.role === "user") {
+      lastUser = merged[i];
+      break;
+    }
+  }
   for (const lMsg of localMsgs) {
-    if (lMsg.id.startsWith("local_") && !merged.find((m) => m.id === lMsg.id)) {
+    if (lMsg.id.startsWith("local_") && !mergedIds.has(lMsg.id)) {
       // If server has a user message that corresponds to this local_ (by text similarity), don't duplicate
       // Simple heuristic: if last user message in merged is same text as local_, skip
-      const lastUser = [...merged].reverse().find((m) => m.role === "user");
-      const localText = lMsg.parts.find((p) => p.type === "text") as any;
-      const serverText = lastUser?.parts.find((p) => p.type === "text") as any;
+      const localText = lMsg.parts.find((p) => p.type === "text") as
+        | { text?: string }
+        | undefined;
+      const serverText = lastUser?.parts.find((p) => p.type === "text") as
+        | { text?: string }
+        | undefined;
       if (
         localText?.text &&
         serverText?.text &&
@@ -260,6 +287,8 @@ export function mergeMessages(
         continue;
       }
       merged.push(lMsg);
+      mergedIds.add(lMsg.id);
+      if (lMsg.role === "user") lastUser = lMsg;
     }
   }
 
