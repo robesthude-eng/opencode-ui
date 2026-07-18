@@ -1,6 +1,7 @@
 import { isAbortError, sessionSignal } from "../../api/abortRegistry";
 import { api, SessionGoneError } from "../../api/client";
 import { isSseHealthyForSession } from "../../api/events";
+import type { ProcessedFile } from "../../api/files";
 import { mergeMessages as mergeMessagesDeterministic } from "../../api/messageMerge";
 import type {
   Message,
@@ -27,6 +28,101 @@ import { waitForSessionCreation } from "./sessionsSlice";
 // the final prompt response, or HTTP reconciliation. Keep it longer than
 // ordinary multi-tool self-improvement runs to avoid false completion.
 const SEND_HARD_TIMEOUT_MS = 15 * 60 * 1000; // 15 min safety limit
+
+// ---------------------------------------------------------------------------
+// Релиз 4: send() разбит на чистые функции — их можно тестировать без стора и сети,
+// а сам send() остаётся оркестратором: сессия, статусы, ожидание финала.
+// ---------------------------------------------------------------------------
+
+// P1.1 — изоляция workspace обеспечивается сервером (?directory=): инструкция без
+// абсолютных путей, чтобы не протекала структура чужих чатов.
+const SYSTEM_INSTRUCTION = `You are in an isolated workspace for this chat, like Claude.ai. Files from other chats are NOT visible. Never use absolute paths from other chats. New chat = new memory + empty workspace.`;
+
+/** Attachment-части для оптимистичного user-сообщения (чистая функция). */
+export function buildAttachmentParts(attachments: ProcessedFile[]): Part[] {
+  return attachments.map((a) => ({
+    type: "attachment" as const,
+    name: a.name,
+    size: a.size,
+    kind: a.kind,
+    path: a.uploadedPath || undefined,
+    dataUrl: a.dataUrl || undefined,
+  }));
+}
+
+/** Оптимистичное user-сообщение (генерация локального id — единственный side effect). */
+function buildUserMessage(text: string, attachments: ProcessedFile[]): Message {
+  return {
+    id: newLocalMessageId(),
+    role: "user",
+    parts: [...buildAttachmentParts(attachments), { type: "text", text }],
+  };
+}
+
+/**
+ * Сборка частей prompt-запроса из вложений и текста пользователя.
+ * Вынесено из send() 1:1 (чистая функция).
+ */
+export function buildPromptParts(
+  attachments: ProcessedFile[],
+  text: string,
+): Record<string, unknown>[] {
+  const parts: Record<string, unknown>[] = [];
+  const promptText = text;
+  for (const att of attachments) {
+    // Картинки и PDF — data-URL file-part (vision-модель видит содержимое).
+    if ((att.kind === "image" || att.kind === "pdf") && att.part) {
+      parts.push(att.part);
+      continue;
+    }
+    // Текстовые файлы — полноценный file-part с file://-путё��:
+    // opencode сам прочитает содержимое из workspace сессии.
+    if (att.kind === "text" && att.agentPath) {
+      parts.push({
+        type: "file",
+        mime: "text/plain",
+        filename: att.name,
+        url: `file://${encodeURI(att.agentPath)}`,
+      });
+      continue;
+    }
+    // Zip и прочие бинарники уже лежат в workspace — отдаём агенту
+    // отдельную 📎-часть с путём (UI рендерит её как файл-чип,
+    // текст пользователя остаётся чистым).
+    if (att.uploadedPath) {
+      const hint =
+        typeof att.entryCount === "number"
+          ? ` (${att.entryCount} файлов внутри)`
+          : "";
+      const note =
+        att.kind === "zip" ? " — это zip-архив, ещё не распакован" : "";
+      parts.push({
+        type: "text",
+        text: `📎 ${att.name} → uploads/${att.name}${hint}${note}`,
+      });
+      continue;
+    }
+    // Fallback (загрузка на сервер не удалась): старое поведение.
+    if (att.part) parts.push(att.part);
+    else if (att.textPart) parts.push(att.textPart);
+  }
+  parts.push({ type: "text", text: promptText });
+  return parts;
+}
+
+/**
+ * Детекция финала ответа для HTTP-поллера: последний assistant-message,
+ * его finish/completed и сигнатура состояния (чистая функция).
+ */
+export function assistantFinishState(msgs: Message[]) {
+  const lastAsst = [...msgs].reverse().find((m) => m.role === "assistant");
+  const finish = lastAsst?.info?.finish;
+  const completedAt = lastAsst?.info?.time?.completed;
+  const isDone = finish === "stop" || finish === "error" || !!completedAt;
+  // сигнатура состояния: id последнего + время завершения + счётчик parts
+  const sig = `${lastAsst?.id || ""}|${completedAt || 0}|${lastAsst?.parts?.length || 0}|${finish || ""}`;
+  return { isDone, sig, completedAt };
+}
 
 // Релиз 3: буферизация стрим-дельт. Сотни SSE-дельт в секунду превращаются
 // в максимум ~60 обновлений стора в секунду (раз в DELTA_FLUSH_MS) — иначе
@@ -165,20 +261,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     const sidStr = sid as string;
 
     const currentAttachments = get().attachments;
-    const attachmentParts: Part[] = currentAttachments.map((a) => ({
-      type: "attachment" as const,
-      name: a.name,
-      size: a.size,
-      kind: a.kind,
-      path: a.uploadedPath || undefined,
-      dataUrl: a.dataUrl || undefined,
-    }));
-
-    const userMsg: Message = {
-      id: newLocalMessageId(),
-      role: "user",
-      parts: [...attachmentParts, { type: "text", text }],
-    };
+    // Релиз 4: сборка оптимистичного сообщения вынесена в чистые функции.
+    const userMsg = buildUserMessage(text, currentAttachments);
     // Новый промпт — участие пользователя: сбрасываем Circuit Breaker.
     cbUserParticipated(sidStr);
     const requestGen = sessionFsm.beginRequest(sidStr);
@@ -210,53 +294,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     };
 
     try {
-      const attachments = get().attachments;
-      const parts: Record<string, unknown>[] = [];
-      let promptText = text;
-
-      // P1.1 — Remove client duplication of server workspace path after spike succeeds
-      // Server isolation via ?directory= already provides per-session workspace, no need to leak absolute path in prompt
-      // Keep generic instruction without absolute path to avoid cross-contamination, but don't expose /app/workspace structure
-      const systemInstruction = `You are in an isolated workspace for this chat, like Claude.ai. Files from other chats are NOT visible. Never use absolute paths from other chats. New chat = new memory + empty workspace.`;
-
-      for (const att of attachments) {
-        // Картинки и PDF — data-URL file-part (vision-модель видит содержимое).
-        if ((att.kind === "image" || att.kind === "pdf") && att.part) {
-          parts.push(att.part);
-          continue;
-        }
-        // Текстовые файлы — полноценный file-part с file://-путё��:
-        // opencode сам прочитает содержимое из workspace сессии.
-        if (att.kind === "text" && att.agentPath) {
-          parts.push({
-            type: "file",
-            mime: "text/plain",
-            filename: att.name,
-            url: `file://${encodeURI(att.agentPath)}`,
-          });
-          continue;
-        }
-        // Zip и прочие бинарники уже лежат в workspace — отдаём агенту
-        // отдельную 📎-часть с путём (UI рендерит её как файл-чип,
-        // текст пользователя остаётся чистым).
-        if (att.uploadedPath) {
-          const hint =
-            typeof att.entryCount === "number"
-              ? ` (${att.entryCount} файлов внутри)`
-              : "";
-          const note =
-            att.kind === "zip" ? " — это zip-архив, ещё не распакован" : "";
-          parts.push({
-            type: "text",
-            text: `📎 ${att.name} → uploads/${att.name}${hint}${note}`,
-          });
-          continue;
-        }
-        // Fallback (загрузка на сервер не удалась): старое поведение.
-        if (att.part) parts.push(att.part);
-        else if (att.textPart) parts.push(att.textPart);
-      }
-      parts.push({ type: "text", text: promptText });
+      // Релиз 4: сборка prompt-частей вынесена в чистую функцию buildPromptParts —
+      // send() остаётся оркестратором (сессия, статусы, ожидание финала).
+      const parts = buildPromptParts(get().attachments, text);
 
       // Fire-and-forget prompt: сервер сам стримит события через SSE.
       // Не полагаемся на возврат promptWithParts как индикатор финиша —
@@ -267,7 +307,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         sidStr,
         parts,
         selectedModel ?? undefined,
-        systemInstruction,
+        SYSTEM_INSTRUCTION,
         // Релиз 4: централизованная отмена — кнопка «Стоп» обрывает и этот запрос.
         sessionSignal(sidStr),
       );
@@ -337,15 +377,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
                 return { messages: { ...s.messages, [sidStr]: merged } };
               });
             }
-            const lastAsst = [...(msgs as Message[])]
-              .reverse()
-              .find((m) => m.role === "assistant");
-            const finish = lastAsst?.info?.finish;
-            const completedAt = lastAsst?.info?.time?.completed;
-            const isDone =
-              finish === "stop" || finish === "error" || !!completedAt;
-            // сигнатура состояния: id последнего + время завершения + счётчик parts
-            const sig = `${lastAsst?.id || ""}|${completedAt || 0}|${lastAsst?.parts?.length || 0}|${finish || ""}`;
+            const { isDone, sig, completedAt } = assistantFinishState(
+              msgs as Message[],
+            );
             if (isDone && sig === lastSignature) {
               stableCount++;
               if (stableCount >= 1) {
