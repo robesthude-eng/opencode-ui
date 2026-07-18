@@ -215,6 +215,12 @@ export const api = {
     req<FileNode[]>(
       `/file?path=${encodeURIComponent(path)}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ""}`,
     ),
+  // Релиз 3: рекурсивный листинг всего воркспейса одним запросом
+  // (см. server/routes/tree.mjs) — убирает N+1 в поллере файлового дерева.
+  listTree: (sessionId: string) =>
+    req<FileNode[]>(
+      `/workspace/tree?sessionId=${encodeURIComponent(sessionId)}`,
+    ),
   readFile: (path: string, sessionId?: string | null) =>
     req<{ content?: string; text?: string; path: string }>(
       `/file/content?path=${encodeURIComponent(path)}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ""}`,

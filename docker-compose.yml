@@ -43,6 +43,12 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    # Релиз 3: много одновременных SSE-соединений — дефолтного лимита
+    # файловых дескрипторов не хватает ("too many open files").
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     restart: always
 
   # Сборка образа раннера: docker compose --profile build-runner build runner-image

@@ -17,22 +17,19 @@ export default function CopyButton({
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      if (navigator.clipboard) {
-        void navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // ignore
-    }
+    // Релиз 3: только современный асинхронный Clipboard API. Синхронный
+    // fallback через document.execCommand("copy") на больших полотнах кода
+    // вешал вкладку на несколько секунд — удалён.
+    if (!navigator.clipboard) return;
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {
+        // нет разрешения/фокуса — молча игнорируем, как и раньше
+      });
   };
 
   return (

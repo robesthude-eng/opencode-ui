@@ -4,9 +4,10 @@
  */
 import pino from "pino";
 
-const isProd =
-  process.env.NODE_ENV === "production" ||
-  process.env.RAILWAY_ENVIRONMENT != null;
+// Релиз 3: прод — это всё, что НЕ явное NODE_ENV=development. Раньше сервер
+// вне Railway (например, Timeweb) без выставленного NODE_ENV считался dev
+// и тратил 15-20% CPU на раскрашенный pino-pretty.
+const isProd = process.env.NODE_ENV !== "development";
 
 const options = {
   level: process.env.LOG_LEVEL || (isProd ? "info" : "debug"),

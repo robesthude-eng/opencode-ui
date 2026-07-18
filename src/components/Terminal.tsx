@@ -37,12 +37,17 @@ export function Terminal({ workdir }: TerminalProps) {
     // WebGL-рендерер: заметно быстрее при болтливом выводе агента.
     // Грузится строго после open(); при недоступности WebGL или потере
     // контекста молча откатываемся на DOM-рендерер xterm.
+    let webgl: WebglAddon | null = null;
     try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => webgl.dispose());
+      webgl = new WebglAddon();
+      webgl.onContextLoss(() => {
+        webgl?.dispose();
+        webgl = null;
+      });
       term.loadAddon(webgl);
     } catch {
       // WebGL недоступен — остаёмся на дефолтном рендерере
+      webgl = null;
     }
 
     // Инициализация Socket.IO
@@ -107,8 +112,25 @@ export function Terminal({ workdir }: TerminalProps) {
       isDisposed = true;
       clearTimeout(timeoutId);
       resizeObserver.disconnect();
+      // Релиз 3: гарантированная очистка при размонтировании: снимаем
+      // обработчики сокета, явно освобождаем все аддоны и зануляем refs,
+      // чтобы повторные открытия терминала не копили память.
+      socket.removeAllListeners();
       socket.disconnect();
+      try {
+        webgl?.dispose();
+      } catch {
+        // уже освобождён при потере контекста
+      }
+      webgl = null;
+      try {
+        fitAddon.dispose();
+      } catch {
+        // аддон мог быть уже освобождён вместе с терминалом
+      }
       term.dispose();
+      xtermRef.current = null;
+      socketRef.current = null;
     };
   }, [workdir]);
 

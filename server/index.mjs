@@ -549,6 +549,13 @@ const server = http.createServer(async (req, res) => {
     });
     return;
   }
+  // Релиз 3: один рекурсивный листинг вместо N+1 запросов /file по папкам.
+  if (urlPath === "/api/workspace/tree" && req.method === "GET") {
+    import("./routes/tree.mjs").then((m) => {
+      m.handleWorkspaceTree(req, res, { WORKDIR, extractSessionId });
+    });
+    return;
+  }
   if (urlPath === "/api/workspace/download" && req.method === "GET") {
     import("./routes/download.mjs").then((m) => {
       m.handleDownload(req, res, { WORKDIR, extractSessionId });

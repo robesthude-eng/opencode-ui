@@ -256,7 +256,9 @@ export default function Workspace() {
   // из-за чего файлы, созданные агентом внутри открытой папки, не появлялись
   // никогда; а refresh() сбрасывал дерево до корня, и раскрытые папки
   // выглядели пустыми до повторного клика.
-  const loadTreeDeep = useCallback(async (): Promise<TreeNode[]> => {
+  // Старый обход N+1 запросами /file — теперь только fallback на случай,
+  // если сервер ещё без эндпоинта /workspace/tree (старый деплой).
+  const loadTreeDeepViaListDir = useCallback(async (): Promise<TreeNode[]> => {
     const rootNodes = await loadDir(".");
     const expandedPaths = expandedRef.current;
     const fill = async (
@@ -281,6 +283,37 @@ export default function Workspace() {
       );
     return fill(withSelfImproveRoot(rootNodes), 0);
   }, [loadDir, withSelfImproveRoot]);
+
+  // Релиз 3: один рекурсивный запрос к серверу вместо N+1 listDir по
+  // раскрытым папкам. Все папки приходят с полным содержимым — помечаем
+  // их loaded, чтобы toggleDir не делал лишний догружающий запрос.
+  // Синтетическая opencode-ui-нода живёт на allowlist-прокси и в обход
+  // не попадает — она остаётся loaded:false и грузится при раскрытии.
+  const loadTreeDeep = useCallback(async (): Promise<TreeNode[]> => {
+    if (!currentID || currentID.startsWith("tmp_")) return [];
+    try {
+      const nodes = await api.listTree(currentID);
+      if (!Array.isArray(nodes)) throw new Error("bad tree response");
+      const markLoaded = (ns: TreeNode[]): TreeNode[] =>
+        ns.map((n) =>
+          n.isDir
+            ? { ...n, loaded: true, children: markLoaded(n.children ?? []) }
+            : n,
+        );
+      const tree = markLoaded(
+        toTree(
+          filterNodes(nodes) as {
+            path: string;
+            type?: string;
+            isDirectory?: boolean;
+          }[],
+        ),
+      );
+      return withSelfImproveRoot(tree);
+    } catch {
+      return loadTreeDeepViaListDir();
+    }
+  }, [currentID, filterNodes, withSelfImproveRoot, loadTreeDeepViaListDir]);
 
   const refresh = useCallback(async () => {
     if (!currentID || currentID.startsWith("tmp_")) {
@@ -402,10 +435,23 @@ export default function Workspace() {
     void refresh();
     void loadGit();
     const poll = setInterval(() => {
+      // Релиз 3: вкладка неактивна — не гоняем фоновые запросы к ФС.
+      if (document.hidden) return;
       void autoRefresh();
       void loadGit();
     }, 8000);
-    return () => clearInterval(poll);
+    const onVisibility = () => {
+      // Вернулись на вкладку — сразу освежаем, не дожидаясь тика таймера.
+      if (!document.hidden) {
+        void autoRefresh();
+        void loadGit();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [workspaceOpen, currentID, refresh, loadGit, autoRefresh]);
 
   useEffect(() => {
