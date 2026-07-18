@@ -41,13 +41,15 @@ function toTree(
     let cur = root;
     let acc = "";
     for (let i = 0; i < parts.length; i++) {
-      acc = acc ? `${acc}/${parts[i]}` : parts[i];
+      const seg = parts[i];
+      if (seg === undefined) continue;
+      acc = acc ? `${acc}/${seg}` : seg;
       const isLast = i === parts.length - 1;
       const isDir = isLast ? !!(n.isDirectory ?? n.type === "directory") : true;
-      let child = cur.children?.find((c) => c.name === parts[i]);
+      let child = cur.children?.find((c) => c.name === seg);
       if (!child) {
         child = {
-          name: parts[i],
+          name: seg,
           path: acc,
           isDir,
           children: isDir ? [] : undefined,
@@ -200,7 +202,7 @@ export default function Workspace() {
             "SELF_IMPROVE.md",
             "SELF_IMPROVE_GUIDE.md",
           ]);
-          if (!allowedTop.has(parts[1])) return false;
+          if (!allowedTop.has(parts[1] ?? "")) return false;
         }
 
         if (
@@ -397,6 +399,7 @@ export default function Workspace() {
       const files: { path: string; file: File }[] = [];
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
+        if (!file) continue;
         const relPath =
           (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
           file.name;

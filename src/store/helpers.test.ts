@@ -85,9 +85,9 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
       ];
       const res = normalizeMessages(input);
       expect(res).toHaveLength(2);
-      expect(res[0].id).toBe("m1");
-      expect((res[0].parts[0] as any).text).toBe("Hi");
-      expect(res[1].id).toBe("m2");
+      expect(res[0]?.id).toBe("m1");
+      expect((res[0]?.parts[0] as any).text).toBe("Hi");
+      expect(res[1]?.id).toBe("m2");
     });
   });
 
@@ -101,7 +101,7 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
       };
       const res = upsertMessage(existing, newMsg);
       expect(res).toHaveLength(2);
-      expect(res[1].id).toBe("m2");
+      expect(res[1]?.id).toBe("m2");
     });
 
     it("9. replaces optimistic local_... user message with authoritative server message ID without duplication", () => {
@@ -119,7 +119,7 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
       };
       const res = upsertMessage(existing, serverMsg);
       expect(res).toHaveLength(1);
-      expect(res[0].id).toBe("msg_server_888");
+      expect(res[0]?.id).toBe("msg_server_888");
     });
 
     it("10. updates existing message while preserving accumulated text/tool parts when server sends info-only update", () => {
@@ -137,8 +137,8 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
       };
       const res = upsertMessage(existing, infoUpdate);
       expect(res).toHaveLength(1);
-      expect(res[0].parts).toHaveLength(1);
-      expect((res[0].parts[0] as any).text).toBe(
+      expect(res[0]?.parts).toHaveLength(1);
+      expect((res[0]?.parts[0] as any).text).toBe(
         "Accumulated streaming text...",
       );
     });
@@ -150,8 +150,8 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
       const part: Part = { type: "text", text: "First chunk" };
       const res = patchPart(existing, "msg_new_1", part);
       expect(res).toHaveLength(1);
-      expect(res[0].id).toBe("msg_new_1");
-      expect(res[0].parts[0]).toEqual(part);
+      expect(res[0]?.id).toBe("msg_new_1");
+      expect(res[0]?.parts[0]).toEqual(part);
     });
 
     it("12. updates existing un-IDd text part in place instead of duplicating", () => {
@@ -165,8 +165,8 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
       const newPart: Part = { type: "text", text: "Updated text" };
       const res = patchPart(existing, "msg_1", newPart);
       expect(res).toHaveLength(1);
-      expect(res[0].parts).toHaveLength(1);
-      expect((res[0].parts[0] as any).text).toBe("Updated text");
+      expect(res[0]?.parts).toHaveLength(1);
+      expect((res[0]?.parts[0] as any).text).toBe("Updated text");
     });
 
     it("13. updates existing IDd part by matching part ID", () => {
@@ -184,8 +184,8 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
         status: "completed",
       };
       const res = patchPart(existing, "msg_1", updatedPart);
-      expect(res[0].parts).toHaveLength(1);
-      expect((res[0].parts[0] as any).status).toBe("completed");
+      expect(res[0]?.parts).toHaveLength(1);
+      expect((res[0]?.parts[0] as any).status).toBe("completed");
     });
   });
 
@@ -199,7 +199,7 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
         },
       ];
       const res = patchPartDelta(existing, "msg_1", "p_1", "text", ", world!");
-      expect((res[0].parts[0] as any).text).toBe("Hello, world!");
+      expect((res[0]?.parts[0] as any).text).toBe("Hello, world!");
     });
 
     it("15. handles non-string deltas and creates stub part if part ID does not exist yet", () => {
@@ -213,9 +213,9 @@ describe("helpers.ts — Token & Message Processing Architecture", () => {
         "status",
         "running",
       );
-      expect(res[0].parts).toHaveLength(1);
-      expect((res[0].parts[0] as any).id).toBe("p_99");
-      expect((res[0].parts[0] as any).status).toBe("running");
+      expect(res[0]?.parts).toHaveLength(1);
+      expect((res[0]?.parts[0] as any).id).toBe("p_99");
+      expect((res[0]?.parts[0] as any).status).toBe("running");
     });
   });
 });

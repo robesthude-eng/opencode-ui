@@ -148,10 +148,11 @@ export function patchPart(
           { textMatchOnly: true },
         )
       : -1;
-    if (localIdx !== -1) {
+    const localMsg = localIdx !== -1 ? messages[localIdx] : undefined;
+    if (localMsg) {
       const copy = messages.slice();
       copy[localIdx] = {
-        ...copy[localIdx],
+        ...localMsg,
         id: targetID,
         parts: [cleanedPart],
       };

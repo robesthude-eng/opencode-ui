@@ -66,7 +66,7 @@ describe("messagesSlice streaming event reducer", () => {
       }),
     );
 
-    expect(store.messages[sid][0].parts[0]).toMatchObject({
+    expect(store.messages[sid]![0]!.parts[0]!).toMatchObject({
       text: "first second",
     });
   });
@@ -93,7 +93,7 @@ describe("messagesSlice streaming event reducer", () => {
       }),
     );
 
-    expect(store.messages[sid][0].parts[0]).toMatchObject({
+    expect(store.messages[sid]![0]!.parts[0]!).toMatchObject({
       text: "first second",
     });
   });
@@ -111,7 +111,7 @@ describe("messagesSlice streaming event reducer", () => {
     // Релиз 3: дельты буферизуются (16мс) — в тесте досылаем явно.
     flushStreamDeltas();
 
-    expect(store.messages[sid][0].parts[0]).toMatchObject({
+    expect(store.messages[sid]![0]!.parts[0]!).toMatchObject({
       text: "first + delta",
     });
   });
@@ -129,7 +129,7 @@ describe("messagesSlice streaming event reducer", () => {
     // Релиз 3: дельты буферизуются (16мс) — в тесте досылаем явно.
     flushStreamDeltas();
 
-    expect(store.messages[sid][0].parts).toContainEqual(
+    expect(store.messages[sid]![0]!.parts).toContainEqual(
       expect.objectContaining({ id: "part_late", text: "arrived first" }),
     );
   });

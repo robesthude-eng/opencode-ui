@@ -13,7 +13,7 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
-    "noUncheckedIndexedAccess": false,
+    "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,

@@ -43,8 +43,9 @@ async function req<T>(
 ): Promise<T> {
   // guard: обрываем запрос, если sessionID в пути уже в blacklist
   const sidMatch = path.match(/\/session\/(ses_[A-Za-z0-9]+)/);
-  if (sidMatch && __deadSessions.has(sidMatch[1])) {
-    throw new SessionGoneError(sidMatch[1], "session in local dead-list");
+  const deadSid = sidMatch?.[1];
+  if (deadSid && __deadSessions.has(deadSid)) {
+    throw new SessionGoneError(deadSid, "session in local dead-list");
   }
 
   const controller = new AbortController();

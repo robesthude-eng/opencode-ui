@@ -18,5 +18,5 @@ export function getDeployGroupColor(name: string): string {
     "border-amber-500/30 bg-amber-500/[0.02]",
     "border-sky-500/30 bg-sky-500/[0.02]",
   ];
-  return colors[group % colors.length];
+  return colors[group % colors.length] ?? "";
 }

@@ -19,7 +19,7 @@ describe("mergeMessages deterministic", () => {
       },
     ];
     const merged = mergeMessages(server, local);
-    expect((merged[0].parts[0] as any).text).toBe("first second");
+    expect((merged[0]?.parts[0] as any).text).toBe("first second");
   });
 
   test("keeps longer local streaming reasoning when server not final", () => {
@@ -39,7 +39,7 @@ describe("mergeMessages deterministic", () => {
       },
     ];
     const merged = mergeMessages(server, local);
-    expect((merged[0].parts[0] as any).text).toBe("think more");
+    expect((merged[0]?.parts[0] as any).text).toBe("think more");
   });
 
   test("does not downgrade local completed tool part to stale running snapshot", () => {
@@ -73,7 +73,7 @@ describe("mergeMessages deterministic", () => {
       },
     ];
     const merged = mergeMessages(server, local);
-    expect((merged[0].parts[0] as any).state.status).toBe("completed");
+    expect((merged[0]?.parts[0] as any).state.status).toBe("completed");
   });
 
   test("server tool state wins when message is final", () => {
@@ -107,7 +107,7 @@ describe("mergeMessages deterministic", () => {
       },
     ];
     const merged = mergeMessages(server, local);
-    expect((merged[0].parts[0] as any).state.status).toBe("error");
+    expect((merged[0]?.parts[0] as any).state.status).toBe("error");
   });
 
   test("server wins when final", () => {
@@ -127,7 +127,7 @@ describe("mergeMessages deterministic", () => {
       },
     ];
     const merged = mergeMessages(server, local);
-    expect((merged[0].parts[0] as any).text).toBe("first");
+    expect((merged[0]?.parts[0] as any).text).toBe("first");
   });
 
   test("preserves local attachment when server has none", () => {
@@ -149,7 +149,7 @@ describe("mergeMessages deterministic", () => {
       },
     ];
     const merged = mergeMessages(server, local);
-    expect(merged[0].parts.some((p: any) => p.type === "attachment")).toBe(
+    expect(merged[0]?.parts.some((p: any) => p.type === "attachment")).toBe(
       true,
     );
   });
@@ -172,9 +172,9 @@ describe("mergeMessages deterministic", () => {
       ],
     );
     harness.applyLocalDelta("ses", "msg_1", "p1", " second");
-    expect((harness.getLocal()[0].parts[0] as any).text).toBe("first second");
+    expect((harness.getLocal()[0]?.parts[0] as any).text).toBe("first second");
     const merged = harness.getMerged();
-    expect((merged[0].parts[0] as any).text).toBe("first second");
+    expect((merged[0]?.parts[0] as any).text).toBe("first second");
   });
 
   test("out-of-order delta creates missing part", () => {
@@ -206,7 +206,7 @@ describe("mergeMessages deterministic", () => {
       },
     ];
     const merged = harness.applyServerUpdate(serverWithNewPart);
-    expect(merged[0].parts).toEqual(
+    expect(merged[0]?.parts).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "p_late" })]),
     );
   });

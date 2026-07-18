@@ -52,7 +52,9 @@ function groupParts(parts: Part[]): RenderItem[] {
   const result: RenderItem[] = [];
   let i = 0;
   while (i < parts.length) {
-    const part = parts[i] as { type?: string; tool?: unknown };
+    const cur = parts[i];
+    if (!cur) break; // noUncheckedIndexedAccess: за пределами массива
+    const part = cur as { type?: string; tool?: unknown };
     const name = toolName(part);
     if (part.type === "tool" && name) {
       const group: ToolPart[] = [parts[i] as ToolPart];
@@ -79,7 +81,10 @@ function groupParts(parts: Part[]): RenderItem[] {
             | { type?: string; tool?: unknown }
             | undefined;
           if (after && after.type === "tool" && toolName(after) === name) {
-            for (let m = j; m < k; m++) skippedReasoning.push(parts[m]);
+            for (let m = j; m < k; m++) {
+              const rp = parts[m];
+              if (rp) skippedReasoning.push(rp);
+            }
             j = k;
           } else break;
         } else break;
@@ -87,12 +92,12 @@ function groupParts(parts: Part[]): RenderItem[] {
       if (group.length > 1) {
         result.push({ kind: "group", tool: name, parts: group });
       } else {
-        result.push(parts[i]);
+        result.push(cur);
       }
       for (const r of skippedReasoning) result.push(r);
       i = j;
     } else {
-      result.push(parts[i]);
+      result.push(cur);
       i++;
     }
   }
@@ -109,7 +114,9 @@ function MessageItem({
   const msgArray = Array.isArray(messages) ? messages : [messages];
   const firstMsg = msgArray[0];
   const role =
-    firstMsg.role || (firstMsg.info?.role as string | undefined) || "assistant";
+    firstMsg?.role ||
+    (firstMsg?.info?.role as string | undefined) ||
+    "assistant";
   const isUser = role === "user";
 
   const combinedText = msgArray

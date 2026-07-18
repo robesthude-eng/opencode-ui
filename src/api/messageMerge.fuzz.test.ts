@@ -24,7 +24,8 @@ function int(rnd: Rnd, max: number): number {
 }
 
 function pick<T>(rnd: Rnd, arr: readonly T[]): T {
-  return arr[int(rnd, arr.length)];
+  // Вызывается только с непустыми массивами; индекс всегда в диапазоне.
+  return arr[int(rnd, arr.length)] as T;
 }
 
 const WORDS = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta"] as const;

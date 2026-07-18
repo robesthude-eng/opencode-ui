@@ -23,7 +23,8 @@ function int(rnd: Rnd, max: number): number {
 }
 
 function pick<T>(rnd: Rnd, arr: readonly T[]): T {
-  return arr[int(rnd, arr.length)];
+  // Вызывается только с непустыми массивами; индекс всегда в диапазоне.
+  return arr[int(rnd, arr.length)] as T;
 }
 
 const SIDS = ["a", "b", "c"] as const;
@@ -48,7 +49,7 @@ describe("SessionFsm: property-based (fuzz)", () => {
         const bySid = registry.get(sid);
         if (!bySid) return false;
         for (const list of bySid.values()) {
-          for (const i of list) expected[i] += 1;
+          for (const i of list) expected[i] = (expected[i] ?? 0) + 1;
         }
         registry.delete(sid);
         return true;
@@ -81,7 +82,7 @@ describe("SessionFsm: property-based (fuzz)", () => {
           fsm.onIdle(
             sid,
             () => {
-              calls[idx] += 1;
+              calls[idx] = (calls[idx] ?? 0) + 1;
             },
             useGen,
           );

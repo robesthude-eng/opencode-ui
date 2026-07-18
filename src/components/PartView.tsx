@@ -51,7 +51,7 @@ const SAFE_MD_COMPONENTS = {
       const className = child?.props?.className || "";
       const match = className.match(/language-(\w+)/);
       if (match) {
-        language = match[1];
+        language = match[1] ?? "plaintext";
       }
       if (child?.props && typeof child.props.children === "string") {
         codeText = child.props.children;
