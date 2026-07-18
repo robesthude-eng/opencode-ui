@@ -13,17 +13,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { BUILD_OUT_DIR } from "./self-improve-dist.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Live build output served by the proxy
-const BUILD_OUT_DIR = "/app/dist";
-// Versioned snapshots for instant rollback (symlink switch)
-const DIST_VERSIONS_DIR = "/app/dist-versions";
-const DIST_CURRENT_LINK = "/app/dist-current";
-const MAX_DIST_VERSIONS =
-  Number(process.env.SELF_IMPROVE_MAX_DIST_VERSIONS) || 3;
 const GIT_COMMAND_TIMEOUT_MS =
   Number(process.env.SELF_IMPROVE_GIT_TIMEOUT_MS) || 30_000;
 const REBUILD_NPM_TIMEOUT_MS =
@@ -356,24 +350,6 @@ export function setSelfImproveSessionId(workdir, id) {
  * (and is not a real security boundary for root processes anyway).
  * Write access is gated by sandbox allowlist + admin routes, not filesystem mode.
  */
-function distEntries() {
-  if (!fs.existsSync(DIST_VERSIONS_DIR)) return [];
-  const current = (() => {
-    try {
-      return path.basename(fs.readlinkSync(DIST_CURRENT_LINK));
-    } catch {
-      return null;
-    }
-  })();
-  return fs
-    .readdirSync(DIST_VERSIONS_DIR)
-    .filter((n) => n.startsWith("v-"))
-    .map((name) => {
-      const p = path.join(DIST_VERSIONS_DIR, name);
-      return { name, mtime: fs.statSync(p).mtimeMs, current: name === current };
-    })
-    .sort((a, b) => Number(b.current) - Number(a.current) || b.mtime - a.mtime);
-}
 
 function selfImproveWorkspaceFilter(src) {
   const base = path.basename(src);
@@ -483,166 +459,6 @@ export function toggleSelfImprove(workdir, enabled) {
       ? "[Self-Improvement] ENABLED (flag only, no chmod)"
       : "[Self-Improvement] DISABLED (flag only, no chmod)",
   );
-}
-
-/**
- * After a successful vite build into BUILD_OUT_DIR, snapshot it into
- * /app/dist-versions/vN and flip /app/dist-current → that snapshot.
- * Keeps last MAX_DIST_VERSIONS for instant rollback without rebuild.
- */
-export function promoteDistSnapshot() {
-  try {
-    if (!fs.existsSync(BUILD_OUT_DIR)) {
-      console.warn("[Dist] No /app/dist to snapshot");
-      return null;
-    }
-    fs.mkdirSync(DIST_VERSIONS_DIR, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const versionDir = path.join(DIST_VERSIONS_DIR, `v-${stamp}`);
-    // Copy dist → version dir (cp -a preserves)
-    fs.cpSync(BUILD_OUT_DIR, versionDir, { recursive: true });
-
-    // Atomic-ish symlink flip: link tmp → rename over dist-current
-    const tmpLink = `${DIST_CURRENT_LINK}.tmp`;
-    try {
-      fs.unlinkSync(tmpLink);
-    } catch {
-      /* ignore */
-    }
-    fs.symlinkSync(versionDir, tmpLink);
-    fs.renameSync(tmpLink, DIST_CURRENT_LINK);
-
-    // Also keep /app/dist in sync (server serves DIST path)
-    // Already built there; nothing else needed.
-
-    // Prune old versions
-    const entries = fs
-      .readdirSync(DIST_VERSIONS_DIR)
-      .filter((n) => n.startsWith("v-"))
-      .map((n) => ({
-        name: n,
-        mtime: fs.statSync(path.join(DIST_VERSIONS_DIR, n)).mtimeMs,
-      }))
-      .sort((a, b) => b.mtime - a.mtime);
-    for (const old of entries.slice(MAX_DIST_VERSIONS)) {
-      try {
-        fs.rmSync(path.join(DIST_VERSIONS_DIR, old.name), {
-          recursive: true,
-          force: true,
-        });
-      } catch (e) {
-        console.warn("[Dist] prune failed:", e.message);
-      }
-    }
-    console.log(`[Dist] Snapshot promoted: ${versionDir}`);
-    return versionDir;
-  } catch (e) {
-    console.error("[Dist] promoteDistSnapshot failed:", e.message);
-    return null;
-  }
-}
-
-function replaceLiveDistFrom(versionDir, label) {
-  const tempDir = `${BUILD_OUT_DIR}.${label}-tmp`;
-  const oldDir = `${BUILD_OUT_DIR}.${label}-old-${process.pid}-${Date.now()}`;
-  fs.rmSync(tempDir, { recursive: true, force: true });
-  fs.cpSync(versionDir, tempDir, { recursive: true });
-  let movedOld = false;
-  try {
-    if (fs.existsSync(BUILD_OUT_DIR)) {
-      fs.renameSync(BUILD_OUT_DIR, oldDir);
-      movedOld = true;
-    }
-    fs.renameSync(tempDir, BUILD_OUT_DIR);
-    if (movedOld) fs.rmSync(oldDir, { recursive: true, force: true });
-  } catch (error) {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-    if (movedOld && !fs.existsSync(BUILD_OUT_DIR))
-      fs.renameSync(oldDir, BUILD_OUT_DIR);
-    throw error;
-  }
-}
-
-/**
- * Instant rollback: restore /app/dist from a previous snapshot (no rebuild).
- * index: 0 = previous, 1 = older, …
- *
- * ATOMICITY: Instead of rm + cp (which leaves /app/dist empty for 1-3s
- * during the copy, causing 404s for concurrent requests), we build to a
- * temp dir and rename atomically.
- */
-export function instantRollbackDist(index = 0) {
-  try {
-    if (!fs.existsSync(DIST_VERSIONS_DIR)) {
-      throw new Error("No dist snapshots available");
-    }
-    const entries = distEntries();
-    // entries[0] is the version selected by dist-current; index 0 means the next older version.
-    const target = entries[index + 1];
-    if (!target) throw new Error("No older dist snapshot to roll back to");
-    if (entries.length < 2 && index === 0) {
-      throw new Error("Only one snapshot exists — nothing to roll back to");
-    }
-    const versionDir = path.join(DIST_VERSIONS_DIR, target.name);
-    replaceLiveDistFrom(versionDir, "rollback");
-    try {
-      fs.unlinkSync(DIST_CURRENT_LINK);
-    } catch {
-      /* ignore */
-    }
-    fs.symlinkSync(versionDir, DIST_CURRENT_LINK);
-    console.log(`[Dist] Instant rollback to ${target.name}`);
-    return { version: target.name, path: versionDir };
-  } catch (e) {
-    console.error("[Dist] instantRollbackDist failed:", e.message);
-    throw e;
-  }
-}
-
-/**
- * Restore /app/dist from the NEWEST snapshot (the last successfully published
- * version). Unlike instantRollbackDist(0) — which targets the *previous*
- * snapshot because it assumes /app/dist === entries[0] — this is for the
- * failure path of a self-improve transaction: a broken build has overwritten
- * /app/dist but was never promoted, so entries[0] is still the last good
- * publish and is exactly what must come back.
- */
-export function restoreLatestDist() {
-  try {
-    if (!fs.existsSync(DIST_VERSIONS_DIR)) {
-      throw new Error("No dist snapshots available");
-    }
-    const entries = distEntries();
-    const target = entries.find((entry) => entry.current) || entries[0];
-    if (!target) throw new Error("No dist snapshot to restore");
-    const versionDir = path.join(DIST_VERSIONS_DIR, target.name);
-    replaceLiveDistFrom(versionDir, "restore");
-    try {
-      fs.unlinkSync(DIST_CURRENT_LINK);
-    } catch {
-      /* ignore */
-    }
-    fs.symlinkSync(versionDir, DIST_CURRENT_LINK);
-    console.log(`[Dist] Restored last published snapshot ${target.name}`);
-    return { version: target.name, path: versionDir };
-  } catch (e) {
-    console.error("[Dist] restoreLatestDist failed:", e.message);
-    throw e;
-  }
-}
-
-export function listDistSnapshots() {
-  try {
-    if (!fs.existsSync(DIST_VERSIONS_DIR)) return [];
-    return distEntries().map((entry) => ({
-      name: entry.name,
-      mtime: entry.mtime,
-      time: new Date(entry.mtime).toISOString(),
-      current: entry.current,
-    }));
-  } catch {
-    return [];
-  }
 }
 
 /**
@@ -962,87 +778,10 @@ export async function rollbackToCommit(workdir, hash) {
   }
 }
 
-/**
- * Write audit log for administrative actions.
- * Format: JSON Lines (one JSON object per line) for easy parsing.
- * Rotation: when audit.log exceeds 1MB, rename to audit.log.1 and start fresh.
- * Keeps at most 1 rotated file (2MB total max).
- */
-const AUDIT_MAX_BYTES = 1024 * 1024; // 1MB
-export function logAudit(workdir, userEmail, action, details = "") {
-  try {
-    const logFile = path.join(workdir, "audit.log");
-    const now = new Date().toISOString();
-    const entry = {
-      timestamp: now,
-      user: userEmail || "anonymous/unknown",
-      action,
-      details: details || undefined,
-    };
-    const line = JSON.stringify(entry) + "\n";
-    fs.appendFileSync(logFile, line, "utf8");
-
-    // Rotate if file exceeds max size
-    try {
-      const stats = fs.statSync(logFile);
-      if (stats.size > AUDIT_MAX_BYTES) {
-        const rotatedFile = `${logFile}.1`;
-        // Remove old rotated file if exists
-        try {
-          fs.unlinkSync(rotatedFile);
-        } catch {
-          /* ignore */
-        }
-        fs.renameSync(logFile, rotatedFile);
-      }
-    } catch {
-      /* rotation is best-effort */
-    }
-
-    console.log(`[Audit] [${now}] [${entry.user}] [${action}] ${details}`);
-  } catch (e) {
-    console.error("[Audit] Failed to write audit log:", e.message);
-  }
-}
-
-/**
- * Read audit log entries (most recent first).
- * Returns array of parsed JSON objects, or legacy text lines for old entries.
- */
-export function readAuditLog(workdir, maxEntries = 100) {
-  try {
-    const logFile = path.join(workdir, "audit.log");
-    const rotatedFile = `${logFile}.1`;
-    const entries = [];
-
-    // Read rotated file first (older entries)
-    for (const file of [rotatedFile, logFile]) {
-      if (!fs.existsSync(file)) continue;
-      const content = fs.readFileSync(file, "utf8");
-      const lines = content.trim().split("\n").filter(Boolean);
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line);
-          entries.push(parsed);
-        } catch {
-          // Legacy plain-text format — wrap in object
-          entries.push({
-            raw: line,
-            timestamp: "",
-            user: "",
-            action: "",
-            details: "",
-          });
-        }
-      }
-    }
-
-    // Sort by timestamp descending (most recent first), take last maxEntries
-    entries.sort((a, b) =>
-      (b.timestamp || "").localeCompare(a.timestamp || ""),
-    );
-    return entries.slice(0, maxEntries);
-  } catch {
-    return [];
-  }
-}
+export { logAudit, readAuditLog } from "./self-improve-audit.mjs";
+export {
+  instantRollbackDist,
+  listDistSnapshots,
+  promoteDistSnapshot,
+  restoreLatestDist,
+} from "./self-improve-dist.mjs";

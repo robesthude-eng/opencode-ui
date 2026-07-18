@@ -5,9 +5,6 @@
  */
 
 import { execFile } from "node:child_process";
-import fs from "node:fs";
-import https from "node:https";
-import path from "node:path";
 import { promisify } from "node:util";
 import {
   enableAutoMerge,
@@ -20,11 +17,7 @@ import {
   MAX_JSON_BODY_BYTES,
   readBody,
 } from "../middleware.mjs";
-import {
-  getTestStatus,
-  normalizeSandboxPath,
-  resolveInside,
-} from "../sandbox.mjs";
+import { getTestStatus } from "../sandbox.mjs";
 import {
   createCheckpoint,
   ensureSiInternalToken,
@@ -35,27 +28,38 @@ import {
   listCheckpoints,
   listDistSnapshots,
   logAudit,
-  promoteDistSnapshot,
   rebuildUi,
   refreshSelfImproveWorkspace,
   releaseBuildLock,
   resetUi,
-  restoreLatestDist,
   rollbackToCommit,
   setSelfImproveSessionId,
   syncUiSource,
   toggleSelfImprove,
   tryAcquireBuildLock,
 } from "../self-improve.mjs";
-import {
-  confirmProposal,
-  createProposal,
-  executeProposalTransaction,
-  getProposal,
-  listProposals,
-} from "../self-improve-v2.mjs";
 
 const execFileP = promisify(execFile);
+
+import { handleCreatePr, handlePrs } from "./self-improve-pr.mjs";
+import {
+  handleProposalConfirm,
+  handleProposalCreate,
+  handleProposalExecute,
+  handleProposalGet,
+  handleProposalsList,
+} from "./self-improve-proposals.mjs";
+
+// Ре-экспорт для обратной совместимости (тесты и внешние импорты).
+export {
+  handleCreatePr,
+  handleProposalConfirm,
+  handleProposalCreate,
+  handleProposalExecute,
+  handleProposalGet,
+  handleProposalsList,
+  handlePrs,
+};
 
 export async function handleSettingsSelfImproveGet(
   _req,
@@ -208,189 +212,6 @@ export async function handleSelfImproveResync(
     );
   } finally {
     releaseBuildLock();
-  }
-}
-
-export async function handleCreatePr(
-  req,
-  res,
-  {
-    WORKDIR,
-    userEmail,
-    checkRateLimit,
-    openPullRequest,
-    enableAutoMerge,
-    getUiDir,
-    logAudit,
-    logger,
-  },
-) {
-  if (!isSelfImproveEnabled(WORKDIR)) {
-    res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error: "Self-Improvement Mode is disabled on the server.",
-      }),
-    );
-    return;
-  }
-  if (!(await checkRateLimit(res))) return;
-  if (!tryAcquireBuildLock()) {
-    res.writeHead(409, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error: "Another build/PR/rollback is in progress. Wait and retry.",
-      }),
-    );
-    return;
-  }
-  try {
-    const buf = await readBody(req, MAX_JSON_BODY_BYTES);
-    const {
-      files,
-      title,
-      body,
-      // P0-fix (безопасность): auto-merge больше НЕ включён по умолчанию —
-      // иначе self-improve агент мог сам замерджить и задеплоить код
-      // на прод без человеческого ревью. Мердж только по явному
-      // autoMerge: true в теле запроса (осознанный клик человека).
-      autoMerge = false,
-    } = JSON.parse(buf.toString("utf8") || "{}");
-    if (!Array.isArray(files) || files.length === 0) {
-      releaseBuildLock();
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "files array required" }));
-      return;
-    }
-    if (typeof title !== "string" || !title.trim()) {
-      releaseBuildLock();
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "title (string) required" }));
-      return;
-    }
-    const uiDir = getUiDir(WORKDIR);
-    logAudit(
-      WORKDIR,
-      userEmail,
-      "SI_CREATE_PR_START",
-      `title="${title.slice(0, 60)}" files=${files.length}`,
-    );
-    const pr = await openPullRequest({ uiDir, files, title, body });
-    logAudit(
-      WORKDIR,
-      userEmail,
-      "SI_CREATE_PR_OK",
-      `PR #${pr.number} ${pr.url}`,
-    );
-    let autoMergeResult = { enabled: false, requested: !!autoMerge };
-    if (autoMerge) {
-      autoMergeResult = {
-        ...(await enableAutoMerge({ uiDir, prNumber: pr.number })),
-        requested: true,
-      };
-      if (autoMergeResult.enabled)
-        logAudit(
-          WORKDIR,
-          userEmail,
-          "SI_AUTO_MERGE_ENABLED",
-          `PR #${pr.number}`,
-        );
-    }
-    releaseBuildLock();
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({ status: "success", ...pr, autoMerge: autoMergeResult }),
-    );
-  } catch (e) {
-    releaseBuildLock();
-    logAudit(WORKDIR, userEmail, "SI_CREATE_PR_FAIL", String(e?.message || e));
-    logger.error("[create-pr] error:", e?.message || e);
-    res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error: "create-pr failed",
-        detail: String(e?.message || e),
-      }),
-    );
-  }
-}
-
-export async function handlePrs(
-  req,
-  res,
-  { WORKDIR, isRequestAdmin, readRemoteInfo },
-) {
-  if (!isRequestAdmin) {
-    res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Admin access required." }));
-    return;
-  }
-  if (!isSelfImproveEnabled(WORKDIR)) {
-    res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Self-Improvement Mode is disabled." }));
-    return;
-  }
-  try {
-    const uiDir = getUiDir(WORKDIR);
-    const { token, owner, repo } = await readRemoteInfo(uiDir);
-    if (!token) throw new Error("No GITHUB_TOKEN available");
-    const parsed = new URL(req.url, "http://localhost");
-    const state = parsed.searchParams.get("state") || "all";
-    const list = await new Promise((resolve, reject) => {
-      const rq = https.request(
-        {
-          hostname: "api.github.com",
-          port: 443,
-          path: `/repos/${owner}/${repo}/pulls?state=${state}&per_page=30&sort=created&direction=desc`,
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/vnd.github+json",
-            "User-Agent": "opencode-ui-self-improve/1.0",
-          },
-        },
-        (rs) => {
-          let b = "";
-          rs.on("data", (c) => (b += c));
-          rs.on("end", () => {
-            try {
-              resolve(JSON.parse(b));
-            } catch (e) {
-              reject(e);
-            }
-          });
-        },
-      );
-      rq.on("error", reject);
-      rq.setTimeout(15000, () => rq.destroy(new Error("GitHub API timeout")));
-      rq.end();
-    });
-    const filtered = (Array.isArray(list) ? list : [])
-      .filter((pr) => pr.head?.ref?.startsWith("si/"))
-      .slice(0, 20)
-      .map((pr) => ({
-        number: pr.number,
-        title: pr.title,
-        url: pr.html_url,
-        state: pr.state,
-        merged: !!pr.merged_at,
-        mergeable_state: pr.mergeable_state,
-        head_branch: pr.head?.ref,
-        created_at: pr.created_at,
-        updated_at: pr.updated_at,
-        merged_at: pr.merged_at,
-        auto_merge: !!pr.auto_merge,
-      }));
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ prs: filtered }));
-  } catch (e) {
-    res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error: "failed to list PRs",
-        detail: String(e?.message || e),
-      }),
-    );
   }
 }
 
@@ -663,223 +484,6 @@ export async function handleRollback(
 // ===========================================================================
 // P1.3 — v2 transaction endpoints
 // ===========================================================================
-
-export async function handleProposalsList(req, res, { WORKDIR }) {
-  try {
-    const parsed = new URL(req.url, "http://localhost");
-    const status = parsed.searchParams.get("status") || undefined;
-    const proposals = listProposals(WORKDIR, { status });
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ proposals }));
-  } catch (e) {
-    res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({ error: "Failed to list proposals", detail: e.message }),
-    );
-  }
-}
-
-export async function handleProposalCreate(req, res, { WORKDIR, userEmail }) {
-  if (!isSelfImproveEnabled(WORKDIR)) {
-    res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error: "Self-Improvement Mode is disabled on the server.",
-      }),
-    );
-    return;
-  }
-  try {
-    const buf = await readBody(req, MAX_JSON_BODY_BYTES);
-    const { files, baseCommit } = JSON.parse(buf.toString("utf8") || "{}");
-    if (!Array.isArray(files) || files.length === 0) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "files array required" }));
-      return;
-    }
-    const proposal = createProposal(WORKDIR, { files, baseCommit, userEmail });
-    res.writeHead(201, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(proposal));
-  } catch (e) {
-    res.writeHead(400, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Invalid request", detail: e.message }));
-  }
-}
-
-export async function handleProposalGet(_req, res, { WORKDIR, proposalId }) {
-  try {
-    const proposal = getProposal(WORKDIR, proposalId);
-    if (!proposal) {
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Proposal not found" }));
-      return;
-    }
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(proposal));
-  } catch (e) {
-    res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({ error: "Failed to get proposal", detail: e.message }),
-    );
-  }
-}
-
-export async function handleProposalConfirm(
-  req,
-  res,
-  { WORKDIR, proposalId, userEmail, isRequestAdmin },
-) {
-  if (!isRequestAdmin) {
-    res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Admin access required." }));
-    return;
-  }
-  if (!isSelfImproveEnabled(WORKDIR)) {
-    res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error: "Self-Improvement Mode is disabled on the server.",
-      }),
-    );
-    return;
-  }
-  try {
-    const buf = await readBody(req, MAX_JSON_BODY_BYTES);
-    const { hash } = JSON.parse(buf.toString("utf8") || "{}");
-    if (!hash) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "hash is required" }));
-      return;
-    }
-    const proposal = confirmProposal(WORKDIR, { proposalId, hash, userEmail });
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(proposal));
-  } catch (e) {
-    res.writeHead(400, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({ error: "Confirmation failed", detail: e.message }),
-    );
-  }
-}
-
-export async function handleProposalExecute(
-  _req,
-  res,
-  { WORKDIR, proposalId, userEmail, isRequestAdmin, checkRateLimit },
-) {
-  if (!isRequestAdmin) {
-    res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Admin access required." }));
-    return;
-  }
-  if (!isSelfImproveEnabled(WORKDIR)) {
-    res.writeHead(403, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error: "Self-Improvement Mode is disabled on the server.",
-      }),
-    );
-    return;
-  }
-  if (!(await checkRateLimit(res))) return;
-  if (!tryAcquireBuildLock()) {
-    res.writeHead(409, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        error:
-          "Another build/PR/rollback/execution is in progress. Wait and retry.",
-      }),
-    );
-    return;
-  }
-
-  try {
-    const uiDir = getUiDir(WORKDIR);
-    const deps = {
-      getCurrentCommit: async () => {
-        try {
-          const { stdout } = await execFileP("git", ["rev-parse", "HEAD"], {
-            cwd: uiDir,
-          });
-          return (stdout || "").trim();
-        } catch {
-          return "unknown";
-        }
-      },
-      applyFiles: async (files) => {
-        for (const f of files) {
-          // Same validation as the sandbox: rejects traversal ("src/../x"),
-          // absolute paths, and anything outside src/**. resolveInside then
-          // enforces the directory boundary on the resolved absolute path.
-          const safePath = normalizeSandboxPath(f.path);
-          const fullPath = resolveInside(uiDir, safePath);
-          await fs.promises.mkdir(path.dirname(fullPath), { recursive: true });
-          await fs.promises.writeFile(fullPath, f.content || "", "utf8");
-        }
-      },
-      createCheckpoint: async (workdir) => {
-        return new Promise((resolve, reject) => {
-          createCheckpoint(workdir, (err, result) => {
-            if (err) reject(err);
-            else resolve(result);
-          });
-        });
-      },
-      rebuildUi: async (workdir) => {
-        return new Promise((resolve, reject) => {
-          rebuildUi(workdir, (err, result) => {
-            if (err) reject(err);
-            else resolve(result);
-          });
-        });
-      },
-      healthcheck: async () => {
-        // A build that "succeeded" can still ship a broken dist (e.g. the OOM
-        // path leaves a stale index.html pointing at a bundle that was never
-        // written). Verify index.html is non-empty, references a module
-        // script, and every referenced /assets/* file actually exists.
-        try {
-          const distDir = "/app/dist";
-          const html = await fs.promises.readFile(
-            path.join(distDir, "index.html"),
-            "utf8",
-          );
-          if (!html.trim() || !html.includes("<script")) return false;
-          const refs = [
-            ...html.matchAll(/(?:src|href)="\/(assets\/[^"?#]+)"/g),
-          ].map((m) => m[1]);
-          if (refs.length === 0) return false;
-          for (const rel of refs) {
-            const asset = path.join(distDir, rel);
-            if (!fs.existsSync(asset) || fs.statSync(asset).size === 0)
-              return false;
-          }
-          return true;
-        } catch {
-          return false;
-        }
-      },
-      promoteDistSnapshot: async () => {
-        return promoteDistSnapshot();
-      },
-      restoreLastPublishedDist: async () => {
-        return restoreLatestDist();
-      },
-    };
-
-    const result = await executeProposalTransaction(WORKDIR, proposalId, {
-      userEmail,
-      deps,
-    });
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(result));
-  } catch (e) {
-    res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Execution failed", detail: e.message }));
-  } finally {
-    releaseBuildLock();
-  }
-}
 
 // ===========================================================================
 // Route Dispatcher
