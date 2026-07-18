@@ -206,7 +206,7 @@ const LimitedMarkdown = ({
   streaming,
 }: {
   text: string;
-  streaming?: boolean;
+  streaming?: boolean | undefined;
 }) => {
   const [showAll, setShowAll] = useState(false);
   const truncated = !showAll && text.length > RENDER_TEXT_LIMIT;
@@ -258,7 +258,7 @@ function ReasoningCard({
   streaming,
 }: {
   text: string;
-  streaming?: boolean;
+  streaming?: boolean | undefined;
 }) {
   const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
   const expanded = manuallyToggled ?? !!streaming;

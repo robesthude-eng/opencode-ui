@@ -88,3 +88,15 @@ Optional secrets for prod e2e: `E2E_EMAIL`, `E2E_PASSWORD`.
 - **better-auth** full rewrite — current SQLite layer is production-capable
 - **pnpm** full migration — npm lockfile kept for Docker/Timeweb simplicity; `packageManager` field set
 - **Alpine slim image without devDeps** — conflicts with self-improve sandbox needing tsc/vitest/vite
+
+## Операционка (Релиз 5)
+
+- **`scripts/runner-iptables.sh`** — идемпотентная установка правил DOCKER-USER
+  из RUNNER_ISOLATION.md (запускать от root один раз после разворачивания).
+- **`scripts/check-disk.sh`** — мониторинг диска без авто-prune (exit 2 при
+  превышении DISK_ALERT_THRESHOLD, дефолт 85%). Добавь в cron.
+- **`GET /metrics`** — метрики без зависимостей (Prometheus text): uptime, RSS,
+  heap, число SSE-буферов. Секретов не содержит; при желании закрой на прокси.
+- **Correlation id** — каждый запрос получает x-request-id (входящий уважается),
+  доступен в обработчиках как req.id / req.log (pino child).
+- **npm audit** — в CI падает на high+ уязвимостях prod-зависимостей.

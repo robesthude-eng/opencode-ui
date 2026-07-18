@@ -57,6 +57,7 @@ import {
   runnerTarget,
   startRunnerReaper,
 } from "./runner.mjs";
+import { SSE_RING_SIZE, sseRingFor, sseRings } from "./sse-ring.mjs";
 
 // Прокси к контейнерам-раннерам сессий (создаются лениво, кэшируются по sid).
 const runnerProxies = new Map();
@@ -106,36 +107,6 @@ const MIME = {
   ".woff2": "font/woff2",
   ".map": "application/json",
 };
-// Релиз 4: кольцевой буфер SSE-кадров с поддержкой Last-Event-ID.
-// Прокси присваивает каждому кадру монотонный `id: N` (счётчик живёт
-// в буфере и переживает реконнекты upstream) и хранит последние
-// SSE_RING_SIZE кадров на ключ (сессию). Клиент, переподключившись
-// с Last-Event-ID (заголовок или ?lastEventId=), получает пропущенные
-// за время разрыва кадры из буфера — кусочки ответа не теряются.
-const SSE_RING_SIZE = parseInt(process.env.SSE_RING_SIZE || "", 10) || 500;
-const SSE_RING_MAX_KEYS = 100;
-const SSE_RING_TTL_MS = 30 * 60 * 1000;
-const sseRings = new Map(); // key -> { nextSeq, frames: [{seq, payload}], lastUsed }
-function sseRingFor(key) {
-  const now = Date.now();
-  let ring = sseRings.get(key);
-  if (!ring) {
-    // Лёгкая уборка: сначала протухшие ключи, затем самые старые.
-    if (sseRings.size >= SSE_RING_MAX_KEYS) {
-      for (const [k, r] of sseRings) {
-        if (now - r.lastUsed > SSE_RING_TTL_MS) sseRings.delete(k);
-      }
-      while (sseRings.size >= SSE_RING_MAX_KEYS) {
-        sseRings.delete(sseRings.keys().next().value);
-      }
-    }
-    ring = { nextSeq: 1, frames: [], lastUsed: now };
-    sseRings.set(key, ring);
-  }
-  ring.lastUsed = now;
-  return ring;
-}
-
 function createProxy(targetBase) {
   const targetUrl = new URL(targetBase);
   function web(req, res) {
@@ -363,6 +334,16 @@ function serveStatic(req, res) {
   });
 }
 const server = http.createServer(async (req, res) => {
+  // Релиз 5: correlation id — сквозной идентификатор запроса в логах (req.log)
+  // и ответе (x-request-id). Входящий заголовок от reverse-proxy уважаем.
+  const hdrReqId = req.headers["x-request-id"];
+  const reqId =
+    (typeof hdrReqId === "string" && /^[\w.-]{1,64}$/.test(hdrReqId)
+      ? hdrReqId
+      : null) || crypto.randomUUID();
+  req.id = reqId;
+  req.log = logger.child({ reqId });
+  res.setHeader("x-request-id", reqId);
   setSecurityHeaders(res);
   if (
     req.url === "/health" ||
@@ -406,6 +387,24 @@ const server = http.createServer(async (req, res) => {
         uptime: process.uptime(),
       });
     });
+    return;
+  }
+  if (req.url === "/metrics" || req.url === "/api/metrics") {
+    // Релиз 5: простые метрики без зависимостей (Prometheus text format).
+    // Секретов не содержит; при желании закрой снаружи на reverse-proxy.
+    const mem = process.memoryUsage();
+    const lines = [
+      "# TYPE opencode_ui_uptime_seconds gauge",
+      `opencode_ui_uptime_seconds ${Math.round(process.uptime())}`,
+      "# TYPE opencode_ui_rss_bytes gauge",
+      `opencode_ui_rss_bytes ${mem.rss}`,
+      "# TYPE opencode_ui_heap_used_bytes gauge",
+      `opencode_ui_heap_used_bytes ${mem.heapUsed}`,
+      "# TYPE opencode_ui_sse_rings gauge",
+      `opencode_ui_sse_rings ${sseRings.size}`,
+    ];
+    res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4" });
+    res.end(`${lines.join("\n")}\n`);
     return;
   }
   const urlPath = req.url.split("?")[0];

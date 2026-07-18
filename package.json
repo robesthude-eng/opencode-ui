@@ -41,7 +41,7 @@
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-webgl": "^0.18.0",
     "@xterm/xterm": "^5.5.0",
-    "adm-zip": "^0.5.18",
+    "adm-zip": "^0.6.0",
     "async-mutex": "^0.5.0",
     "better-sqlite3": "^12.11.1",
     "class-variance-authority": "^0.7.1",

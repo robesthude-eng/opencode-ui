@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies (with dev)
         run: npm ci --include=dev
 
+      - name: npm audit (prod-зависимости, high+)
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Biome lint / format check
         run: npm run lint
 

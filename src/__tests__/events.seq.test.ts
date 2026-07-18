@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { EventStream } from "../api/events";
 
-type Ev = { data: string; lastEventId?: string };
+type Ev = { data: string; lastEventId?: string | undefined };
 
 class SeqEventSource {
   static instances: SeqEventSource[] = [];

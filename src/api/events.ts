@@ -1,4 +1,5 @@
 import { eventUrl } from "./client";
+import { isAppEventShaped } from "./eventGuards";
 import type { AppEvent } from "./types";
 
 type Handler = (event: AppEvent) => void;
@@ -168,10 +169,10 @@ export class EventStream {
       // после реального дропа шлём синтетическое событие, по которому
       // стор один раз дотягивает историю активной сессии.
       if (hadDrop) {
-        const ev = {
+        const ev: AppEvent = {
           type: "stream.reconnected",
           properties: {},
-        } as unknown as AppEvent;
+        };
         this.emit(ev);
       }
     };
@@ -211,7 +212,7 @@ export class EventStream {
         this.emit({
           type: "stream.reconnected",
           properties: {},
-        } as unknown as AppEvent);
+        });
       } else {
         const gap = this.lastSeq !== null && seq > this.lastSeq + 1;
         this.lastSeq = seq;
@@ -219,7 +220,7 @@ export class EventStream {
           this.emit({
             type: "stream.reconnected",
             properties: {},
-          } as unknown as AppEvent);
+          });
         }
       }
     }
@@ -234,17 +235,13 @@ export class EventStream {
       const ev: AppEvent = {
         type: "stream.corrupted",
         properties: { raw: rawData, sourceType: namedType },
-      } as unknown as AppEvent;
+      };
       this.emit(ev);
       return;
     }
-    const ev: AppEvent =
-      parsed &&
-      typeof parsed === "object" &&
-      "type" in parsed &&
-      "properties" in parsed
-        ? (parsed as unknown as AppEvent)
-        : { type: namedType, properties: parsed };
+    const ev: AppEvent = isAppEventShaped(parsed)
+      ? parsed
+      : { type: namedType, properties: parsed };
     // Debug logging disabled in production — enable via localStorage.setItem("opencode_debug", "1")
     if (
       typeof window !== "undefined" &&

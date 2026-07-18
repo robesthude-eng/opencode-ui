@@ -28,7 +28,7 @@ interface TreeNode {
   name: string;
   path: string;
   isDir: boolean;
-  children?: TreeNode[];
+  children?: TreeNode[] | undefined;
   loaded?: boolean;
 }
 

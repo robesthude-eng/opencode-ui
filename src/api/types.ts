@@ -96,16 +96,22 @@ export interface Message {
   session_id?: string;
   sessionId?: string;
   time?: { created: number; completed?: number };
-  info?: {
-    id?: string;
-    role?: string;
-    model?: string;
-    finish?: "stop" | "error" | "length" | "tool_call" | string;
-    tokens?: { input?: number; output?: number };
-    time?: { created?: number; completed?: number };
-    error?: { message?: string; name?: string; data?: { message?: string } };
-    structured_output?: unknown;
-  };
+  info?:
+    | {
+        id?: string;
+        role?: string;
+        model?: string;
+        finish?: "stop" | "error" | "length" | "tool_call" | string;
+        tokens?: { input?: number; output?: number };
+        time?: { created?: number; completed?: number };
+        error?: {
+          message?: string;
+          name?: string;
+          data?: { message?: string };
+        };
+        structured_output?: unknown;
+      }
+    | undefined;
   // Allow legacy/extra fields without forcing `any` casts in consumer code.
 }
 
@@ -133,6 +139,9 @@ export interface AppEvent {
     // Имя инструмента (строка) или объект-ссылка { messageID, callID } в новых версиях opencode
     tool?: string | { messageID?: string; callID?: string };
     input?: unknown;
+    // Релиз 5: синтетическое stream.corrupted несёт сырой чанк для диагностики.
+    raw?: string;
+    sourceType?: string;
   };
 }
 

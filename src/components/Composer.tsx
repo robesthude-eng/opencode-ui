@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api } from "../api/client";
+import { statusText } from "../api/eventGuards";
 import { processFile } from "../api/files";
 import { useStore } from "../store/useStore";
 import { CloseIcon, PaperclipIcon, SendIcon, StopIcon } from "./icons";
@@ -11,10 +12,7 @@ export default function Composer() {
   const rawStatus = useStore((s) =>
     currentID ? s.status[currentID] : undefined,
   );
-  const status =
-    typeof rawStatus === "string"
-      ? rawStatus
-      : (rawStatus as unknown as { type?: string })?.type || "idle";
+  const status = statusText(rawStatus);
   const send = useStore((s) => s.send);
   const abort = useStore((s) => s.abort);
   const attachments = useStore((s) => s.attachments);

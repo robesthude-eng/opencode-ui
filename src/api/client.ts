@@ -196,7 +196,7 @@ export const api = {
           ...(model ? { model } : {}),
           ...(systemInstruction ? { system: systemInstruction } : {}),
         }),
-        signal,
+        ...(signal ? { signal } : {}),
       },
       PROMPT_REQUEST_TIMEOUT_MS,
     ),

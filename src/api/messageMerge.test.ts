@@ -8,7 +8,7 @@ describe("mergeMessages deterministic", () => {
         id: "msg_1",
         role: "assistant" as const,
         parts: [{ id: "p1", type: "text", text: "first" } as any],
-        info: { finish: undefined },
+        info: {},
       },
     ];
     const local = [
@@ -28,7 +28,7 @@ describe("mergeMessages deterministic", () => {
         id: "msg_1",
         role: "assistant" as const,
         parts: [{ id: "p1", type: "reasoning", text: "think" } as any],
-        info: { finish: undefined },
+        info: {},
       },
     ];
     const local = [
@@ -55,7 +55,7 @@ describe("mergeMessages deterministic", () => {
             state: { status: "running" },
           } as any,
         ],
-        info: { finish: undefined },
+        info: {},
       },
     ];
     const local = [

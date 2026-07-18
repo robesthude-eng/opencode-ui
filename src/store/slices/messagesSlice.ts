@@ -1,5 +1,6 @@
 import { isAbortError, sessionSignal } from "../../api/abortRegistry";
 import { api, SessionGoneError } from "../../api/client";
+import { statusText, strField } from "../../api/eventGuards";
 import { isSseHealthyForSession } from "../../api/events";
 import type { ProcessedFile } from "../../api/files";
 import { mergeMessages as mergeMessagesDeterministic } from "../../api/messageMerge";
@@ -545,13 +546,14 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     // затирает поле целиком и должен видеть уже применённые дельты).
     if (e.type !== "message.part.delta") flushStreamDeltas();
     const p = e.properties;
-    const sid = (p.sessionID ||
+    const sid =
+      p.sessionID ||
       p.session_id ||
       p.sessionId ||
-      (p.part as Record<string, unknown>)?.sessionID ||
-      (p.info as Record<string, unknown>)?.sessionID ||
-      (p.message as unknown as Record<string, unknown>)?.sessionID ||
-      "") as string;
+      strField(p.part, "sessionID") ||
+      strField(p.info, "sessionID") ||
+      strField(p.message, "sessionID") ||
+      "";
 
     switch (e.type) {
       case "session.created":
@@ -580,10 +582,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       }
       case "session.status": {
         if (!sid || !p.status) break;
-        const st =
-          typeof p.status === "string"
-            ? p.status
-            : (p.status as { type?: string }).type || "idle";
+        const st = statusText(p.status);
         // Fix Stop button hang: when locallyBusy and st===idle (real end), resolve AND set idle immediately
         // Previously it only resolved and broke without setting status, causing Stop to hang until http polling stable
         if (sessionFsm.isBusy(sid) && st === "idle") {
@@ -613,11 +612,12 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         break;
       }
       case "message.removed": {
-        const messageID = (p.messageID ||
+        const messageID =
+          p.messageID ||
           p.message_id ||
           p.messageId ||
-          (p.message as unknown as Record<string, unknown>)?.id ||
-          "") as string;
+          strField(p.message, "id") ||
+          "";
         if (!sid || !messageID) break;
         set((s) => ({
           messages: {
@@ -691,12 +691,13 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         break;
       }
       case "message.part.updated": {
-        const messageID = (p.messageID ||
+        const messageID =
+          p.messageID ||
           p.message_id ||
           p.messageId ||
-          (p.part as Record<string, unknown>)?.messageID ||
-          (p.part as Record<string, unknown>)?.message_id ||
-          "") as string;
+          strField(p.part, "messageID") ||
+          strField(p.part, "message_id") ||
+          "";
         const part = p.part as Part | undefined;
         if (!sid || !messageID || !part) {
           break;
@@ -738,16 +739,14 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         break;
       }
       case "message.part.delta": {
-        const messageID = (p.messageID ||
+        const messageID =
+          p.messageID ||
           p.message_id ||
           p.messageId ||
-          (p.part as Record<string, unknown>)?.messageID ||
-          "") as string;
-        const partID = (p.partID ||
-          p.part_id ||
-          p.partId ||
-          (p.part as Record<string, unknown>)?.id ||
-          "") as string;
+          strField(p.part, "messageID") ||
+          "";
+        const partID =
+          p.partID || p.part_id || p.partId || strField(p.part, "id") || "";
         const field = p.field as string | undefined;
         const delta = p.delta;
         if (!sid || !messageID || !partID || !field || delta === undefined) {
@@ -832,7 +831,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         const req: PermissionRequest = {
           sessionID: sid,
           id: p.id,
-          tool: toolName,
+          ...(typeof toolName === "string" ? { tool: toolName } : {}),
           input: p.input,
         };
         set((s) => ({

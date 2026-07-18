@@ -1,7 +1,7 @@
 // Lightweight inline SVG icons (no external assets → works in sandboxed preview).
 import type { ReactNode } from "react";
 
-const S = (props: { children: ReactNode; size?: number }) => (
+const S = (props: { children: ReactNode; size?: number | undefined }) => (
   <svg
     width={props.size ?? 18}
     height={props.size ?? 18}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { statusText } from "../api/eventGuards";
 import type { Message } from "../api/types";
 import { CB_MAX_TOOL_CALLS } from "../store/slices/messagesSlice";
 import { useStore } from "../store/useStore";
@@ -48,10 +49,7 @@ export default function ChatView() {
   const rawStatus = useStore((s) =>
     currentID ? s.status[currentID] : undefined,
   );
-  const status =
-    typeof rawStatus === "string"
-      ? rawStatus
-      : (rawStatus as unknown as { type?: string })?.type || "idle";
+  const status = statusText(rawStatus);
   const error = useStore((s) => s.error);
   const selfImproveEnabled = useStore((s) => s.selfImproveEnabled);
   const selfImproveSessionId = useStore((s) => s.selfImproveSessionId);

@@ -213,11 +213,11 @@ function MessageItem({
                         <PartView
                           key={i}
                           part={item as Part}
-                          isLastStreaming={
-                            isWorking &&
-                            msgIdx === msgArray.length - 1 &&
-                            i === otherParts.length - 1
-                          }
+                          {...(isWorking &&
+                          msgIdx === msgArray.length - 1 &&
+                          i === otherParts.length - 1
+                            ? { isLastStreaming: true }
+                            : {})}
                         />
                       );
                     })}
