@@ -1,3 +1,4 @@
+import { isAbortError, sessionSignal } from "../../api/abortRegistry";
 import { api, SessionGoneError } from "../../api/client";
 import { isSseHealthyForSession } from "../../api/events";
 import { mergeMessages as mergeMessagesDeterministic } from "../../api/messageMerge";
@@ -7,7 +8,6 @@ import type {
   PermissionRequest,
   SessionInfo,
   SessionStatus,
-  ToolState,
 } from "../../api/types";
 import {
   normalizeMessage,
@@ -181,7 +181,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     };
     // Новый промпт — участие пользователя: сбрасываем Circuit Breaker.
     cbUserParticipated(sidStr);
-    sessionFsm.markBusy(sidStr);
+    const requestGen = sessionFsm.beginRequest(sidStr);
     set((s) => ({
       status: { ...s.status, [sidStr]: "busy" },
       cbTripped: { ...s.cbTripped, [sidStr]: false },
@@ -268,6 +268,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         parts,
         selectedModel ?? undefined,
         systemInstruction,
+        // Релиз 4: централизованная отмена — кнопка «Стоп» обрывает и этот запрос.
+        sessionSignal(sidStr),
       );
 
       // P2-fix: вложения уже ушли в prompt — очищаем композер сразу,
@@ -285,9 +287,13 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         // --- Регистрируем SSE-резолвер, поддерживая множественные send() ---
         // Если для этой сессии уже есть резолвер (юзер быстро жмёт 2 раза),
         // не теряем его — sessionFsm вызывает оба цепочкой.
-        sessionFsm.onIdle(sidStr, () => {
-          done("sse:session.idle");
-        });
+        sessionFsm.onIdle(
+          sidStr,
+          () => {
+            done("sse:session.idle");
+          },
+          requestGen,
+        );
 
         // --- HTTP-polling подтверждение финала (страховка от битого SSE) ---
         // Проверяем состояние каждые 3s. Считаем финалом, когда:
@@ -345,7 +351,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               if (stableCount >= 1) {
                 clearInterval(httpPoller);
                 clearTimeout(timeoutId);
-                sessionFsm.clearIdleResolver(sidStr);
+                sessionFsm.clearIdleResolver(sidStr, requestGen);
                 done("http:stable-finish");
               }
             } else {
@@ -355,7 +361,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               if (isDone && completedAt) {
                 clearInterval(httpPoller);
                 clearTimeout(timeoutId);
-                sessionFsm.clearIdleResolver(sidStr);
+                sessionFsm.clearIdleResolver(sidStr, requestGen);
                 done("http:completed-immediate");
               }
             }
@@ -364,7 +370,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             if (pollErr instanceof SessionGoneError) {
               clearInterval(httpPoller);
               clearTimeout(timeoutId);
-              sessionFsm.clearIdleResolver(sidStr);
+              sessionFsm.clearIdleResolver(sidStr, requestGen);
               if (!settled) {
                 settled = true;
                 reject(pollErr);
@@ -382,7 +388,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             `[send] hard timeout after ${SEND_HARD_TIMEOUT_MS}ms — forcing completion`,
           );
           clearInterval(httpPoller);
-          sessionFsm.clearIdleResolver(sidStr);
+          sessionFsm.clearIdleResolver(sidStr, requestGen);
           done("hard-timeout");
         }, SEND_HARD_TIMEOUT_MS);
 
@@ -394,7 +400,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             if (finish === "stop" || finish === "error" || completed) {
               clearInterval(httpPoller);
               clearTimeout(timeoutId);
-              sessionFsm.clearIdleResolver(sidStr);
+              sessionFsm.clearIdleResolver(sidStr, requestGen);
               done(
                 finish === "error"
                   ? "prompt:finish-error"
@@ -403,9 +409,13 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
             }
           })
           .catch((e) => {
+            // Релиз 4: отмена по «Стоп» (AbortError) — не ошибка отправки.
+            // Интервал и таймаут не трогаем: финал подтвердят SSE session.idle
+            // или поллер — сервер финализирует ответ после abort.
+            if (isAbortError(e)) return;
             clearInterval(httpPoller);
             clearTimeout(timeoutId);
-            sessionFsm.clearIdleResolver(sidStr);
+            sessionFsm.clearIdleResolver(sidStr, requestGen);
             if (!settled) {
               settled = true;
               reject(e);
@@ -415,7 +425,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         // no extra poll interval
       });
     } catch (e) {
-      sessionFsm.markIdle(sidStr);
+      sessionFsm.markIdle(sidStr, requestGen);
       if (e instanceof SessionGoneError) {
         console.warn(
           "[send] session gone on backend, recreating:",
@@ -481,9 +491,12 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     }
 
     await doFinalFetch();
+    sessionFsm.markIdle(sidStr, requestGen);
     set((s) => {
+      // Релиз 4: если за время ожидания стартовал более новый send(),
+      // не сбиваем его busy-статус устаревшим idle.
+      if (!sessionFsm.isCurrent(sidStr, requestGen)) return {};
       const currentStatus = s.status[sidStr];
-      sessionFsm.markIdle(sidStr);
       const finalStatus: SessionStatus =
         currentStatus === "error" ? "error" : "idle";
       return {
@@ -662,7 +675,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         // пользователя; на CB_MAX_TOOL_CALLS-м — останавливаем сессию и ждём
         // подтверждения в баннере (ChatView).
         if (part.type === "tool") {
-          const st = (part as { state?: ToolState | string }).state;
+          const st = (part as { state?: { status?: string } | string }).state;
           const status = typeof st === "string" ? st : st?.status;
           if (status === "completed" || status === "error") {
             const partKey = String(

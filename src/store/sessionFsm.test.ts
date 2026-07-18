@@ -83,4 +83,42 @@ describe("SessionFsm", () => {
     expect(fsm.isBusy("a")).toBe(false);
     expect(fsm.resolveIdle("a")).toBe(false);
   });
+
+  it("Релиз 4: устаревшее поколение не снимает busy нового send()", () => {
+    const gen1 = fsm.beginRequest("a");
+    const gen2 = fsm.beginRequest("a");
+    fsm.markIdle("a", gen1); // поздний hard-timeout первого send()
+    expect(fsm.isBusy("a")).toBe(true);
+    fsm.markIdle("a", gen2);
+    expect(fsm.isBusy("a")).toBe(false);
+  });
+
+  it("Релиз 4: isCurrent отличает актуальное поколение", () => {
+    const gen1 = fsm.beginRequest("a");
+    expect(fsm.isCurrent("a", gen1)).toBe(true);
+    const gen2 = fsm.beginRequest("a");
+    expect(fsm.isCurrent("a", gen1)).toBe(false);
+    expect(fsm.isCurrent("a", gen2)).toBe(true);
+  });
+
+  it("Релиз 4: clearIdleResolver с поколением снимает только свой резолвер", () => {
+    const order: string[] = [];
+    const gen1 = fsm.beginRequest("a");
+    fsm.onIdle("a", () => order.push("first"), gen1);
+    const gen2 = fsm.beginRequest("a");
+    fsm.onIdle("a", () => order.push("second"), gen2);
+    fsm.clearIdleResolver("a", gen1);
+    expect(fsm.resolveIdle("a")).toBe(true);
+    expect(order).toEqual(["second"]);
+  });
+
+  it("Релиз 4: resolveIdle завершает все ожидающие поколения", () => {
+    const order: string[] = [];
+    const gen1 = fsm.beginRequest("a");
+    fsm.onIdle("a", () => order.push("g1"), gen1);
+    const gen2 = fsm.beginRequest("a");
+    fsm.onIdle("a", () => order.push("g2"), gen2);
+    expect(fsm.resolveIdle("a")).toBe(true);
+    expect(order).toEqual(["g1", "g2"]);
+  });
 });

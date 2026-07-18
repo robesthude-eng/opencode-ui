@@ -1,74 +1,125 @@
-// P1.6: конечный автомат состояния сессии (busy/idle) + idle-резолверы.
-// Вынесено из messagesSlice.ts механически, поведение сохранено 1:1:
-//   - markBusy/markIdle/isBusy — бывший const __locallyBusy = new Set<string>()
-//   - onIdle/resolveIdle/clearIdleResolver — бывшая __idleResolvers Map
+// P1.6 → Релиз 4: конечный автомат состояния сессии (busy/idle) с поколениями
+// запросов. Каждый send() получает монотонный номер поколения (beginRequest);
+// markIdle/clearIdleResolver с номером действуют только на своё поколение —
+// зависший старый send() (hard-timeout, поздний поллер) не может снять busy
+// или стереть idle-резолвер более нового запроса.
 // Чистый класс без React и сети — легко тестировать (см. sessionFsm.test.ts).
 
 export class SessionFsm {
   /**
-   * Сессии, для которых клиент активно ждёт ответа на свой send().
-   * Пока сессия busy, промежуточные события (finish:"stop" на
-   * reasoning-стадии, session.idle между tool-calls) не сбрасывают busy.
+   * Последний выданный номер поколения per session. Монотонный, не
+   * сбрасывается markIdle — по нему isCurrent() отличает актуальный
+   * запрос от устаревшего.
    */
-  private busy = new Set<string>();
-  /** Колбэки, ждущие настоящего завершения сессии (session.idle от сервера). */
-  private idleResolvers = new Map<string, () => void>();
+  private generations = new Map<string, number>();
+  /** Поколение, владеющее busy-состоянием сессии (нет записи — idle). */
+  private active = new Map<string, number>();
+  /** Idle-резолверы: sessionId → (поколение → колбэк). */
+  private idleResolvers = new Map<string, Map<number, () => void>>();
+
+  /** Начать новый запрос: выдать поколение и пометить сессию busy. */
+  beginRequest(sessionId: string): number {
+    const gen = (this.generations.get(sessionId) ?? 0) + 1;
+    this.generations.set(sessionId, gen);
+    this.active.set(sessionId, gen);
+    return gen;
+  }
+
+  /** true, если это поколение всё ещё последнее (новее не стартовало). */
+  isCurrent(sessionId: string, generation: number): boolean {
+    return (this.generations.get(sessionId) ?? 0) === generation;
+  }
 
   /** true, если send() для этой сессии ещё не завершился. */
   isBusy(sessionId: string): boolean {
-    return this.busy.has(sessionId);
+    return this.active.has(sessionId);
   }
 
-  /** Пометить сессию активной (вызывается в начале send()). */
+  /** Легаси-обёртка: пометить busy без получения номера поколения. */
   markBusy(sessionId: string): void {
-    this.busy.add(sessionId);
+    this.beginRequest(sessionId);
   }
 
   /**
-   * Снять пометку активности (конец send() или ошибка). Резолвер не трогаем:
-   * его снимает та ветка, которая реально завершила ожидание —
-   * прежняя семантика __locallyBusy.delete().
+   * Снять пометку активности (конец send() или ошибка). С указанным
+   * поколением — только если оно всё ещё владеет busy; устаревший вызов — no-op.
+   * Без поколения — безусловно (легаси-семантика __locallyBusy.delete()).
+   * Резолверы не трогаем — их снимает та ветка, которая реально завершила ожидание.
    */
-  markIdle(sessionId: string): void {
-    this.busy.delete(sessionId);
+  markIdle(sessionId: string, generation?: number): void {
+    if (generation !== undefined && this.active.get(sessionId) !== generation) {
+      return;
+    }
+    this.active.delete(sessionId);
   }
 
   /**
-   * Зарегистрировать резолвер завершения. Если резолвер уже есть
-   * (пользователь быстро отправил дважды), он не теряется — новый
-   * вызывает предыдущий цепочкой (прежняя семантика __idleResolvers.set).
+   * Зарегистрировать резолвер завершения для поколения (по умолчанию — последнего).
+   * Повторная регистрация в том же поколении не теряет предыдущий колбэк —
+   * вызывает его цепочкой (прежняя семантика __idleResolvers.set).
    */
-  onIdle(sessionId: string, resolver: () => void): void {
-    const prev = this.idleResolvers.get(sessionId);
-    this.idleResolvers.set(sessionId, () => {
-      if (prev) {
-        try {
-          prev();
-        } catch {
-          /* прежнее поведение: ошибка предыдущего резолвера глотается */
-        }
-      }
-      resolver();
-    });
+  onIdle(sessionId: string, resolver: () => void, generation?: number): void {
+    const gen = generation ?? this.generations.get(sessionId) ?? 0;
+    let byGen = this.idleResolvers.get(sessionId);
+    if (!byGen) {
+      byGen = new Map();
+      this.idleResolvers.set(sessionId, byGen);
+    }
+    const prev = byGen.get(gen);
+    byGen.set(
+      gen,
+      prev
+        ? () => {
+            try {
+              prev();
+            } catch {
+              /* прежнее поведение: ошибка предыдущего резолвера глотается */
+            }
+            resolver();
+          }
+        : resolver,
+    );
   }
 
-  /** Снять резолвер без вызова (финал подтверждён другим каналом). */
-  clearIdleResolver(sessionId: string): void {
-    this.idleResolvers.delete(sessionId);
+  /**
+   * Снять резолвер без вызова. С поколением — только свой (чужие send()
+   * продолжают ждать); без поколения — все (легаси-семантика).
+   */
+  clearIdleResolver(sessionId: string, generation?: number): void {
+    if (generation === undefined) {
+      this.idleResolvers.delete(sessionId);
+      return;
+    }
+    const byGen = this.idleResolvers.get(sessionId);
+    if (!byGen) return;
+    byGen.delete(generation);
+    if (byGen.size === 0) this.idleResolvers.delete(sessionId);
   }
 
-  /** Вызвать и снять резолвер, если он есть. Возвращает true, если вызван. */
+  /**
+   * Вызвать и снять все резолверы сессии (session.idle пришёл — завершились
+   * все ожидающие send()). Возвращает true, если хоть один вызван.
+   * Ошибки каждого резолвера глотаются, чтобы сбой одного send() не
+   * блокировал завершение остальных.
+   */
   resolveIdle(sessionId: string): boolean {
-    const resolve = this.idleResolvers.get(sessionId);
-    if (!resolve) return false;
+    const byGen = this.idleResolvers.get(sessionId);
+    if (!byGen || byGen.size === 0) return false;
     this.idleResolvers.delete(sessionId);
-    resolve();
+    for (const resolve of byGen.values()) {
+      try {
+        resolve();
+      } catch {
+        /* см. выше */
+      }
+    }
     return true;
   }
 
   /** Полный сброс (для тестов). */
   reset(): void {
-    this.busy.clear();
+    this.generations.clear();
+    this.active.clear();
     this.idleResolvers.clear();
   }
 }

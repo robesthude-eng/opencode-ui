@@ -50,6 +50,14 @@ async function req<T>(
   const controller = new AbortController();
   const timeout =
     timeoutMs === null ? null : setTimeout(() => controller.abort(), timeoutMs);
+  // Релиз 4: внешний сигнал (централизованная отмена по сессии) комбинируется
+  // с внутренним таймаут-контроллером.
+  const externalSignal = init?.signal ?? null;
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener("abort", onExternalAbort);
+  }
   try {
     const res = await fetch(`${config.baseUrl}${path}`, {
       ...init,
@@ -94,6 +102,9 @@ async function req<T>(
     return res.json() as Promise<T>;
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === "AbortError") {
+      // Отмена внешним сигналом (кнопка «Стоп») — пробрасываем AbortError
+      // как есть, это не таймаут.
+      if (externalSignal?.aborted) throw err;
       const seconds =
         timeoutMs === null
           ? "the request limit"
@@ -103,6 +114,8 @@ async function req<T>(
     throw err;
   } finally {
     if (timeout) clearTimeout(timeout);
+    if (externalSignal)
+      externalSignal.removeEventListener("abort", onExternalAbort);
   }
 }
 
@@ -171,6 +184,7 @@ export const api = {
     parts: Record<string, unknown>[],
     model?: PromptModel,
     systemInstruction?: string,
+    signal?: AbortSignal,
   ) =>
     req<Message>(
       `/session/${id}/message`,
@@ -181,6 +195,7 @@ export const api = {
           ...(model ? { model } : {}),
           ...(systemInstruction ? { system: systemInstruction } : {}),
         }),
+        signal,
       },
       PROMPT_REQUEST_TIMEOUT_MS,
     ),

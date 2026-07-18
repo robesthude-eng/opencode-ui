@@ -1,3 +1,4 @@
+import { abortSessionRequests } from "../../api/abortRegistry";
 import { api, isSessionDead, SessionGoneError } from "../../api/client";
 import type { SessionInfo, SessionStatus } from "../../api/types";
 import { normalizeMessages } from "../helpers";
@@ -228,6 +229,9 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
   abort: async () => {
     const sid = get().currentID;
     if (!sid || sid.startsWith("tmp_")) return;
+    // Релиз 4: централизованная отмена — обрываем и локальные HTTP-запросы
+    // этой сессии (висящий promptWithParts), не только серверную генерацию.
+    abortSessionRequests(sid);
     try {
       await api.abortSession(sid);
     } catch (e) {
