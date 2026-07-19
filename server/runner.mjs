@@ -37,10 +37,10 @@ export const RUNNER_WORKSPACE = "/session/workspace";
 
 const RUNNER_IMAGE = process.env.RUNNER_IMAGE || "opencode-runner:latest";
 const RUNNER_NETWORK = process.env.RUNNER_NETWORK || "opencode-runners";
-const RUNNER_MEMORY = process.env.RUNNER_MEMORY || "512m";
+const RUNNER_MEMORY = process.env.RUNNER_MEMORY || "1g";
 // Свап отключён: memory-swap == memory означает «памяти + 0 свапа».
 const RUNNER_MEMORY_SWAP = process.env.RUNNER_MEMORY_SWAP || RUNNER_MEMORY;
-const RUNNER_CPUS = process.env.RUNNER_CPUS || "0.5";
+const RUNNER_CPUS = process.env.RUNNER_CPUS || "1";
 // Процессы раннера не работают из-под root (node:24-slim => node = 1000:1000).
 const RUNNER_USER = process.env.RUNNER_USER || "1000:1000";
 const RUNNER_PIDS_LIMIT = process.env.RUNNER_PIDS_LIMIT || "512";
