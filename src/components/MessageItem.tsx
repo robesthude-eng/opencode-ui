@@ -1,7 +1,11 @@
 import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { Message, Part, ToolOutput, ToolPart } from "../api/types";
-import { AttachmentChip, splitAttachmentLines } from "./AttachmentChip";
+import {
+  AttachmentChip,
+  splitAttachmentLines,
+  WorkspaceFileChip,
+} from "./AttachmentChip";
 import CopyButton from "./CopyButton";
 import PartView from "./PartView";
 import ToolGroup from "./ToolGroup";
@@ -33,6 +37,89 @@ function getMessageText(message: Message): string {
     })
     .filter(Boolean)
     .join("\n\n");
+}
+
+/** Приводит путь из инструмента/ответа к относительному пути workspace. */
+function normalizeWorkspacePath(value: string): string | null {
+  const path = value
+    .trim()
+    .replace(/^file:\/\//, "")
+    .replace(/\\/g, "/")
+    .replace(/^\/session\/workspace\//, "")
+    .replace(/^sessions\/[^/]+\/workspace\//, "")
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "");
+  if (!path || path.split("/").includes("..")) return null;
+  return path;
+}
+
+function toolCompleted(part: ToolPart): boolean {
+  const state = part.state;
+  const status =
+    typeof state === "string"
+      ? state
+      : state && typeof state === "object"
+        ? state.status
+        : undefined;
+  return (
+    status === "completed" ||
+    status === "success" ||
+    (status == null && part.output != null)
+  );
+}
+
+/**
+ * Файлы, созданные стандартным инструментом Write. Это не новая копия:
+ * карточка ведёт к тому же объекту в workspace текущей сессии.
+ * Артефакты из Bash дополнительно приходят отдельной 📎-строкой по инструкции
+ * модели, поэтому также становятся файл-карточками через PartView.
+ */
+function GeneratedFiles({ message }: { message: Message }) {
+  const pathsInText = new Set<string>();
+  for (const p of message.parts || []) {
+    if (p.type !== "text" || typeof (p as { text?: unknown }).text !== "string")
+      continue;
+    const text = (p as { text: string }).text;
+    for (const m of text.matchAll(/^📎 .+? → (\S+)/gm)) {
+      const path = normalizeWorkspacePath(m[1] || "");
+      if (path) pathsInText.add(path);
+    }
+  }
+
+  const files = new Map<string, string>();
+  for (const p of message.parts || []) {
+    if (p.type !== "tool") continue;
+    const tool = String((p as ToolPart).tool || "").toLowerCase();
+    // Только write создаёт новый файл гарантированно. edit меняет уже
+    // существующий файл и не должен каждый раз засорять ответ новой карточкой.
+    if (tool !== "write" || !toolCompleted(p as ToolPart)) continue;
+    const state = (p as ToolPart).state;
+    const input =
+      state && typeof state === "object" ? state.input : (p as ToolPart).input;
+    if (!input || typeof input !== "object") continue;
+    const raw =
+      (input as Record<string, unknown>).filePath ??
+      (input as Record<string, unknown>).path;
+    if (typeof raw !== "string") continue;
+    const path = normalizeWorkspacePath(raw);
+    if (!path || pathsInText.has(path)) continue;
+    const name = path.split("/").pop() || path;
+    files.set(path, name);
+  }
+
+  if (files.size === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {[...files].map(([path, name]) => (
+        <WorkspaceFileChip
+          key={path}
+          name={name}
+          path={path}
+          meta="Создано ассистентом · в workspace"
+        />
+      ))}
+    </div>
+  );
 }
 
 interface ToolGroupData {
@@ -243,6 +330,7 @@ function MessageItem({
                     </>
                   );
                 })()}
+                <GeneratedFiles message={message} />
               </div>
             );
           })}

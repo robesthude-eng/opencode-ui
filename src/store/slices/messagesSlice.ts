@@ -37,7 +37,7 @@ const SEND_HARD_TIMEOUT_MS = 15 * 60 * 1000; // 15 min safety limit
 
 // P1.1 — изоляция workspace обеспечивается сервером (?directory=): инструкция без
 // абсолютных путей, чтобы не протекала структура чужих чатов.
-const SYSTEM_INSTRUCTION = `You are in an isolated workspace for this chat, like Claude.ai. Files from other chats are NOT visible. Never use absolute paths from other chats. New chat = new memory + empty workspace.`;
+const SYSTEM_INSTRUCTION = `You are in an isolated workspace for this chat, like Claude.ai. Files from other chats are NOT visible. Never use absolute paths from other chats. New chat = new memory + empty workspace. Keep the user visibly informed while working: before the first meaningful action, and then after every 1–2 meaningful tool actions or when switching task phase, write one short, concrete progress sentence in the user's language before continuing. Describe the outcome or next step (for example: "Добавляю гостевой вход и убираю форму авторизации."), not hidden reasoning. Do not narrate routine file reads one by one and do not spam repetitive updates. When you create a user-downloadable artifact through Bash or another tool (such as a PDF, spreadsheet, document, image, archive, audio, video, or other deliverable), include a separate final-answer line exactly in this format: 📎 filename.ext → relative/path/from/workspace. The path must be relative to the current workspace. This makes the artifact appear as a downloadable file card in chat.`;
 
 /** Attachment-части для оптимистичного user-сообщения (чистая функция). */
 export function buildAttachmentParts(attachments: ProcessedFile[]): Part[] {
@@ -76,7 +76,7 @@ export function buildPromptParts(
       parts.push(att.part);
       continue;
     }
-    // Текстовые файлы — полноценный file-part с file://-путё��:
+    // Текстовые файлы — полноценный file-part с file://-путём:
     // opencode сам прочитает содержимое из workspace сессии.
     if (att.kind === "text" && att.agentPath) {
       parts.push({
@@ -275,7 +275,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       // Fire-and-forget prompt: сервер сам стримит события через SSE.
       // Не полагаемся на возврат promptWithParts как индикатор финиша —
       // ждём ЛИБО session.idle из SSE, ЛИБО подтверждённый через HTTP-polling
-      // финал (два опроса подряд показывают одинаковое finish + отсутствие ��овых сообщений).
+      // финал (два опроса подряд показывают одинаковое finish + отсутствие новых сообщений).
       // Это защищает от нестабильного SSE (мобильная сеть, VPN).
       const promptPromise = api.promptWithParts(
         sidStr,
@@ -743,7 +743,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       }
       case "stream.reconnected": {
         // P1-fix: SSE переподключился после разрыва — события за время
-        // разрыва п��теряны (нет Last-Event-ID replay). Один раз
+        // разрыва потеряны (нет Last-Event-ID replay). Один раз
         // дотягиваем историю активной сессии и мержим детерминированно.
         const cur = get().currentID;
         if (!cur || cur.startsWith("tmp_")) break;

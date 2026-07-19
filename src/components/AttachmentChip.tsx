@@ -70,18 +70,20 @@ function ChipShell({
   );
 }
 
-/** Чип из служебной 📎-строки («📎 name → uploads/… …»). */
-export function AttachmentChip({ line }: { line: string }) {
+/** Универсальный чип файла, который уже лежит в workspace сессии. */
+export function WorkspaceFileChip({
+  name,
+  path,
+  meta = "Файл в workspace",
+}: {
+  name: string;
+  path: string;
+  meta?: string;
+}) {
   const currentID = useStore((s) => s.currentID);
-  const m = /^📎 (.+?) → (\S+)(.*)$/.exec(line.trim());
-  const name = m?.[1] ?? "file";
-  const filePath = m?.[2] ?? "";
-  const meta = (m?.[3] ?? "").replace(/^[\s—-]+/, "").trim() || filePath;
-  const isZip = /\.zip\b|zip-архив/i.test(line);
+  const isZip = /\.zip\b/i.test(name);
   const href =
-    filePath && currentID
-      ? workspaceDownloadUrl(filePath, currentID)
-      : undefined;
+    path && currentID ? workspaceDownloadUrl(path, currentID) : undefined;
   return (
     <ChipShell href={href} name={name}>
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
@@ -99,6 +101,15 @@ export function AttachmentChip({ line }: { line: string }) {
       </div>
     </ChipShell>
   );
+}
+
+/** Чип из служебной 📎-строки («📎 name → uploads/… …»). */
+export function AttachmentChip({ line }: { line: string }) {
+  const m = /^📎 (.+?) → (\S+)(.*)$/.exec(line.trim());
+  const name = m?.[1] ?? "file";
+  const filePath = m?.[2] ?? "";
+  const meta = (m?.[3] ?? "").replace(/^[\s—-]+/, "").trim() || filePath;
+  return <WorkspaceFileChip name={name} path={filePath} meta={meta} />;
 }
 
 /** Чип для attachment-части сообщения (вложения из Composer). */

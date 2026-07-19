@@ -384,8 +384,11 @@ export function workspaceDownloadUrl(
   // api.uploadFile может вернуть полный путь sessions/<sid>/workspace/...;
   // роут ожидает путь относительно workspace сессии.
   const rel = filePath
+    .replace(/^file:\/\//, "")
     .replace(/\\/g, "/")
+    .replace(/^\/session\/workspace\//, "")
     .replace(/^sessions\/[^/]+\/workspace\//, "")
+    .replace(/^\.\//, "")
     .replace(/^\/+/, "");
   const sid = sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : "";
   return `/api/workspace/download?path=${encodeURIComponent(rel)}${sid}`;
