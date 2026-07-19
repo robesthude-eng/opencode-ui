@@ -221,7 +221,10 @@ function QuestionCard({ part }: { part: ToolPart }) {
   const send = useStore((s) => s.send);
   const currentID = useStore((s) => s.currentID);
   const [customText, setCustomText] = useState<Record<number, string>>({});
-  const [answered, setAnswered] = useState(false);
+  // Статус «отвечено» — по каждому вопросу отдельно (раньше был один
+  // флаг на всю карточку, и ответ на один вопрос помечал «Ответ отправлен»
+  // сразу у всех).
+  const [answeredIdx, setAnsweredIdx] = useState<Record<number, boolean>>({});
   const [selectedIdx, setSelectedIdx] = useState<Record<number, number | null>>(
     {},
   );
@@ -232,9 +235,12 @@ function QuestionCard({ part }: { part: ToolPart }) {
   // Иначе LLM получает два user-message подряд без tool_result и весь turn виснет.
   // Пытаемся найти requestID (que_...) в структуре part'а: OpenCode кладёт его либо
   // в part.state.callID, либо в part.callID, либо в part.request.id.
-  async function submitAnswer(labels: string[]) {
+  async function submitAnswer(labels: string[], q?: QuestionItem) {
     const sid = currentID;
-    const answerText = labels.join(", ");
+    // Контекст вопроса в тексте ответа — чтобы агент понимал, на какой
+    // из нескольких вопросов ответил пользователь.
+    const ctx = q?.header || q?.question || "";
+    const answerText = ctx ? `${ctx}: ${labels.join(", ")}` : labels.join(", ");
 
     // Стратегия 1: пробуем v2 QuestionAPI (только если сервер реально создал pending question)
     if (sid) {
@@ -257,7 +263,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
     if (sid) {
       try {
         await api.abortSession(sid);
-        // маленькая пауза, чтобы сервер успел записать abort в БД
+        // маленькая пауза, чтобы сервер успел записать abort в БД��
         await new Promise((r) => setTimeout(r, 200));
       } catch (e) {
         console.warn("[QuestionCard] abortSession failed (ok, продолжаем):", e);
@@ -269,128 +275,146 @@ function QuestionCard({ part }: { part: ToolPart }) {
 
   const handleOptionClick = useCallback(
     (qIdx: number, optIdx: number, label: string) => {
-      if (answered) return;
+      if (answeredIdx[qIdx]) return;
       setSelectedIdx((prev) => ({ ...prev, [qIdx]: optIdx }));
-      setAnswered(true);
-      submitAnswer([label]).catch((err) => {
+      setAnsweredIdx((prev) => ({ ...prev, [qIdx]: true }));
+      submitAnswer([label], questions[qIdx]).catch((err) => {
         console.error("[QuestionCard] submitAnswer failed:", err);
-        setAnswered(false);
+        setAnsweredIdx((prev) => ({ ...prev, [qIdx]: false }));
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [answered, submitAnswer],
+    [answeredIdx, submitAnswer],
   );
 
   const handleCustomSubmit = useCallback(
     (qIdx: number) => {
-      if (answered) return;
+      if (answeredIdx[qIdx]) return;
       const text = customText[qIdx]?.trim();
       if (!text) return;
-      setAnswered(true);
-      submitAnswer([text]).catch((err) => {
+      setAnsweredIdx((prev) => ({ ...prev, [qIdx]: true }));
+      submitAnswer([text], questions[qIdx]).catch((err) => {
         console.error("[QuestionCard] submitAnswer failed:", err);
-        setAnswered(false);
+        setAnsweredIdx((prev) => ({ ...prev, [qIdx]: false }));
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [answered, customText, submitAnswer],
+    [answeredIdx, customText, submitAnswer],
   );
 
   if (questions.length === 0) return <DefaultToolCard part={part} />;
+
+  // По одному вопросу за раз: видны отвеченные и первый неотвеченный;
+  // остальные появляются после ответа.
+  const firstUnanswered = questions.findIndex((_, i) => !answeredIdx[i]);
+  const allAnswered = firstUnanswered === -1;
+  const hiddenCount = allAnswered ? 0 : questions.length - firstUnanswered - 1;
 
   return (
     <div
       className={cn(
         "not-prose my-1.5 overflow-hidden rounded-xl border",
-        answered || !isWaiting
+        allAnswered || !isWaiting
           ? "border-emerald-500/30 bg-emerald-500/[0.05]"
           : "border-emerald-400/30 bg-emerald-400/[0.05]",
       )}
     >
-      {questions.map((q, qIdx) => (
-        <div
-          key={qIdx}
-          className={cn(
-            "flex flex-col gap-2 p-3",
-            qIdx > 0 && "border-t border-border",
-          )}
-        >
-          {q.header && (
-            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
-              {q.header}
-            </div>
-          )}
-          {q.question && (
-            <div className="text-[13.5px] font-medium leading-snug">
-              {q.question}
-            </div>
-          )}
-          {q.options && q.options.length > 0 && (
-            <div className="flex flex-col gap-1">
-              {q.options.map((opt, optIdx) => {
-                const selected = selectedIdx[qIdx] === optIdx;
-                const disabled = answered;
-                return (
-                  <button
-                    key={optIdx}
-                    type="button"
-                    className={cn(
-                      "flex w-full flex-col gap-0.5 rounded-lg border px-3 py-2 text-left transition",
-                      selected
-                        ? "border-primary bg-primary/10"
-                        : "border-border/80 bg-card/50 hover:border-primary/40 hover:bg-muted/40",
-                      disabled && "cursor-default opacity-70",
-                    )}
-                    onClick={() =>
-                      handleOptionClick(qIdx, optIdx, opt.label || "")
-                    }
-                    disabled={disabled}
-                  >
-                    <span className="text-[13px] font-semibold">
-                      {opt.label}
-                    </span>
-                    {opt.description && (
-                      <span className="text-[11px] text-muted-foreground">
-                        {opt.description}
+      {questions.map((q, qIdx) => {
+        const isAnswered = !!answeredIdx[qIdx];
+        if (!isAnswered && qIdx !== firstUnanswered) return null;
+        return (
+          <div
+            key={qIdx}
+            className={cn(
+              "flex flex-col gap-2 p-3",
+              qIdx > 0 && "border-t border-border",
+            )}
+          >
+            {q.header && (
+              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
+                {q.header}
+              </div>
+            )}
+            {q.question && (
+              <div className="text-[13.5px] font-medium leading-snug">
+                {q.question}
+              </div>
+            )}
+            {q.options && q.options.length > 0 && (
+              <div className="flex flex-col gap-1">
+                {q.options.map((opt, optIdx) => {
+                  const selected = selectedIdx[qIdx] === optIdx;
+                  const disabled = isAnswered;
+                  return (
+                    <button
+                      key={optIdx}
+                      type="button"
+                      className={cn(
+                        "flex w-full flex-col gap-0.5 rounded-lg border px-3 py-2 text-left transition",
+                        selected
+                          ? "border-primary bg-primary/10"
+                          : "border-border/80 bg-card/50 hover:border-primary/40 hover:bg-muted/40",
+                        disabled && "cursor-default opacity-70",
+                      )}
+                      onClick={() =>
+                        handleOptionClick(qIdx, optIdx, opt.label || "")
+                      }
+                      disabled={disabled}
+                    >
+                      <span className="text-[13px] font-semibold">
+                        {opt.label}
                       </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {q.allowCustomResponse !== false && isWaiting && !answered && (
-            <div className="mt-0.5 flex items-center gap-1.5">
-              <Input
-                type="text"
-                className="h-8 text-[13px]"
-                placeholder="Или свой ответ…"
-                value={customText[qIdx] || ""}
-                onChange={(e) =>
-                  setCustomText((prev) => ({ ...prev, [qIdx]: e.target.value }))
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCustomSubmit(qIdx);
-                }}
-              />
-              <Button
-                size="icon"
-                className="h-8 w-8 shrink-0 rounded-full"
-                onClick={() => handleCustomSubmit(qIdx)}
-                disabled={!customText[qIdx]?.trim()}
-              >
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          )}
-          {answered && (
-            <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
-              <Check className="h-3 w-3" />
-              Ответ отправлен
-            </div>
-          )}
+                      {opt.description && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {opt.description}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {q.allowCustomResponse !== false && isWaiting && !isAnswered && (
+              <div className="mt-0.5 flex items-center gap-1.5">
+                <Input
+                  type="text"
+                  className="h-8 text-[13px]"
+                  placeholder="Или свой ответ…"
+                  value={customText[qIdx] || ""}
+                  onChange={(e) =>
+                    setCustomText((prev) => ({
+                      ...prev,
+                      [qIdx]: e.target.value,
+                    }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleCustomSubmit(qIdx);
+                  }}
+                />
+                <Button
+                  size="icon"
+                  className="h-8 w-8 shrink-0 rounded-full"
+                  onClick={() => handleCustomSubmit(qIdx)}
+                  disabled={!customText[qIdx]?.trim()}
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+            {isAnswered && (
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
+                <Check className="h-3 w-3" />
+                Ответ отправлен
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {hiddenCount > 0 && (
+        <div className="border-t border-border px-3 py-2 font-mono text-[11px] text-muted-foreground/60">
+          Следующий вопрос появится после ответа · осталось {hiddenCount}
         </div>
-      ))}
+      )}
     </div>
   );
 }
