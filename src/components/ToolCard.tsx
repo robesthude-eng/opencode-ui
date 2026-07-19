@@ -83,6 +83,13 @@ function getOutput(part: ToolPart): string {
   let out: unknown;
   if (s && typeof s === "object") out = (s as ToolState).output;
   else out = part.output;
+  if (out == null && s && typeof s === "object") {
+    // Стриминг: пока инструмент работает, промежуточный stdout
+    // приходит в state.metadata.output — показываем его живьём,
+    // не дожидаясь финального state.output.
+    const meta = (s as ToolState).metadata;
+    if (meta && typeof meta.output === "string") out = meta.output;
+  }
   if (out == null) return "";
   if (typeof out === "string") return out;
   if (typeof out === "object") {

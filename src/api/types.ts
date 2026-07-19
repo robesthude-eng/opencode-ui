@@ -77,7 +77,7 @@ export interface ToolState {
   output?: string | ToolOutput;
   title?: string;
 
-  metadata?: { exit?: number; truncated?: boolean };
+  metadata?: { exit?: number; truncated?: boolean; output?: string };
   time?: { start?: number; end?: number };
 }
 

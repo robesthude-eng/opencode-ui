@@ -7,6 +7,66 @@ import AgentIndicator from "./AgentIndicator";
 import { ChevronDownIcon, SendIcon } from "./icons";
 import MessageItem from "./MessageItem";
 
+/** Человечная подпись текущего действия для индикатора работы агента. */
+function toolActivityLabel(tool: unknown): string {
+  const t = (typeof tool === "string" ? tool : "").toLowerCase();
+  if (["bash", "shell", "cmd"].includes(t)) return "выполняет команду…";
+  if (["write"].includes(t)) return "создаёт файл…";
+  if (["edit", "multiedit", "patch", "apply_patch"].includes(t))
+    return "редактирует файл…";
+  if (["read", "grep", "glob", "list", "ls"].includes(t))
+    return "читает файлы…";
+  if (t.includes("todo")) return "обновляет план…";
+  if (["webfetch", "websearch", "fetch"].includes(t))
+    return "ищет в интернете…";
+  if (t === "question") return "задаёт вопрос…";
+  if (t === "task") return "запускает подзадачу…";
+  return "выполняет действие…";
+}
+
+/**
+ * Определяет текущую фазу работы агента по последней части
+ * последнего assistant-сообщения: инструмент в работе → его подпись,
+ * размышление → «думает…», текст → «пишет ответ…».
+ */
+function currentActivityLabel(messages: Message[] | undefined): string {
+  const list = messages ?? [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i];
+    if (!m || m.role !== "assistant") continue;
+    const parts = m.parts ?? [];
+    for (let j = parts.length - 1; j >= 0; j--) {
+      const p = parts[j] as {
+        type?: string;
+        tool?: unknown;
+        state?: unknown;
+        output?: unknown;
+        text?: unknown;
+      };
+      if (!p) continue;
+      if (p.type === "tool") {
+        const st = p.state;
+        const raw =
+          typeof st === "string"
+            ? st
+            : st && typeof st === "object"
+              ? ((st as { status?: string }).status ?? "running")
+              : p.output != null
+                ? "completed"
+                : "running";
+        const norm = raw === "pending" ? "running" : raw;
+        if (norm === "running") return toolActivityLabel(p.tool);
+        // Инструмент завершён — агент решает следующий шаг.
+        return "думает…";
+      }
+      if (p.type === "reasoning") return "думает…";
+      if (p.type === "text" && p.text) return "пишет ответ…";
+    }
+    return "думает…";
+  }
+  return "думает…";
+}
+
 const SUGGESTIONS = [
   {
     title: "Написать код",
@@ -242,9 +302,9 @@ export default function ChatView() {
                 />
               );
             })}
-            {showTyping && (
+            {status === "busy" && (
               <div className="flex gap-3 py-5 px-3 md:px-6">
-                <AgentIndicator label="думает…" />
+                <AgentIndicator label={currentActivityLabel(messages)} />
               </div>
             )}
             {selfImproveEnabled &&

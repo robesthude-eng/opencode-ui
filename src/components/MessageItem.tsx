@@ -231,15 +231,18 @@ function MessageItem({
 
       {/* Arena-style Footer: Avatar and Copy Button */}
       <div className="flex items-center gap-1.5 mt-0.5 pl-1">
-        <div
-          className={cn(
-            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
-            "border border-border bg-card font-mono text-[8px] font-bold text-primary",
-            isWorking && "animate-pulse",
-          )}
-        >
-          &gt;_
-        </div>
+        {/* Пока агент работает, процесс показывает аура-индикатор в ленте;
+            обычный значок появляется только после завершения. */}
+        {!isWorking && (
+          <div
+            className={cn(
+              "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+              "border border-border bg-card font-mono text-[8px] font-bold text-primary",
+            )}
+          >
+            &gt;_
+          </div>
+        )}
         {combinedText && (
           <div className="opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100">
             <CopyButton

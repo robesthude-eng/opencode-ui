@@ -201,6 +201,40 @@ export function patchPart(
   });
 }
 
+/**
+ * Применяет дельту к полю части. Поддерживает вложенные пути через точку
+ * (например "state.output" у tool-частей): строковые дельты дописываются
+ * в конец, прочие значения заменяют текущее. Объекты по пути копируются
+ * (immutable-обновление), чтобы memo-компоненты увидели изменение.
+ * Раньше вложенное поле записывалось как литеральный ключ "state.output"
+ * и терялось — из-за этого вывод в карточках действий появлялся только
+ * после финального message.part.updated, а не стримился.
+ */
+function applyFieldDelta(
+  target: Record<string, unknown>,
+  field: string,
+  delta: unknown,
+): void {
+  const keys = field.split(".");
+  let obj = target;
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i] as string;
+    const cur = obj[key];
+    obj[key] =
+      cur && typeof cur === "object" && !Array.isArray(cur)
+        ? { ...(cur as Record<string, unknown>) }
+        : {};
+    obj = obj[key] as Record<string, unknown>;
+  }
+  const leaf = keys[keys.length - 1] as string;
+  const cur = obj[leaf];
+  if (typeof cur === "string" || typeof delta === "string") {
+    obj[leaf] = (typeof cur === "string" ? cur : "") + String(delta);
+  } else {
+    obj[leaf] = delta;
+  }
+}
+
 export function patchPartDelta(
   messages: Message[],
   messageID: string,
@@ -218,7 +252,7 @@ export function patchPartDelta(
       id: partID,
       type: field === "text" ? "text" : "stub",
     };
-    stubPart[field] = typeof delta === "string" ? delta : delta;
+    applyFieldDelta(stubPart, field, delta);
     return [
       ...messages,
       {
@@ -236,7 +270,7 @@ export function patchPartDelta(
         id: partID,
         type: field === "text" ? "text" : "stub",
       };
-      newPart[field] = typeof delta === "string" ? delta : delta;
+      applyFieldDelta(newPart, field, delta);
       return { ...m, parts: [...m.parts, normalizePartTool(newPart as Part)] };
     }
     const parts = m.parts.slice();
@@ -246,16 +280,11 @@ export function patchPartDelta(
         id: partID,
         type: field === "text" ? "text" : "stub",
       };
-      newPart[field] = typeof delta === "string" ? delta : delta;
+      applyFieldDelta(newPart, field, delta);
       return { ...m, parts: [...m.parts, normalizePartTool(newPart as Part)] };
     }
     const target = { ...existingPart } as Record<string, unknown>;
-    const cur = target[field];
-    if (typeof cur === "string" || typeof delta === "string") {
-      target[field] = (typeof cur === "string" ? cur : "") + String(delta);
-    } else {
-      target[field] = delta;
-    }
+    applyFieldDelta(target, field, delta);
     parts[idx] = target as Part;
     return { ...m, parts };
   });
