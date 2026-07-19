@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button";
 import { statusText } from "../api/eventGuards";
 import type { Message } from "../api/types";
 import { useStore } from "../store/useStore";
+import AgentIndicator from "./AgentIndicator";
 import { ChevronDownIcon, SendIcon } from "./icons";
 import MessageItem from "./MessageItem";
-import AgentIndicator from "./AgentIndicator";
 
 const SUGGESTIONS = [
   {
