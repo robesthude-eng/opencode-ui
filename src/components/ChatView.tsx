@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { statusText } from "../api/eventGuards";
 import type { Message } from "../api/types";
-import { CB_MAX_TOOL_CALLS } from "../store/slices/messagesSlice";
 import { useStore } from "../store/useStore";
 import { ChevronDownIcon, SendIcon } from "./icons";
 import MessageItem from "./MessageItem";
@@ -56,10 +55,6 @@ export default function ChatView() {
   const testStatus = useStore((s) => s.selfImproveTestStatus);
   const testErrors = useStore((s) => s.selfImproveTestErrors);
   const send = useStore((s) => s.send);
-  const cbTripped = useStore((s) =>
-    currentID ? (s.cbTripped[currentID] ?? false) : false,
-  );
-  const cbResume = useStore((s) => s.cbResume);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -205,24 +200,6 @@ export default function ChatView() {
         ref={scrollRef}
         onScroll={onScroll}
       >
-        {cbTripped && currentID && (
-          <div className="mx-auto max-w-3xl px-3 md:px-6 pt-3">
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-400 flex items-center justify-between gap-3">
-              <span>
-                Агент приостановлен: {CB_MAX_TOOL_CALLS} вызовов инструментов
-                подряд без участия пользователя (Circuit Breaker).
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={() => cbResume(currentID)}
-              >
-                Продолжить
-              </Button>
-            </div>
-          </div>
-        )}
         {error && (
           <div className="mx-auto max-w-3xl px-3 md:px-6 pt-3">
             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
