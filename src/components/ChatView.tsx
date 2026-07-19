@@ -67,6 +67,18 @@ function currentActivityLabel(messages: Message[] | undefined): string {
   return "думает…";
 }
 
+/** «шаг N» — номер текущего действия агента в текущем ответе (как в мокапе). */
+function currentStepMeta(messages: Message[] | undefined): string | undefined {
+  const list = messages ?? [];
+  const last = list[list.length - 1];
+  if (!last || last.role !== "assistant") return undefined;
+  const tools = (last.parts ?? []).filter(
+    (p) => (p as { type?: string }).type === "tool",
+  );
+  if (tools.length === 0) return undefined;
+  return `шаг ${tools.length}`;
+}
+
 const SUGGESTIONS = [
   {
     title: "Написать код",
@@ -304,7 +316,10 @@ export default function ChatView() {
             })}
             {status === "busy" && (
               <div className="flex gap-3 py-5 px-3 md:px-6">
-                <AgentIndicator label={currentActivityLabel(messages)} />
+                <AgentIndicator
+                  label={currentActivityLabel(messages)}
+                  meta={currentStepMeta(messages)}
+                />
               </div>
             )}
             {selfImproveEnabled &&

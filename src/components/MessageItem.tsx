@@ -125,133 +125,140 @@ function MessageItem({
     .join("\n\n");
 
   if (isUser) {
+    // Мокап-стиль: метка «ВЫ» + линия слева, без пузыря.
     return (
-      <div className="flex flex-col items-end px-3 md:px-6 py-1 gap-0.5">
-        {msgArray.map((message, idx) => {
-          const msgText = getMessageText(message);
-          return (
-            <div
-              key={message.id || idx}
-              className="max-w-[85%] md:max-w-[70%] group relative"
-            >
-              <div className="rounded-xl border border-border bg-card px-3.5 py-2.5 text-[14px] leading-relaxed text-foreground shadow-none">
-                <div className="whitespace-pre-wrap break-words">
-                  {msgText || "…"}
-                </div>
+      <div className="group flex flex-col gap-1.5 px-3 py-2 md:px-6">
+        <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+          вы
+        </div>
+        <div className="flex min-w-0 flex-col gap-1 border-l border-border pl-3 md:pl-4">
+          {msgArray.map((message, idx) => {
+            const msgText = getMessageText(message);
+            return (
+              <div
+                key={message.id || idx}
+                className="max-w-[min(100%,800px)] whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-foreground"
+              >
+                {msgText || "…"}
               </div>
-              {idx === msgArray.length - 1 && combinedText && (
-                <div className="flex justify-end mt-0.5 opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
-                  <CopyButton
-                    text={combinedText}
-                    title="Copy"
-                    className="h-7 w-7"
-                  />
-                </div>
-              )}
+            );
+          })}
+          {combinedText && (
+            <div className="mt-0.5 flex opacity-0 transition-opacity focus-within:opacity-100 hover:opacity-100 group-hover:opacity-60">
+              <CopyButton
+                text={combinedText}
+                title="Copy"
+                className="h-7 w-7"
+              />
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
     );
   }
 
-  // Assistant: FLAT design, no bubble, footer for controls
+  // Assistant: мокап-стиль — метка «АГЕНТ» + акцентная линия слева, без пузыря.
   return (
-    <div className="flex flex-col px-3 md:px-6 py-1.5 gap-0.5">
-      <div className="min-w-0 max-w-[min(100%,800px)] space-y-1">
-        {msgArray.map((message, msgIdx) => {
-          const items = groupParts(message.parts || []);
-          return (
-            <div
-              key={message.id || msgIdx}
-              className="text-[14.5px] leading-relaxed text-foreground/95"
-            >
-              {message.info?.error && (
-                <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400 mb-2">
-                  {typeof message.info.error === "string"
-                    ? message.info.error
-                    : typeof (message.info.error as Record<string, unknown>)
-                          .message === "string"
-                      ? String(
-                          (message.info.error as Record<string, unknown>)
-                            .message,
-                        )
-                      : typeof (message.info.error as any)?.data?.message ===
-                          "string"
-                        ? String((message.info.error as any).data.message)
-                        : "Ошибка API: проверьте тариф модели или ключ"}
-                </div>
-              )}
-              {(() => {
-                const attParts = items.filter(
-                  (item) =>
-                    "type" in item &&
-                    (item.type === "attachment" || item.type === "file"),
-                );
-                const otherParts = items.filter(
-                  (item) =>
-                    !("type" in item) ||
-                    (item.type !== "attachment" && item.type !== "file"),
-                );
-                return (
-                  <>
-                    {attParts.length > 0 && (
-                      <div className="mb-2 flex flex-wrap gap-2">
-                        {attParts.map((item, i) => (
-                          <PartView key={`att-${i}`} part={item as Part} />
-                        ))}
-                      </div>
-                    )}
-                    {otherParts.map((item, i) => {
-                      const g = item as ToolGroupData;
-                      if ("kind" in g && g.kind === "group") {
-                        return (
-                          <ToolGroup key={i} tool={g.tool} parts={g.parts} />
-                        );
-                      }
-                      return (
-                        <PartView
-                          key={i}
-                          part={item as Part}
-                          {...(isWorking &&
-                          msgIdx === msgArray.length - 1 &&
-                          i === otherParts.length - 1
-                            ? { isLastStreaming: true }
-                            : {})}
-                        />
-                      );
-                    })}
-                  </>
-                );
-              })()}
-            </div>
-          );
-        })}
+    <div className="flex flex-col gap-1.5 px-3 py-2 md:px-6">
+      <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">
+        агент
       </div>
+      <div className="flex min-w-0 flex-col gap-0.5 border-l border-primary/20 pl-3 md:pl-4">
+        <div className="min-w-0 max-w-[min(100%,800px)] space-y-1">
+          {msgArray.map((message, msgIdx) => {
+            const items = groupParts(message.parts || []);
+            return (
+              <div
+                key={message.id || msgIdx}
+                className="text-[14.5px] leading-relaxed text-foreground/95"
+              >
+                {message.info?.error && (
+                  <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400 mb-2">
+                    {typeof message.info.error === "string"
+                      ? message.info.error
+                      : typeof (message.info.error as Record<string, unknown>)
+                            .message === "string"
+                        ? String(
+                            (message.info.error as Record<string, unknown>)
+                              .message,
+                          )
+                        : typeof (message.info.error as any)?.data?.message ===
+                            "string"
+                          ? String((message.info.error as any).data.message)
+                          : "Ошибка API: проверьте тариф модели или ключ"}
+                  </div>
+                )}
+                {(() => {
+                  const attParts = items.filter(
+                    (item) =>
+                      "type" in item &&
+                      (item.type === "attachment" || item.type === "file"),
+                  );
+                  const otherParts = items.filter(
+                    (item) =>
+                      !("type" in item) ||
+                      (item.type !== "attachment" && item.type !== "file"),
+                  );
+                  return (
+                    <>
+                      {attParts.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          {attParts.map((item, i) => (
+                            <PartView key={`att-${i}`} part={item as Part} />
+                          ))}
+                        </div>
+                      )}
+                      {otherParts.map((item, i) => {
+                        const g = item as ToolGroupData;
+                        if ("kind" in g && g.kind === "group") {
+                          return (
+                            <ToolGroup key={i} tool={g.tool} parts={g.parts} />
+                          );
+                        }
+                        return (
+                          <PartView
+                            key={i}
+                            part={item as Part}
+                            {...(isWorking &&
+                            msgIdx === msgArray.length - 1 &&
+                            i === otherParts.length - 1
+                              ? { isLastStreaming: true }
+                              : {})}
+                          />
+                        );
+                      })}
+                    </>
+                  );
+                })()}
+              </div>
+            );
+          })}
+        </div>
 
-      {/* Arena-style Footer: Avatar and Copy Button */}
-      <div className="flex items-center gap-1.5 mt-0.5 pl-1">
-        {/* Пока агент работает, процесс показывает аура-индикатор в ленте;
+        {/* Arena-style Footer: Avatar and Copy Button */}
+        <div className="flex items-center gap-1.5 mt-0.5 pl-1">
+          {/* Пока агент работает, процесс показывает аура-индикатор в ленте;
             обычный значок появляется только после завершения. */}
-        {!isWorking && (
-          <div
-            className={cn(
-              "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
-              "border border-border bg-card font-mono text-[8px] font-bold text-primary",
-            )}
-          >
-            &gt;_
-          </div>
-        )}
-        {combinedText && (
-          <div className="opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100">
-            <CopyButton
-              text={combinedText}
-              title="Copy message"
-              className="h-7 w-7"
-            />
-          </div>
-        )}
+          {!isWorking && (
+            <div
+              className={cn(
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+                "border border-border bg-card font-mono text-[8px] font-bold text-primary",
+              )}
+            >
+              &gt;_
+            </div>
+          )}
+          {combinedText && (
+            <div className="opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100">
+              <CopyButton
+                text={combinedText}
+                title="Copy message"
+                className="h-7 w-7"
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
