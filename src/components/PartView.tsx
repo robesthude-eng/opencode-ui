@@ -11,7 +11,6 @@ import React, {
   memo,
   type ReactNode,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -22,6 +21,7 @@ import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { formatSize } from "../api/files";
 import type { Part, ToolPart } from "../api/types";
+import { useSmoothStreamingText } from "../lib/useSmoothText";
 import CopyButton from "./CopyButton";
 import { ThinkIcon } from "./icons";
 import ToolCard from "./ToolCard";
@@ -157,49 +157,10 @@ const rehypePlugins = [rehypeSanitize, rehypeHighlight];
 // с кнопкой «Показать полностью» держит интерфейс отзывчивым.
 const RENDER_TEXT_LIMIT = 30_000;
 
-// Релиз 3: дебаунс Markdown-парсинга во время стрима. Полный перепарс
-// длинного ответа на каждое обновление (даже батченное раз в 16мс) —
-// самая дорогая часть рендера. Троттлим текст, уходящий в ReactMarkdown,
-// до раза в MD_DEBOUNCE_MS; после завершения стрима текст применяется
-// сразу и без потерь. Перепарс «только хвоста» сознательно не делаем:
-// разрез посреди code-fence/таблицы ломает разметку.
-const MD_DEBOUNCE_MS = 150;
-
-function useDebouncedStreamingText(text: string, streaming: boolean): string {
-  const [shown, setShown] = useState(text);
-  const latestRef = useRef(text);
-  latestRef.current = text;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (!streaming) {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
-      setShown(latestRef.current);
-      return;
-    }
-    // Троттлинг с передней границей: таймер НЕ сбрасывается на каждое
-    // обновление текста (иначе при непрерывном стриме обновлений не
-    // было бы вовсе) — просто раз в MD_DEBOUNCE_MS применяем последнюю версию.
-    if (timerRef.current) return;
-    timerRef.current = setTimeout(() => {
-      timerRef.current = null;
-      setShown(latestRef.current);
-    }, MD_DEBOUNCE_MS);
-  }, [streaming, text]);
-
-  // Очистка только при размонтировании (не на каждый рендер).
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-    [],
-  );
-
-  return streaming ? shown : text;
-}
+// Релиз 4: плавный стрим. Раньше стоял дебаунс 150мс — текст прыгал
+// крупными кусками. Теперь «догоняющий» typewriter из useSmoothText
+// даёт визуально непрерывный вывод без потери производительности
+// (обновления ~30fps, длинные тексты применяются сразу).
 
 const LimitedMarkdown = ({
   text,
@@ -211,8 +172,8 @@ const LimitedMarkdown = ({
   const [showAll, setShowAll] = useState(false);
   const truncated = !showAll && text.length > RENDER_TEXT_LIMIT;
   const visible = truncated ? text.slice(0, RENDER_TEXT_LIMIT) : text;
-  // Релиз 3: во время стрима перепарсиваем Markdown не чаще раза в 150мс.
-  const displayText = useDebouncedStreamingText(visible, !!streaming);
+  // Плавный «догоняющий» вывод текста во время стрима.
+  const displayText = useSmoothStreamingText(visible, !!streaming);
   return (
     <>
       <ReactMarkdown
@@ -263,8 +224,8 @@ function ReasoningCard({
   const [manuallyToggled, setManuallyToggled] = useState<boolean | null>(null);
   const expanded = manuallyToggled ?? !!streaming;
   const duration = useThinkingDuration(streaming);
-  // Релиз 3: дебаунс перепарса стримящегося reasoning-текста.
-  const displayText = useDebouncedStreamingText(text, !!streaming);
+  // Плавный вывод стримящегося reasoning-текста.
+  const displayText = useSmoothStreamingText(text, !!streaming);
 
   return (
     <div className="not-prose my-1">

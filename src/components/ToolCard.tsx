@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { api } from "../api/client";
 import type { ToolPart, ToolState } from "../api/types";
+import { useSmoothStreamingText } from "../lib/useSmoothText";
 import { useStore } from "../store/useStore";
 import { toolIcon } from "../utils/toolUtils";
 
@@ -419,7 +420,24 @@ function QuestionCard({ part }: { part: ToolPart }) {
   );
 }
 
-function CodeBlock({ label, text }: { label: string; text: string }) {
+function CodeBlock({
+  label,
+  text,
+  streaming,
+}: {
+  label: string;
+  text: string;
+  streaming?: boolean;
+}) {
+  // Плавный вывод: во время стрима текст догоняет цель постепенно
+  // (вместо скачков пачками), а pre автопрокручивается к последним строкам.
+  const shown = useSmoothStreamingText(text, !!streaming);
+  const preRef = useRef<HTMLPreElement | null>(null);
+  useEffect(() => {
+    if (streaming && preRef.current) {
+      preRef.current.scrollTop = preRef.current.scrollHeight;
+    }
+  }, [streaming, shown]);
   const [copied, setCopied] = useState(false);
   const copy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -461,8 +479,12 @@ function CodeBlock({ label, text }: { label: string; text: string }) {
           )}
         </button>
       </div>
-      <pre className="max-h-56 overflow-auto p-2.5 font-mono text-[11.5px] leading-relaxed text-foreground/85 whitespace-pre-wrap break-all">
-        {text}
+      <pre
+        ref={preRef}
+        className="max-h-56 overflow-auto p-2.5 font-mono text-[11.5px] leading-relaxed text-foreground/85 whitespace-pre-wrap break-all"
+      >
+        {shown}
+        {streaming && <span className="streaming-cursor" />}
       </pre>
     </div>
   );
@@ -495,7 +517,7 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
   );
 
   return (
-    <div className="not-prose my-1">
+    <div className="not-prose my-1 oc-msg-in">
       {/* Ghost-строка заголовка tool: прозрачная, минимальная */}
       <button
         type="button"
@@ -565,11 +587,19 @@ function DefaultToolCard({ part }: { part: ToolPart }) {
           ) : (
             input &&
             input !== "{}" && (
-              <CodeBlock label={isBash ? "COMMAND" : "INPUT"} text={input} />
+              <CodeBlock
+                label={isBash ? "COMMAND" : "INPUT"}
+                text={input}
+                streaming={running}
+              />
             )
           )}
           {output && (
-            <CodeBlock label={isBash ? "STDOUT" : "OUTPUT"} text={output} />
+            <CodeBlock
+              label={isBash ? "STDOUT" : "OUTPUT"}
+              text={output}
+              streaming={running}
+            />
           )}
         </div>
       )}

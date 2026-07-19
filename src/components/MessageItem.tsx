@@ -1,3 +1,4 @@
+import { FileArchive, Paperclip } from "lucide-react";
 import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { Message, Part, ToolOutput, ToolPart } from "../api/types";
@@ -32,6 +33,52 @@ function getMessageText(message: Message): string {
     })
     .filter(Boolean)
     .join("\n\n");
+}
+
+// Строки вида «📎 name → path …» — служебные подсказки о вложениях,
+// которые отправляются агенту вместе с текстом. В UI рендерим их
+// файл-чипами, а не сырым текстом.
+const ATT_LINE_RE = /^📎 .+ → \S+/;
+
+function splitAttachmentLines(text: string): {
+  attLines: string[];
+  rest: string;
+} {
+  if (!text.includes("📎")) return { attLines: [], rest: text };
+  const lines = text.split("\n");
+  const attLines = lines.filter((l) => ATT_LINE_RE.test(l.trim()));
+  if (attLines.length === 0) return { attLines: [], rest: text };
+  return {
+    attLines,
+    rest: lines
+      .filter((l) => !ATT_LINE_RE.test(l.trim()))
+      .join("\n")
+      .trim(),
+  };
+}
+
+function AttachmentChip({ line }: { line: string }) {
+  const m = /^📎 (.+?) → (\S+)(.*)$/.exec(line.trim());
+  const name = m?.[1] ?? "file";
+  const meta = (m?.[3] ?? "").replace(/^[\s—-]+/, "").trim() || m?.[2] || "";
+  const isZip = /\.zip\b|zip-архив/i.test(line);
+  return (
+    <div className="flex max-w-full items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 py-2 text-sm not-prose">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
+        {isZip ? (
+          <FileArchive className="h-4 w-4" />
+        ) : (
+          <Paperclip className="h-4 w-4" />
+        )}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium">{name}</div>
+        {meta && (
+          <div className="truncate text-xs text-muted-foreground">{meta}</div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 interface ToolGroupData {
@@ -127,19 +174,31 @@ function MessageItem({
   if (isUser) {
     // Мокап-стиль: метка «ВЫ» + линия слева, без пузыря.
     return (
-      <div className="group flex flex-col gap-1.5 px-3 py-2 md:px-6">
+      <div className="group oc-msg-in flex flex-col gap-1.5 px-3 py-2 md:px-6">
         <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
           вы
         </div>
         <div className="flex min-w-0 flex-col gap-1 border-l border-border pl-3 md:pl-4">
           {msgArray.map((message, idx) => {
             const msgText = getMessageText(message);
+            const { attLines, rest } = splitAttachmentLines(msgText);
             return (
               <div
                 key={message.id || idx}
-                className="max-w-[min(100%,800px)] whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-foreground"
+                className="flex max-w-[min(100%,800px)] flex-col gap-1.5"
               >
-                {msgText || "…"}
+                {attLines.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {attLines.map((l, i) => (
+                      <AttachmentChip key={`att-${i}`} line={l} />
+                    ))}
+                  </div>
+                )}
+                {(rest || attLines.length === 0) && (
+                  <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-foreground">
+                    {rest || "…"}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -159,7 +218,7 @@ function MessageItem({
 
   // Assistant: мокап-стиль — метка «АГЕНТ» + акцентная линия слева, без пузыря.
   return (
-    <div className="flex flex-col gap-1.5 px-3 py-2 md:px-6">
+    <div className="oc-msg-in flex flex-col gap-1.5 px-3 py-2 md:px-6">
       <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">
         агент
       </div>

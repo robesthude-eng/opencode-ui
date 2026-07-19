@@ -269,7 +269,8 @@ export default function ChatView() {
   return (
     <div className="flex-1 relative min-h-0 overflow-hidden bg-transparent">
       <div
-        className="scrollbar-none h-full overflow-y-auto pb-[180px]"
+        key={currentID}
+        className="oc-chat-in scrollbar-none h-full overflow-y-auto pb-[180px]"
         ref={scrollRef}
         onScroll={onScroll}
       >
