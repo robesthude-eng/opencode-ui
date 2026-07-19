@@ -181,7 +181,7 @@ export default function PanelModal({
       {/* biome-ignore lint/a11y/noStaticElementInteractions: stopPropagation only */}
       <div
         className={cn(
-          "absolute flex flex-col overflow-hidden border border-[#343434] bg-[#202020] shadow-[0_16px_60px_rgba(0,0,0,0.5)]",
+          "absolute flex flex-col overflow-hidden border border-border bg-background shadow-[0_16px_60px_rgba(0,0,0,0.5)]",
           full ? "inset-0 rounded-none" : "rounded-xl",
           interacting && "select-none",
         )}
@@ -194,20 +194,20 @@ export default function PanelModal({
       >
         <header
           className={cn(
-            "flex h-10 shrink-0 items-center gap-1 border-b border-[#303030] px-3",
+            "flex h-10 shrink-0 items-center gap-1 border-b border-border px-3",
             !full && "cursor-grab active:cursor-grabbing",
           )}
           onPointerDown={startDrag}
           onDoubleClick={() => setFull((f) => !f)}
         >
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#b4b4b4]">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {title}
           </span>
           <span className="flex-1" />
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-md text-[#8d8d8d] hover:bg-[#2b2b2b] hover:text-white"
+            className="h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             onClick={() => setFull((f) => !f)}
             title={full ? "Exit fullscreen" : "Fullscreen"}
             aria-label={full ? "Exit fullscreen" : "Fullscreen"}
@@ -221,7 +221,7 @@ export default function PanelModal({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-md text-[#8d8d8d] hover:bg-[#2b2b2b] hover:text-white"
+            className="h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             onClick={onClose}
             title="Close"
             aria-label="Close"

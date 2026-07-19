@@ -59,9 +59,9 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex min-h-dvh items-center justify-center bg-background p-6">
-          <Card className="w-full max-w-md text-center shadow-xl">
+          <Card className="w-full max-w-md text-center shadow-lg">
             <CardContent className="space-y-4 pt-8 pb-8">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
                 <AlertTriangle className="h-6 w-6" />
               </div>
               <h2 className="text-xl font-semibold">Something went wrong</h2>

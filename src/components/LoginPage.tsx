@@ -48,10 +48,10 @@ export default function LoginPage() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4 overflow-y-auto safe-top safe-bottom">
-      <Card className="w-full max-w-md border-border shadow-2xl">
+      <Card className="w-full max-w-md border-border shadow-lg">
         <CardHeader className="items-center text-center space-y-3 pb-2">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-sky-400 text-white text-xl shadow">
-            ✦
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card font-mono text-base font-bold text-primary">
+            &gt;_
           </div>
           <h2 className="text-xl font-semibold tracking-tight">
             {isRegistering ? "Регистрация" : "Вход"}

@@ -521,11 +521,11 @@ export default function Workspace() {
       <div key={node.path}>
         <div
           className={cn(
-            "group flex cursor-pointer select-none items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-[#a3a3a3] transition hover:bg-[#2a2a2a] hover:text-white",
-            node.isDir && "text-[#b8b8b8]",
+            "group flex cursor-pointer select-none items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-accent hover:text-foreground",
+            node.isDir && "text-muted-foreground",
             !node.isDir &&
               activeFile?.path === node.path &&
-              "bg-[#303030] text-white",
+              "bg-accent text-white",
           )}
           style={{ paddingLeft: 8 + depth * 14 }}
           onClick={() =>
@@ -562,7 +562,7 @@ export default function Workspace() {
               e.stopPropagation();
               downloadWorkspaceItem(node.path);
             }}
-            className="opacity-0 group-hover:opacity-100 hover:text-white transition flex-shrink-0"
+            className="opacity-0 group-hover:opacity-100 hover:text-foreground transition flex-shrink-0"
             title="Download"
           >
             <DownloadIcon size={14} />
@@ -591,7 +591,7 @@ export default function Workspace() {
             className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
             onClick={() => setActiveFile(null)}
           />
-          <div className="fixed left-1/2 top-1/2 z-[65] flex h-[min(560px,85dvh)] w-[min(720px,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+          <div className="fixed left-1/2 top-1/2 z-[65] flex h-[min(560px,85dvh)] w-[min(720px,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-lg">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <span className="truncate font-mono text-sm">
                 {toRelPath(activeFile.path)}
@@ -614,20 +614,20 @@ export default function Workspace() {
 
       <aside
         className={cn(
-          "z-50 flex flex-col border border-[#353535] bg-[#202020] text-[#e7e7e7] shadow-[0_8px_30px_rgba(0,0,0,0.28)] ml-[31px]",
+          "z-50 flex flex-col border border-border bg-background text-foreground shadow-[0_8px_30px_rgba(0,0,0,0.28)] ml-[31px]",
           // Mobile: full-screen sheet from right; desktop: a dedicated floating panel.
-          "fixed inset-y-0 right-0 w-full max-w-full shadow-2xl md:static md:my-2 md:mr-2 md:h-auto md:w-[260px] md:max-w-[260px] md:shrink-0 md:rounded-xl md:overflow-hidden md:shadow-[0_8px_30px_rgba(0,0,0,0.28)]",
+          "fixed inset-y-0 right-0 w-full max-w-full shadow-lg md:static md:my-2 md:mr-2 md:h-auto md:w-[260px] md:max-w-[260px] md:shrink-0 md:rounded-xl md:overflow-hidden md:shadow-none md:border md:border-border",
         )}
       >
-        <header className="flex h-11 shrink-0 items-center justify-between border-b border-[#303030] px-3 safe-top">
-          <div className="flex gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#b4b4b4]">
+        <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3 safe-top">
+          <div className="flex gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             <span className="text-white">Files</span>
           </div>
           <div className="flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 rounded-md text-[#8d8d8d] hover:bg-[#2b2b2b] hover:text-white"
+              className="h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => void refresh()}
               title="Refresh now"
               disabled={loading}
@@ -637,13 +637,13 @@ export default function Workspace() {
           </div>
         </header>
 
-        <div className="border-b border-[#303030] px-2.5 py-2">
+        <div className="border-b border-border px-2.5 py-2">
           <div className="relative">
-            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#777]">
+            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
               <SearchIcon size={14} />
             </span>
             <Input
-              className="h-8 rounded-lg border-[#333] bg-[#222] pl-8 text-[11px] text-[#ddd] placeholder:text-[#777]"
+              className="h-8 rounded-lg border-border bg-card pl-8 text-[11px] text-foreground placeholder:text-muted-foreground"
               placeholder="Filter files…"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}

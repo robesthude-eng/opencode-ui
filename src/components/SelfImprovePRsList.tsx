@@ -35,7 +35,7 @@ export default function SelfImprovePRsList({ visible }: { visible: boolean }) {
   if (!visible) return null;
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold flex items-center gap-2">

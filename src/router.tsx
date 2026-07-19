@@ -233,11 +233,11 @@ function AppShell() {
           <Sidebar />
         </div>
 
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#202020]">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
           <div className="relative flex min-h-0 flex-1 overflow-hidden">
             {/* Chat + Composer — единый блок, который сдвигается при открытии Workspace */}
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#202020]">
-              <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#202020]">
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+              <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
                 {serverConnected === false && (
                   <ConnectionBanner onRetry={checkConnection} />
                 )}
@@ -263,9 +263,9 @@ function AppShell() {
             {/* Правый сайдбар (Workspace): плавная анимация ширины */}
             <div
               className={cn(
-                "absolute right-0 top-0 bottom-0 z-50 md:relative shrink-0 transition-all duration-300 ease-in-out overflow-hidden bg-[#202020] md:bg-transparent",
+                "absolute right-0 top-0 bottom-0 z-50 md:relative shrink-0 transition-all duration-300 ease-in-out overflow-hidden bg-background md:bg-transparent",
                 workspaceOpen
-                  ? "w-[85vw] max-w-[320px] md:w-80 opacity-100 border-l border-white/10 md:border-none shadow-2xl md:shadow-none"
+                  ? "w-[85vw] max-w-[320px] md:w-80 opacity-100 border-l border-border md:border-none shadow-lg md:shadow-none"
                   : "w-0 opacity-0",
               )}
             >

@@ -69,7 +69,7 @@ export default function ModelSelector() {
   return (
     <div className="relative" ref={ref}>
       <button
-        className="flex max-w-full items-center gap-2 rounded-lg border border-[#3b3b3b] bg-[#2b2b2b] px-2 py-1.5 text-[11px] text-[#ddd] shadow-none transition hover:bg-[#343434] md:px-3"
+        className="flex max-w-full items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 text-[11px] text-foreground shadow-none transition hover:bg-accent md:px-3"
         onClick={() => setOpen((o) => !o)}
       >
         <span className="flex items-center gap-2 min-w-0">
@@ -87,7 +87,7 @@ export default function ModelSelector() {
         </span>
       </button>
       {open && (
-        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-[300px] sm:w-[320px] max-w-[calc(100vw-1rem)] max-h-[60dvh] overflow-y-auto rounded-2xl border border-border bg-popover shadow-xl p-2 z-50">
+        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-[300px] sm:w-[320px] max-w-[calc(100vw-1rem)] max-h-[60dvh] overflow-y-auto rounded-xl border border-border bg-popover shadow-lg p-2 z-50">
           {free.length > 0 && (
             <div className="mb-2">
               <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">

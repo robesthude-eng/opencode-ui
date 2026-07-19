@@ -64,7 +64,7 @@ export default function SettingsPanel() {
       onClick={() => setOpen(false)}
     >
       <div
-        className="bg-background border-0 sm:border border-border rounded-none sm:rounded-2xl shadow-2xl w-full sm:max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[85vh] flex overflow-hidden"
+        className="bg-background border-0 sm:border border-border rounded-none sm:rounded-xl shadow-lg w-full sm:max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[85vh] flex overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Desktop sidebar */}

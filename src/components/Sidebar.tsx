@@ -85,17 +85,17 @@ export default function Sidebar() {
       <aside
         className={cn(
           "fixed md:static inset-y-0 left-0 z-50 w-[min(224px,85vw)] shrink-0",
-          "bg-[#202020] border-r border-[#303030]",
-          "flex flex-col h-dvh md:h-full transition-transform duration-200 text-[#e7e7e7]",
+          "bg-background border-r border-border",
+          "flex flex-col h-dvh md:h-full transition-transform duration-200 text-foreground",
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         )}
       >
         {/* Top */}
-        <div className="flex flex-col gap-2 border-b border-[#2b2b2b] px-3 pb-3 pt-3">
+        <div className="flex flex-col gap-2 border-b border-border px-3 pb-3 pt-3">
           <div className="flex items-center gap-2 w-full">
             <Button
               data-testid="new-chat-btn"
-              className="h-9 flex-1 justify-start gap-2 rounded-lg border border-[#454545] bg-[#2b2b2b] text-[12px] font-medium text-white shadow-none hover:bg-[#363636]"
+              className="h-9 flex-1 justify-start gap-2 rounded-lg border border-transparent bg-transparent text-[12px] font-medium text-primary shadow-none hover:bg-accent hover:border-border"
               onClick={() => {
                 newSession();
                 close();
@@ -118,7 +118,7 @@ export default function Sidebar() {
           {/* Co-designed "Сессия саморазвития" button */}
           {selfImproveEnabled && (
             <Button
-              className="h-8 w-full justify-start gap-2 rounded-lg border border-transparent px-2 text-[11px] text-[#b7b7b7] shadow-none hover:bg-[#292929] hover:text-white"
+              className="h-8 w-full justify-start gap-2 rounded-lg border border-transparent px-2 text-[11px] text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
               onClick={async () => {
                 const sid = await ensureSelfImproveSession();
                 if (sid) {
@@ -165,8 +165,8 @@ export default function Sidebar() {
                   className={cn(
                     "group rounded-lg text-[12px] transition",
                     isActive
-                      ? "bg-[#2b2b2b] text-white"
-                      : "text-[#a0a0a0] hover:bg-[#242424] hover:text-white",
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
                   )}
                   style={{
                     width: "100%",
@@ -306,11 +306,11 @@ export default function Sidebar() {
         </ScrollArea>
 
         {/* Bottom */}
-        <div className="space-y-2 border-t border-[#2b2b2b] p-3">
+        <div className="space-y-2 border-t border-border p-3">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
-              className="h-8 flex-1 justify-start gap-2 rounded-lg px-2 text-[11px] text-[#a0a0a0] hover:bg-[#292929] hover:text-white"
+              className="h-8 flex-1 justify-start gap-2 rounded-lg px-2 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => setSettingsOpen(true)}
             >
               <SettingsIcon />
@@ -327,7 +327,6 @@ export default function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
-              data-testid="theme-toggle"
               onClick={toggleTheme}
               title={`Тема: ${
                 theme === "dark"

@@ -43,7 +43,7 @@ export default function PermissionDialog() {
         if (!next && req) answer("reject");
       }}
     >
-      <DialogContent className="max-w-md gap-0 p-0 sm:rounded-2xl">
+      <DialogContent className="max-w-md gap-0 p-0 sm:rounded-xl">
         <DialogHeader className="px-5 py-4 border-b border-border">
           <div className="flex items-center justify-between gap-3">
             <DialogTitle>Запрос разрешения</DialogTitle>

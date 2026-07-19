@@ -134,7 +134,7 @@ function MessageItem({
               key={message.id || idx}
               className="max-w-[85%] md:max-w-[70%] group relative"
             >
-              <div className="rounded-2xl rounded-br-md border border-[#454545] bg-[#343434] px-3.5 py-2.5 text-[14.5px] leading-relaxed text-[#f1f1f1] shadow-sm">
+              <div className="rounded-xl border border-border bg-card px-3.5 py-2.5 text-[14px] leading-relaxed text-foreground shadow-none">
                 <div className="whitespace-pre-wrap break-words">
                   {msgText || "…"}
                 </div>
@@ -233,12 +233,12 @@ function MessageItem({
       <div className="flex items-center gap-1.5 mt-0.5 pl-1">
         <div
           className={cn(
-            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
-            "bg-gradient-to-br from-emerald-400 to-sky-400 text-[10px] text-white shadow-sm",
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+            "border border-border bg-card font-mono text-[8px] font-bold text-primary",
             isWorking && "animate-pulse",
           )}
         >
-          ✦
+          &gt;_
         </div>
         {combinedText && (
           <div className="opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100">

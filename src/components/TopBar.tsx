@@ -42,11 +42,11 @@ export default function TopBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b border-[#303030] bg-[#202020]/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-[#202020]/85 md:px-4">
+      <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 md:px-4">
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 rounded-lg text-[#a0a0a0] hover:bg-[#2b2b2b] hover:text-white md:hidden"
+          className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
           onClick={() => setSidebarOpen(true)}
           title="Menu"
         >
@@ -56,7 +56,7 @@ export default function TopBar() {
         <Button
           variant="ghost"
           size="icon"
-          className="hidden md:flex h-8 w-8 rounded-lg text-[#a0a0a0] hover:bg-[#2b2b2b] hover:text-white"
+          className="hidden md:flex h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
           onClick={toggleSidebar}
           title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
           aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
@@ -73,7 +73,7 @@ export default function TopBar() {
             <ModelSelector />
           </div>
           {selfImproveEnabled && currentID === selfImproveSessionId && (
-            <div className="hidden items-center gap-1.5 rounded-lg border border-[#3b3b3b] bg-[#2b2b2b] px-2 py-1 text-[10px] md:flex">
+            <div className="hidden items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1 text-[10px] md:flex">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
                   testStatus === "running"
@@ -82,10 +82,10 @@ export default function TopBar() {
                       ? "bg-rose-400"
                       : testStatus === "success"
                         ? "bg-emerald-400"
-                        : "bg-[#777]"
+                        : "bg-muted-foreground"
                 }`}
               />
-              <span className="text-[#a0a0a0]">
+              <span className="text-muted-foreground">
                 {testStatus === "running"
                   ? "Тесты…"
                   : testStatus === "failure"
@@ -101,7 +101,7 @@ export default function TopBar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 rounded-lg text-[#a0a0a0] hover:bg-[#2b2b2b] hover:text-white disabled:opacity-40"
+          className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
           onClick={() => setShowTerminal(true)}
           disabled={!sessionReady}
           title="Terminal"
@@ -113,7 +113,7 @@ export default function TopBar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 rounded-lg text-[#a0a0a0] hover:bg-[#2b2b2b] hover:text-white disabled:opacity-40"
+          className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
           onClick={() => setShowPreview(true)}
           disabled={!sessionReady}
           title="Preview"
@@ -125,7 +125,7 @@ export default function TopBar() {
         <Button
           variant={workspaceOpen ? "secondary" : "ghost"}
           size="icon"
-          className="h-8 w-8 rounded-lg text-[#a0a0a0] hover:bg-[#2b2b2b] hover:text-white"
+          className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
           onClick={() => setWorkspaceOpen(!workspaceOpen)}
           title="Toggle workspace"
           aria-label="Toggle workspace"

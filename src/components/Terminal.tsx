@@ -20,9 +20,9 @@ export function Terminal({ workdir }: TerminalProps) {
     // Инициализация Xterm
     const term = new XTerm({
       theme: {
-        background: "#202020",
-        foreground: "#e7e7e7",
-        cursor: "#e7e7e7",
+        background: "#111214",
+        foreground: "#f2f3f4",
+        cursor: "#63e2b7",
       },
       fontFamily: "monospace",
       fontSize: 13,

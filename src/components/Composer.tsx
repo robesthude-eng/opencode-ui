@@ -150,7 +150,7 @@ export default function Composer() {
       <div
         className={cn(
           "pointer-events-auto w-full transition-all duration-200",
-          "bg-[#2b2b2b]/95 backdrop-blur-md shadow-[0_8px_32px_-8px_rgba(0,0,0,0.55)] rounded-2xl p-2 ring-1 ring-white/10",
+          "bg-card/95 backdrop-blur-md rounded-xl p-2 border border-border shadow-none",
           dragOver && "ring-2 ring-primary bg-primary/5",
         )}
         onDragOver={onDragOver}
