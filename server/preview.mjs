@@ -79,6 +79,33 @@ function contentTypeFor(filePath) {
   );
 }
 
+/**
+ * v2 — переписывание абсолютных путей в HTML/CSS.
+ *
+ * Агент часто генерирует страницы с путями вида /css/style.css.
+ * Из iframe превью такой путь резолвится от корня сайта (мимо
+ * /api/sandbox-proxy/:sid/), попадает в SPA-fallback UI и браузер
+ * отказывается исполнять text/html как CSS/JS. Поэтому при отдаче
+ * HTML и CSS переписываем src/href/action/poster="/..." и url(/...)
+ * на префикс превью текущей сессии. Протокол-относительные
+ * ссылки (//cdn...) не трогаем.
+ */
+const REWRITE_EXT = new Set([".html", ".htm", ".css"]);
+
+function rewriteAbsolutePaths(content, ext, prefix) {
+  if (ext === ".css") {
+    return content
+      .replace(/url\(\s*(["']?)\/(?!\/)/gi, (_m, q) => `url(${q}${prefix}/`)
+      .replace(/(@import\s+)(["'])\/(?!\/)/gi, `$1$2${prefix}/`);
+  }
+  return content
+    .replace(
+      /(\b(?:src|href|action|poster)\s*=\s*)(["'])\/(?!\/)/gi,
+      (_m, attr, q) => `${attr}${q}${prefix}/`,
+    )
+    .replace(/url\(\s*(["']?)\/(?!\/)/gi, (_m, q) => `url(${q}${prefix}/`);
+}
+
 function baseHeaders(contentType) {
   return {
     "Content-Type": contentType,
@@ -314,6 +341,28 @@ export function handlePreviewRoute(req, res, ctx) {
     size = st.size;
   } catch {
     send404(res, isHead);
+    return;
+  }
+
+  // HTML/CSS — с переписыванием абсолютных путей под префикс превью.
+  const ext = path.extname(real).toLowerCase();
+  if (REWRITE_EXT.has(ext)) {
+    let body;
+    try {
+      body = fs.readFileSync(real, "utf8");
+    } catch (err) {
+      logger.warn({ err: err.message, sid, file: real }, "Preview read error");
+      send404(res, isHead);
+      return;
+    }
+    const buf = Buffer.from(
+      rewriteAbsolutePaths(body, ext, `${PREVIEW_PREFIX}/${sid}`),
+      "utf8",
+    );
+    const rewriteHeaders = baseHeaders(contentTypeFor(real));
+    rewriteHeaders["Content-Length"] = buf.length;
+    res.writeHead(200, rewriteHeaders);
+    res.end(isHead ? undefined : buf);
     return;
   }
 
