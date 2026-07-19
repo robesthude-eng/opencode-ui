@@ -19,9 +19,9 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
-import { formatSize } from "../api/files";
 import type { Part, ToolPart } from "../api/types";
 import { useSmoothStreamingText } from "../lib/useSmoothText";
+import { AttachmentChip, AttachmentPartChip } from "./AttachmentChip";
 import CopyButton from "./CopyButton";
 import { ThinkIcon } from "./icons";
 import ToolCard from "./ToolCard";
@@ -328,30 +328,8 @@ const OptimizedPartView = ({
         path?: string;
         dataUrl?: string;
       };
-      const icon = KIND_ICONS[att.kind || ""] || (
-        <Paperclip className="h-4 w-4" />
-      );
-      return (
-        <div className="flex items-center gap-2.5 rounded-lg bg-muted/35 px-2.5 py-2 text-sm not-prose">
-          {att.kind === "image" && att.dataUrl ? (
-            <img
-              src={att.dataUrl}
-              alt={att.name}
-              className="h-10 w-10 rounded-lg object-cover"
-            />
-          ) : (
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-background/60 text-muted-foreground">
-              {icon}
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-medium">{att.name || "file"}</div>
-            <div className="text-xs text-muted-foreground">
-              {formatSize(att.size || 0)}
-            </div>
-          </div>
-        </div>
-      );
+      // Кликабельный файл-чип: скачивание через /api/workspace/download.
+      return <AttachmentPartChip att={att} />;
     }
     case "file": {
       // Полноценный file-part (data URL или file://) — рендерим как файл-чип.
@@ -414,32 +392,9 @@ const OptimizedPartView = ({
         <>
           {attLines.length > 0 && (
             <div className="my-1 flex flex-wrap gap-2">
-              {attLines.map((l, i) => {
-                const m = /^📎 (.+?) → (\S+)(.*)$/.exec(l.trim());
-                const name = m?.[1] ?? "file";
-                const meta = (m?.[3] ?? "").replace(/^[\s—-]+/, "").trim();
-                const chipKind = /zip/i.test(l) ? "zip" : "binary";
-                return (
-                  <div
-                    key={`attline-${i}`}
-                    className="flex items-center gap-2.5 rounded-lg bg-muted/35 px-2.5 py-2 text-sm not-prose"
-                  >
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-background/60 text-muted-foreground">
-                      {KIND_ICONS[chipKind] || (
-                        <Paperclip className="h-4 w-4" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{name}</div>
-                      {meta && (
-                        <div className="truncate text-xs text-muted-foreground">
-                          {meta}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              {attLines.map((l, i) => (
+                <AttachmentChip key={`attline-${i}`} line={l} />
+              ))}
             </div>
           )}
           {restText && (

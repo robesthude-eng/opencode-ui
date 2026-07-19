@@ -372,6 +372,25 @@ export const api = {
  * proxy append the session's `directory=` (isolation invariant #1) so token
  * deltas stream to the client in real time, like ChatGPT/Claude.
  */
+/**
+ * URL скачивания файла из workspace сессии (кликабельные файл-чипы).
+ * Роут отдаёт файл с Content-Disposition: attachment; авторизация —
+ * HttpOnly-cookie, браузер отправляет её автоматически (same-origin).
+ */
+export function workspaceDownloadUrl(
+  filePath: string,
+  sessionId?: string | null,
+): string {
+  // api.uploadFile может вернуть полный путь sessions/<sid>/workspace/...;
+  // роут ожидает путь относительно workspace сессии.
+  const rel = filePath
+    .replace(/\\/g, "/")
+    .replace(/^sessions\/[^/]+\/workspace\//, "")
+    .replace(/^\/+/, "");
+  const sid = sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : "";
+  return `/api/workspace/download?path=${encodeURIComponent(rel)}${sid}`;
+}
+
 export function eventUrl(sessionId?: string | null): string {
   if (sessionId && !sessionId.startsWith("tmp_")) {
     return `${config.baseUrl}/event?sessionId=${encodeURIComponent(sessionId)}`;

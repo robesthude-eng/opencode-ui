@@ -1,7 +1,7 @@
-import { FileArchive, Paperclip } from "lucide-react";
 import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { Message, Part, ToolOutput, ToolPart } from "../api/types";
+import { AttachmentChip, splitAttachmentLines } from "./AttachmentChip";
 import CopyButton from "./CopyButton";
 import PartView from "./PartView";
 import ToolGroup from "./ToolGroup";
@@ -33,52 +33,6 @@ function getMessageText(message: Message): string {
     })
     .filter(Boolean)
     .join("\n\n");
-}
-
-// Строки вида «📎 name → path …» — служебные подсказки о вложениях,
-// которые отправляются агенту вместе с текстом. В UI рендерим их
-// файл-чипами, а не сырым текстом.
-const ATT_LINE_RE = /^📎 .+ → \S+/;
-
-function splitAttachmentLines(text: string): {
-  attLines: string[];
-  rest: string;
-} {
-  if (!text.includes("📎")) return { attLines: [], rest: text };
-  const lines = text.split("\n");
-  const attLines = lines.filter((l) => ATT_LINE_RE.test(l.trim()));
-  if (attLines.length === 0) return { attLines: [], rest: text };
-  return {
-    attLines,
-    rest: lines
-      .filter((l) => !ATT_LINE_RE.test(l.trim()))
-      .join("\n")
-      .trim(),
-  };
-}
-
-function AttachmentChip({ line }: { line: string }) {
-  const m = /^📎 (.+?) → (\S+)(.*)$/.exec(line.trim());
-  const name = m?.[1] ?? "file";
-  const meta = (m?.[3] ?? "").replace(/^[\s—-]+/, "").trim() || m?.[2] || "";
-  const isZip = /\.zip\b|zip-архив/i.test(line);
-  return (
-    <div className="flex max-w-full items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 py-2 text-sm not-prose">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
-        {isZip ? (
-          <FileArchive className="h-4 w-4" />
-        ) : (
-          <Paperclip className="h-4 w-4" />
-        )}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">{name}</div>
-        {meta && (
-          <div className="truncate text-xs text-muted-foreground">{meta}</div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 interface ToolGroupData {
