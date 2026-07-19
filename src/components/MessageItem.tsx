@@ -234,7 +234,7 @@ function MessageItem({
         <div
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
-            "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[10px] text-white shadow-sm",
+            "bg-gradient-to-br from-emerald-400 to-sky-400 text-[10px] text-white shadow-sm",
             isWorking && "animate-pulse",
           )}
         >

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { statusText } from "../api/eventGuards";
 import type { Message } from "../api/types";
 import { useStore } from "../store/useStore";
+import AgentIndicator from "./AgentIndicator";
 import { ChevronDownIcon, SendIcon } from "./icons";
 import MessageItem from "./MessageItem";
 
@@ -243,16 +244,7 @@ export default function ChatView() {
             })}
             {showTyping && (
               <div className="flex gap-3 py-5 px-3 md:px-6">
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-sm animate-pulse">
-                  ✦
-                </div>
-                <div className="rounded-2xl border border-border bg-card px-4 py-3">
-                  <span className="flex gap-1">
-                    <span className="h-1.5 w-1.5 bg-muted-foreground rounded-full animate-bounce" />
-                    <span className="h-1.5 w-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:120ms]" />
-                    <span className="h-1.5 w-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:240ms]" />
-                  </span>
-                </div>
+                <AgentIndicator label="думает…" />
               </div>
             )}
             {selfImproveEnabled &&

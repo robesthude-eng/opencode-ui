@@ -297,7 +297,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
         "not-prose my-1.5 overflow-hidden rounded-xl border",
         answered || !isWaiting
           ? "border-emerald-500/30 bg-emerald-500/[0.05]"
-          : "border-violet-500/30 bg-violet-500/[0.05]",
+          : "border-emerald-400/30 bg-emerald-400/[0.05]",
       )}
     >
       {questions.map((q, qIdx) => (
@@ -309,7 +309,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
           )}
         >
           {q.header && (
-            <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300/90">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
               {q.header}
             </div>
           )}

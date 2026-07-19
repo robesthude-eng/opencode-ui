@@ -278,7 +278,7 @@ function ReasoningCard({
         <span
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground",
-            streaming && "animate-pulse text-violet-400",
+            streaming && "animate-pulse text-emerald-300",
           )}
         >
           <ThinkIcon size={15} />

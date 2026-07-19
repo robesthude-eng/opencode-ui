@@ -1,4 +1,9 @@
-import { applyTheme, getInitialTheme, type Theme } from "../../config/theme";
+import {
+  applyTheme,
+  getInitialTheme,
+  nextTheme,
+  type Theme,
+} from "../../config/theme";
 import type { Slice, UiSlice } from "../types";
 
 export const createUiSlice: Slice<UiSlice> = (set, get) => ({
@@ -19,7 +24,8 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
   selfImproveTestErrors: [],
 
   toggleTheme: () => {
-    const next: Theme = get().theme === "dark" ? "light" : "dark";
+    // тёмная → средняя → светлая → тёмная
+    const next: Theme = nextTheme(get().theme);
     applyTheme(next);
     set({ theme: next });
   },

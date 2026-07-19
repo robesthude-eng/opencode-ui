@@ -327,10 +327,25 @@ export default function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
+              data-testid="theme-toggle"
               onClick={toggleTheme}
-              title="Toggle theme"
+              title={`Тема: ${
+                theme === "dark"
+                  ? "тёмная"
+                  : theme === "mid"
+                    ? "средняя"
+                    : "светлая"
+              } — нажмите, чтобы переключить`}
             >
-              {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+              {theme === "light" ? (
+                <MoonIcon />
+              ) : theme === "mid" ? (
+                <span className="opacity-60 inline-flex">
+                  <SunIcon />
+                </span>
+              ) : (
+                <SunIcon />
+              )}
             </Button>
           </div>
 

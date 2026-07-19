@@ -4,29 +4,29 @@
 @plugin '@tailwindcss/typography';
 
 @theme {
-  --color-background: #202020;
-  --color-foreground: #ededed;
-  --color-card: #292929;
-  --color-card-foreground: #ededed;
-  --color-popover: #292929;
-  --color-popover-foreground: #ededed;
-  --color-border: #343434;
-  --color-input: #343434;
-  --color-primary: #8b5cf6;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #2b2b2b;
-  --color-secondary-foreground: #ededed;
-  --color-muted: #2b2b2b;
-  --color-muted-foreground: #a0a0a0;
-  --color-accent: #2b2b2b;
-  --color-accent-foreground: #ededed;
-  --color-destructive: #ef4444;
-  --color-destructive-foreground: #ffffff;
-  --color-ring: #7c5cff;
-  --color-success: #4ade80;
-  --color-warning: #fbbf24;
-  --color-info: #60a5fa;
-  --radius: 1rem;
+  --color-background: #111214;
+  --color-foreground: #f2f3f4;
+  --color-card: #191b1e;
+  --color-card-foreground: #f2f3f4;
+  --color-popover: #1b1d20;
+  --color-popover-foreground: #f2f3f4;
+  --color-border: #26282c;
+  --color-input: #26282c;
+  --color-primary: #63e2b7;
+  --color-primary-foreground: #0c0d0f;
+  --color-secondary: #1b1d20;
+  --color-secondary-foreground: #f2f3f4;
+  --color-muted: #1b1d20;
+  --color-muted-foreground: #8b8f93;
+  --color-accent: #1e2124;
+  --color-accent-foreground: #f2f3f4;
+  --color-destructive: #e98a80;
+  --color-destructive-foreground: #16090a;
+  --color-ring: #63e2b7;
+  --color-success: #63e2b7;
+  --color-warning: #dfc07a;
+  --color-info: #6db4f2;
+  --radius: 0.75rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -82,28 +82,54 @@
   }
 
   [data-theme='light'] {
-    --color-background: #ffffff;
-    --color-foreground: #1a1a1a;
-    --color-card: #f9f9fb;
-    --color-card-foreground: #1a1a1a;
+    --color-background: #f7f7f5;
+    --color-foreground: #26282a;
+    --color-card: #ffffff;
+    --color-card-foreground: #26282a;
     --color-popover: #ffffff;
-    --color-popover-foreground: #1a1a1a;
-    --color-border: #e6e6ef;
-    --color-input: #e6e6ef;
-    --color-primary: #6d4aff;
+    --color-popover-foreground: #26282a;
+    --color-border: #e4e4e0;
+    --color-input: #e4e4e0;
+    --color-primary: #0e9d6e;
     --color-primary-foreground: #ffffff;
-    --color-secondary: #f2f2f7;
-    --color-secondary-foreground: #1a1a1a;
-    --color-muted: #f2f2f7;
-    --color-muted-foreground: #6b6b80;
-    --color-accent: #f2f2f7;
-    --color-accent-foreground: #1a1a1a;
-    --color-destructive: #dc2626;
+    --color-secondary: #efefec;
+    --color-secondary-foreground: #26282a;
+    --color-muted: #efefec;
+    --color-muted-foreground: #6f7275;
+    --color-accent: #efefec;
+    --color-accent-foreground: #26282a;
+    --color-destructive: #c4473b;
     --color-destructive-foreground: #ffffff;
-    --color-ring: #6d4aff;
-    --color-success: #16a34a;
-    --color-warning: #d97706;
-    --color-info: #2563eb;
+    --color-ring: #0e9d6e;
+    --color-success: #0e9d6e;
+    --color-warning: #a97e18;
+    --color-info: #2a6fb8;
+  }
+
+  /* средняя тема — между светлой и тёмной */
+  [data-theme='mid'] {
+    --color-background: #26282c;
+    --color-foreground: #eceded;
+    --color-card: #2c2f33;
+    --color-card-foreground: #eceded;
+    --color-popover: #303338;
+    --color-popover-foreground: #eceded;
+    --color-border: #3a3d42;
+    --color-input: #3a3d42;
+    --color-primary: #63e2b7;
+    --color-primary-foreground: #0c0d0f;
+    --color-secondary: #2e3135;
+    --color-secondary-foreground: #eceded;
+    --color-muted: #2e3135;
+    --color-muted-foreground: #9a9da1;
+    --color-accent: #33363b;
+    --color-accent-foreground: #eceded;
+    --color-destructive: #e98a80;
+    --color-destructive-foreground: #16090a;
+    --color-ring: #63e2b7;
+    --color-success: #63e2b7;
+    --color-warning: #dfc07a;
+    --color-info: #6db4f2;
   }
 
   [data-theme='light'] .hljs {
@@ -226,4 +252,103 @@
   border-radius: 9999px;
   background: var(--color-success);
   animation: live-pulse 2s infinite;
+}
+
+/* ==== agent work indicator (aura >_ ) ==== */
+@property --oc-a {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.oc-thinking {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+.oc-aura {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+.oc-aura-glow {
+  position: absolute;
+  inset: -5px;
+  border-radius: 12px;
+  background: conic-gradient(
+    from var(--oc-a, 0deg),
+    #63e2b7,
+    #6db4f2,
+    #a78bfa,
+    #63e2b7
+  );
+  filter: blur(9px);
+  opacity: 0.75;
+  animation:
+    oc-spin 3.6s linear infinite,
+    oc-breathe 2.6s ease-in-out infinite;
+}
+.oc-aura-mark {
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+@keyframes oc-spin {
+  to {
+    --oc-a: 360deg;
+  }
+}
+@keyframes oc-breathe {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.07);
+  }
+}
+.oc-sheen-text {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  background: linear-gradient(
+    90deg,
+    var(--color-muted-foreground) 0%,
+    var(--color-foreground) 35%,
+    var(--color-primary) 50%,
+    var(--color-foreground) 65%,
+    var(--color-muted-foreground) 100%
+  );
+  background-size: 220% 100%;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: oc-sheen 2.2s linear infinite;
+}
+@keyframes oc-sheen {
+  to {
+    background-position: -220% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .oc-aura-glow,
+  .oc-sheen-text {
+    animation: none;
+  }
+  .oc-sheen-text {
+    color: var(--color-muted-foreground);
+    background: none;
+  }
 }
