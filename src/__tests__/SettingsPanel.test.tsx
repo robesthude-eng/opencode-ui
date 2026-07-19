@@ -50,33 +50,37 @@ function desktopNav() {
   return document.body;
 }
 
+// Моки ответов — как реальный сервер: JSON с заголовком content-type
+// (jsonOrThrow в client.ts проверяет content-type и бросает исключение на HTML).
+const jsonResponse = (data: unknown, ok = true) => ({
+  ok,
+  headers: {
+    get: (h: string) =>
+      h.toLowerCase() === "content-type" ? "application/json" : null,
+  },
+  json: () => Promise.resolve(data),
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   setState();
 
   global.fetch = vi.fn().mockImplementation((url: string) => {
     if (url.includes("/api/git/checkpoints")) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      return Promise.resolve(jsonResponse([]));
     }
     if (url.includes("/api/git/audit-logs")) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(["[Test Log] Action occurred"]),
-      });
+      return Promise.resolve(jsonResponse(["[Test Log] Action occurred"]));
     }
     if (url.includes("/api/git/checkpoint")) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ status: "success", commit: "abc123" }),
-      });
+      return Promise.resolve(
+        jsonResponse({ status: "success", commit: "abc123" }),
+      );
     }
     if (url.includes("/api/settings/self-improve")) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ status: "success" }),
-      });
+      return Promise.resolve(jsonResponse({ status: "success" }));
     }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    return Promise.resolve(jsonResponse({}));
   });
 
   (useStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
@@ -134,10 +138,9 @@ describe("SettingsPanel", () => {
   });
 
   test("toggles self-improvement mode", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ status: "success" }),
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      jsonResponse({ status: "success" }),
+    );
     render(<SettingsPanel />);
     fireEvent.click(screen.getByText("○ Выключено"));
     await waitFor(() => {
@@ -160,10 +163,9 @@ describe("SettingsPanel", () => {
   });
 
   test("loads checkpoints on open", () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve([]),
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      jsonResponse([]),
+    );
     render(<SettingsPanel />);
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/git/checkpoints",

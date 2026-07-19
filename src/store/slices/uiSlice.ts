@@ -1,3 +1,4 @@
+import { jsonOrNull } from "../../api/client";
 import {
   applyTheme,
   getInitialTheme,
@@ -58,12 +59,15 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
         credentials: "include",
       });
       if (!res.ok) return;
-      const data = (await res.json()) as {
+      // jsonOrNull: HTML-ответ (SPA-fallback / прокси) → тихо выходим,
+      // вместо «SyntaxError: Unexpected token '<'» из res.json().
+      const data = (await jsonOrNull(res)) as {
         enabled?: boolean;
         sessionId?: string | null;
         testStatus?: "idle" | "running" | "success" | "failure";
         testErrors?: string[];
-      };
+      } | null;
+      if (!data) return;
       const enabled = !!data.enabled;
       const sessionId = data.sessionId || null;
       const testStatus = data.testStatus || "idle";

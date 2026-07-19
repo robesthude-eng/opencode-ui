@@ -1,5 +1,16 @@
-import { api } from "../../api/client";
+import { api, jsonOrNull } from "../../api/client";
 import type { AuthSlice, Slice } from "../types";
+
+/**
+ * Тело ответа auth-эндпоинтов. Разбираем через jsonOrNull, чтобы HTML-ответ
+ * (SPA-fallback или страница ошибки прокси) не ронял разбор JSON
+ * («Unexpected token '<'»), а превращался в пустой объект.
+ */
+type AuthJson = {
+  status?: string;
+  user?: NonNullable<AuthSlice["currentUser"]>;
+  error?: string;
+};
 
 const CUSTOM_PROVIDERS = new Set<string>();
 
@@ -12,7 +23,7 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
     set({ authChecking: true });
     try {
       const res = await fetch("/api/auth/me", { credentials: "include" });
-      const data = await res.json();
+      const data = ((await jsonOrNull(res)) ?? {}) as AuthJson;
       if (res.ok && data.status === "success" && data.user) {
         set({ currentUser: data.user, authChecking: false });
       } else {
@@ -31,7 +42,7 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      const data = ((await jsonOrNull(res)) ?? {}) as AuthJson;
       if (res.ok && data.status === "success" && data.user) {
         // Session is HttpOnly cookie only — never store token in JS
         if (typeof window !== "undefined") {
@@ -42,7 +53,10 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
         void get().loadModels(true);
         return { ok: true };
       }
-      return { ok: false, error: data.error || "Ошибка входа" };
+      return {
+        ok: false,
+        error: data.error || `Ошибка входа (HTTP ${res.status})`,
+      };
     } catch {
       return { ok: false, error: "Ошибка соединения с сервером" };
     }
@@ -56,7 +70,7 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      const data = ((await jsonOrNull(res)) ?? {}) as AuthJson;
       if (res.ok && data.status === "success" && data.user) {
         if (typeof window !== "undefined") {
           localStorage.removeItem("opencode_auth_token");
@@ -66,7 +80,10 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
         void get().loadModels(true);
         return { ok: true };
       }
-      return { ok: false, error: data.error || "Ошибка регистрации" };
+      return {
+        ok: false,
+        error: data.error || `Ошибка регистрации (HTTP ${res.status})`,
+      };
     } catch {
       return { ok: false, error: "Ошибка соединения с сервером" };
     }

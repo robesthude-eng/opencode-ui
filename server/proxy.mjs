@@ -147,14 +147,24 @@ export function createProxy(targetBase) {
           cleanup();
           res.end();
         });
-        proxyRes.on("aborted", () => {
+        // Апстрим умер посреди стрима: завершаем ответ корректным последним
+        // чанком вместо res.destroy() — иначе браузер логирует
+        // net::ERR_INCOMPLETE_CHUNKED_ENCODING. EventSource переподключится
+        // сам и доберёт пропущенные кадры по Last-Event-ID из кольцевого
+        // буфера (sse-ring.mjs).
+        const endGracefully = () => {
           cleanup();
-          res.destroy();
-        });
-        proxyRes.on("error", () => {
-          cleanup();
-          res.destroy();
-        });
+          if (!res.writableEnded && !res.destroyed) {
+            try {
+              res.write(": upstream-lost\n\n");
+            } catch {
+              /* сокет уже закрыт */
+            }
+            res.end();
+          }
+        };
+        proxyRes.on("aborted", endGracefully);
+        proxyRes.on("error", endGracefully);
         return;
       }
       proxyRes.pipe(res);

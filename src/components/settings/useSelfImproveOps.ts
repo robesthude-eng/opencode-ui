@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { jsonOrNull } from "../../api/client";
 import { useStore } from "../../store/useStore";
 
 export type HealthInfo = {
@@ -17,6 +18,24 @@ export type DistSnapshot = {
 };
 
 const getHeaders = () => ({ "Content-Type": "application/json" });
+
+/**
+ * Типовое тело JSON-ответа сервисных роутов. Разбор через jsonOrNull:
+ * HTML-ответ (SPA-fallback / страница ошибки прокси) даёт {} вместо
+ * «SyntaxError: Unexpected token '<'» из res.json().
+ */
+type ApiBody = {
+  error?: string;
+  detail?: string;
+  status?: string;
+  commit?: string;
+  name?: string;
+  version?: string;
+  diff?: string;
+  changed?: boolean;
+};
+const jsonBody = async (res: Response): Promise<ApiBody> =>
+  (await jsonOrNull<ApiBody>(res)) ?? {};
 
 /**
  * Encapsulates all data-loading and mutation logic for the "Саморазвитие"
@@ -67,7 +86,7 @@ export function useSelfImproveOps({
         headers: getHeaders(),
       });
       if (res.ok) {
-        const logs = await res.json();
+        const logs = await jsonOrNull(res);
         setAuditLogs(Array.isArray(logs) ? logs : []);
       }
     } catch {
@@ -82,7 +101,7 @@ export function useSelfImproveOps({
         headers: getHeaders(),
       });
       if (res.ok) {
-        const cps = await res.json();
+        const cps = await jsonOrNull(res);
         setCheckpoints(Array.isArray(cps) ? cps : []);
       }
     } catch {
@@ -97,7 +116,7 @@ export function useSelfImproveOps({
         credentials: "include",
         headers: getHeaders(),
       });
-      const data = await res.json();
+      const data = await jsonBody(res);
       if (!res.ok) throw new Error(data.error || "Не удалось загрузить diff");
       setSourceDiff(data.diff || "");
       setDiffStatus(
@@ -116,7 +135,7 @@ export function useSelfImproveOps({
         method: "POST",
         headers: getHeaders(),
       });
-      const data = await res.json();
+      const data = await jsonBody(res);
       if (res.ok) {
         setCheckpointStatus(
           data.status === "noop" ? "✔ Нет изменений" : `✔ ${data.commit}`,
@@ -141,7 +160,7 @@ export function useSelfImproveOps({
         headers: getHeaders(),
       });
       if (res.ok) {
-        const list = await res.json();
+        const list = await jsonOrNull(res);
         setDistSnapshots(Array.isArray(list) ? list : []);
       }
     } catch {
@@ -157,7 +176,12 @@ export function useSelfImproveOps({
         setHealth(null);
         return;
       }
-      const data = await res.json();
+      const data = await jsonOrNull<HealthInfo>(res);
+      if (!data) {
+        setHealthError("Некорректный ответ сервера");
+        setHealth(null);
+        return;
+      }
       setHealth(data);
       setHealthError(null);
     } catch {
@@ -174,7 +198,7 @@ export function useSelfImproveOps({
         headers: getHeaders(),
       });
       if (res.ok) {
-        const list = await res.json();
+        const list = await jsonOrNull(res);
         setDbBackups(Array.isArray(list) ? list : []);
       }
     } catch {
@@ -190,7 +214,7 @@ export function useSelfImproveOps({
         method: "POST",
         headers: getHeaders(),
       });
-      const data = await res.json();
+      const data = await jsonBody(res);
       if (res.ok) {
         setBackupStatus(`✔ ${data.name || "ok"}`);
         await loadDbBackups();
@@ -221,7 +245,7 @@ export function useSelfImproveOps({
         headers: getHeaders(),
         body: JSON.stringify({ name }),
       });
-      const data = await res.json();
+      const data = await jsonBody(res);
       if (res.ok) {
         setRestoreStatus("✔ База восстановлена! Перезагрузка…");
         setTimeout(() => window.location.reload(), 1500);
@@ -250,7 +274,7 @@ export function useSelfImproveOps({
         headers: getHeaders(),
         body: JSON.stringify({ index }),
       });
-      const data = await res.json();
+      const data = await jsonBody(res);
       if (res.ok) {
         setInstantStatus(`✔ ${data.version || "готово"} — перезагрузка…`);
         await loadDistSnapshots();
@@ -280,7 +304,7 @@ export function useSelfImproveOps({
         headers: getHeaders(),
         body: JSON.stringify({ hash }),
       });
-      const data = await res.json();
+      const data = await jsonBody(res);
       if (res.ok) {
         setRollbackStatus("✔ Собрано! Перезагрузка…");
         setTimeout(() => window.location.reload(), 1500);
@@ -309,7 +333,7 @@ export function useSelfImproveOps({
       });
       if (!res.ok) {
         setSelfImproveEnabled(!next);
-        const data = await res.json().catch(() => ({}));
+        const data = await jsonBody(res);
         setRebuildStatus(
           res.status === 403
             ? "Только администратор может менять этот режим"
@@ -339,7 +363,7 @@ export function useSelfImproveOps({
         method: "POST",
         headers: getHeaders(),
       });
-      const data = await res.json();
+      const data = await jsonBody(res);
       if (res.ok) {
         setRebuildStatus("success");
         await loadDistSnapshots();
@@ -375,7 +399,7 @@ export function useSelfImproveOps({
         method: "POST",
         headers: getHeaders(),
       });
-      const data = await res.json();
+      const data = await jsonBody(res);
       if (res.ok) {
         setResetStatus("success");
         setTimeout(() => window.location.reload(), 1500);

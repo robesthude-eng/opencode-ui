@@ -26,6 +26,34 @@ export function getConfig() {
   return config;
 }
 
+/**
+ * Безопасный разбор JSON-ответа: если сервер вернул HTML (SPA-fallback
+ * index.html или HTML-страница ошибки от прокси), бросаем понятную ошибку
+ * с именем эндпоинта вместо криптичного
+ * «SyntaxError: Unexpected token '<' … is not valid JSON».
+ */
+export async function jsonOrThrow<T = unknown>(res: Response): Promise<T> {
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("application/json")) {
+    const preview = (await res.text().catch(() => "")).slice(0, 80);
+    throw new Error(
+      `${res.url || "request"} → non-JSON (HTTP ${res.status}, ${ct || "no content-type"}): ${preview}`,
+    );
+  }
+  return res.json() as Promise<T>;
+}
+
+/** Как jsonOrThrow, но возвращает null вместо исключения (для толерантных мест). */
+export async function jsonOrNull<T = unknown>(
+  res: Response,
+): Promise<T | null> {
+  try {
+    return await jsonOrThrow<T>(res);
+  } catch {
+    return null;
+  }
+}
+
 /** Same-origin JSON headers. Auth is HttpOnly cookie (credentials: include). */
 function headers(): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json" };
@@ -260,11 +288,11 @@ export const api = {
       const body = await res.text().catch(() => "");
       throw new Error(`${res.status} ${res.statusText} ${body}`.trim());
     }
-    return res.json() as Promise<{
+    return jsonOrThrow<{
       ok: boolean;
       written: number;
       errors?: string[];
-    }>;
+    }>(res);
   },
 
   uploadFile: (
