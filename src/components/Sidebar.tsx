@@ -327,6 +327,7 @@ export default function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
+              data-testid="theme-toggle"
               onClick={toggleTheme}
               title={`Тема: ${
                 theme === "dark"

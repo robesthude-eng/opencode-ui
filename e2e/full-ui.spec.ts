@@ -169,7 +169,7 @@ test.describe("2. Sidebar", () => {
     // Wait for app shell to settle
     await page.waitForTimeout(1000);
     // Find theme toggle button (Sun or Moon icon) — there are 2 (sidebar + topbar)
-    const themeBtns = page.locator('button[title="Toggle theme"]');
+    const themeBtns = page.locator('[data-testid="theme-toggle"]');
     const count = await themeBtns.count();
     expect(count).toBeGreaterThan(0);
     // Theme is stored as data-theme attribute on <html>
@@ -185,7 +185,7 @@ test.describe("2. Sidebar", () => {
   });
 
   test("2.4 Theme persists across reload", async ({ page }) => {
-    const themeBtn = page.locator('button[title="Toggle theme"]').first();
+    const themeBtn = page.locator('[data-testid="theme-toggle"]').first();
     await themeBtn.click();
     await page.waitForTimeout(300);
     const theme = await page.evaluate(
@@ -288,7 +288,7 @@ test.describe("3. TopBar", () => {
     await page.waitForTimeout(500);
     // Only one theme toggle is visible at a time (in the sidebar). Click the
     // first visible one.
-    const themeBtns = page.locator('button[title="Toggle theme"]');
+    const themeBtns = page.locator('[data-testid="theme-toggle"]');
     const count = await themeBtns.count();
     expect(count).toBeGreaterThan(0);
     let visibleIdx = -1;
