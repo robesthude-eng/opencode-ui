@@ -26,7 +26,7 @@ services:
       - HOST_WORKSPACE_DIR=${OPENCODE_DATA_DIR:-/srv/opencode-data}
       - RUNNER_IMAGE=${RUNNER_IMAGE:-opencode-runner:latest}
       - RUNNER_NETWORK=${RUNNER_NETWORK:-opencode-runners}
-      - RUNNER_MEMORY=${RUNNER_MEMORY:-1g}
+      - RUNNER_MEMORY=${RUNNER_MEMORY:-1536m}
       - RUNNER_CPUS=${RUNNER_CPUS:-1}
       - RUNNER_PIDS_LIMIT=${RUNNER_PIDS_LIMIT:-512}
       - RUNNER_USER=${RUNNER_USER:-1000:1000}

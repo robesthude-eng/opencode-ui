@@ -37,7 +37,7 @@ export const RUNNER_WORKSPACE = "/session/workspace";
 
 const RUNNER_IMAGE = process.env.RUNNER_IMAGE || "opencode-runner:latest";
 const RUNNER_NETWORK = process.env.RUNNER_NETWORK || "opencode-runners";
-const RUNNER_MEMORY = process.env.RUNNER_MEMORY || "1g";
+const RUNNER_MEMORY = process.env.RUNNER_MEMORY || "1536m";
 // Свап отключён: memory-swap == memory означает «памяти + 0 свапа».
 const RUNNER_MEMORY_SWAP = process.env.RUNNER_MEMORY_SWAP || RUNNER_MEMORY;
 const RUNNER_CPUS = process.env.RUNNER_CPUS || "1";
