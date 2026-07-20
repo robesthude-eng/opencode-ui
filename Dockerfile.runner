@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN npm install -g opencode-ai@1.18.3
 
+COPY notioncode_mcp/notion-private-api-mcp /app/notioncode_mcp/notion-private-api-mcp
+RUN cd /app/notioncode_mcp/notion-private-api-mcp && npm ci --omit=dev
+
 COPY runner-entry.sh /usr/local/bin/runner-entry.sh
 RUN chmod +x /usr/local/bin/runner-entry.sh
 

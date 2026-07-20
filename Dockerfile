@@ -13,7 +13,7 @@ RUN npm run build
 FROM node:24-slim AS runtime
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ git ca-certificates curl bash \
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv python3-pip make g++ git ca-certificates curl bash \
   && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
@@ -33,6 +33,12 @@ COPY --from=build /app/dist ./dist
 
 ARG DEPLOY_TS=unknown
 COPY server/ ./server/
+COPY notioncode_mcp/ ./notioncode_mcp/
+
+RUN python3 -m venv /app/.runtime/notion-agent-cli-venv && \
+    /app/.runtime/notion-agent-cli-venv/bin/pip install --no-cache-dir -r ./notioncode_mcp/requirements.txt && \
+    npm --prefix ./notioncode_mcp/runtime ci --omit=dev && \
+    if [ -f ./notioncode_mcp/notion-private-api-mcp/package.json ]; then npm --prefix ./notioncode_mcp/notion-private-api-mcp ci --omit=dev || true; fi
 
 COPY src ./workspace-src/src
 COPY public ./workspace-src/public
@@ -45,6 +51,7 @@ COPY vite.config.ts ./workspace-src/vite.config.ts
 COPY biome.json ./workspace-src/biome.json
 COPY vitest.config.ts ./workspace-src/vitest.config.ts
 COPY SELF_IMPROVE.md SELF_IMPROVE_GUIDE.md ./workspace-src/
+COPY notioncode_mcp ./workspace-src/notioncode_mcp
 
 RUN node --input-type=module -e "\
   import './server/db.mjs'; \
