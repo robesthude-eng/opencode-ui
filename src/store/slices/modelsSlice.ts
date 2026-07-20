@@ -11,6 +11,7 @@ export const NOTION_MODELS = [
   { id: "gpt-5.4", name: "GPT-5.4 (Notion)" },
   { id: "gpt-5.2", name: "GPT-5.2 (Notion)" },
 ];
+
 import type { ModelEntry, ModelsSlice, Slice } from "../types";
 
 export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
@@ -57,7 +58,11 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
         // Skip non-free and non-Notion providers (balance 0 — only free needed)
         if (p.id === "notion" && p.models) {
           for (const [modelID, m] of Object.entries(p.models)) {
-            if (!entries.some((e) => e.modelID === modelID && e.providerID === "notion")) {
+            if (
+              !entries.some(
+                (e) => e.modelID === modelID && e.providerID === "notion",
+              )
+            ) {
               entries.push({
                 providerID: "notion",
                 providerName: "Notion AI (Bridge)",

@@ -163,7 +163,8 @@ export const PROVIDERS: ProviderInfo[] = [
     id: "notion",
     name: "Notion AI (Bridge)",
     color: "#000000",
-    models: "Fable 5, GPT-5.6 Sol, Sonnet 5, Opus 4.8, Grok 4.5, Gemini 3.1 Pro",
+    models:
+      "Fable 5, GPT-5.6 Sol, Sonnet 5, Opus 4.8, Grok 4.5, Gemini 3.1 Pro",
     keyHint: "local (token_v2 via bridge)",
     docsUrl: "https://github.com/PandaNePanda/notioncode_mcp",
   },
