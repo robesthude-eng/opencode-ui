@@ -1,5 +1,18 @@
 import { api } from "../../api/client";
 import { ZEN_FREE_MODELS, ZEN_PROVIDER_ID } from "../../config/providers";
+
+// Notion AI bridge models (notioncode_mcp) — free top-tier LLMs via Notion
+export const NOTION_MODELS = [
+  { id: "fable-5", name: "Fable 5 (Notion)" },
+  { id: "gpt-5.6-sol", name: "GPT-5.6 Sol (Notion)" },
+  { id: "gpt-5.6-terra", name: "GPT-5.6 Terra (Notion)" },
+  { id: "sonnet-5", name: "Sonnet 5 (Notion)" },
+  { id: "opus-4.8", name: "Opus 4.8 (Notion)" },
+  { id: "grok-4.5", name: "Grok 4.5 (Notion)" },
+  { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro (Notion)" },
+  { id: "gpt-5.4", name: "GPT-5.4 (Notion)" },
+  { id: "gpt-5.2", name: "GPT-5.2 (Notion)" },
+];
 import type { ModelEntry, ModelsSlice, Slice } from "../types";
 
 export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
@@ -27,48 +40,37 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
       });
     }
 
+    // Always include Notion AI bridge models (free top-tier LLMs via notioncode_mcp)
+    for (const m of NOTION_MODELS) {
+      entries.push({
+        providerID: "notion",
+        providerName: "Notion AI (Bridge)",
+        modelID: m.id,
+        modelName: m.name,
+        free: true,
+      });
+    }
+
     let def: Record<string, string> = {};
     try {
       const res = await api.listProviders();
       def = res.default ?? {};
       for (const p of res.providers ?? []) {
-        if (p.id === ZEN_PROVIDER_ID) {
-          if (p.models) {
-            for (const [modelID, m] of Object.entries(p.models)) {
-              if (!entries.some((e) => e.modelID === modelID)) {
-                const costObj = (
-                  m as { cost?: { input?: number; output?: number } }
-                ).cost;
-                const isFree =
-                  !costObj ||
-                  (costObj.input === 0 && costObj.output === 0) ||
-                  modelID.endsWith("-free") ||
-                  modelID === "big-pickle";
-                if (isFree) {
-                  entries.push({
-                    providerID: ZEN_PROVIDER_ID,
-                    providerName: "OpenCode Zen",
-                    modelID,
-                    modelName: (m as { name?: string }).name || modelID,
-                    free: true,
-                  });
-                }
-              }
+        // Only keep Notion bridge (free top-tier) and skip paid/GitHub providers
+        if (p.id === "notion" && p.models) {
+          for (const [modelID, m] of Object.entries(p.models)) {
+            if (!entries.some((e) => e.modelID === modelID && e.providerID === "notion")) {
+              entries.push({
+                providerID: "notion",
+                providerName: "Notion AI (Bridge)",
+                modelID,
+                modelName: (m.name ?? modelID) as string,
+                free: true,
+              });
             }
           }
           continue;
-        }
-        if (!auth[p.id]) continue;
-        if (!p.models) continue;
-        for (const [modelID, m] of Object.entries(p.models)) {
-          entries.push({
-            providerID: p.id,
-            providerName: (p.name ?? p.id) as string,
-            modelID,
-            modelName: (m.name ?? modelID) as string,
-            free: false,
-          });
-        }
+        } // end of filtered loop
       }
     } catch {
       // non-fatal: fall back to free models only
