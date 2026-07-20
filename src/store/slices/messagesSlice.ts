@@ -277,13 +277,49 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
       // ждём ЛИБО session.idle из SSE, ЛИБО подтверждённый через HTTP-polling
       // финал (два опроса подряд показывают одинаковое finish + отсутствие новых сообщений).
       // Это защищает от нестабильного SSE (мобильная сеть, VPN).
-      const promptPromise = api.promptWithParts(
+      // Retryable prompt: временные 503 или сетевые ошибки не должны
+      // сбрасывать индикатор работы ассистента. Повторяем до 2 раз.
+      async function retryablePrompt(
+        sidStr: string,
+        parts: Record<string, unknown>[],
+        model?: import("../../api/client").PromptModel,
+        systemInstruction?: string,
+        signal?: AbortSignal,
+        retries = 2,
+      ) {
+        let lastErr: Error | null = null;
+        for (let i = 0; i <= retries; i++) {
+          try {
+            return await api.promptWithParts(
+              sidStr,
+              parts,
+              model,
+              systemInstruction,
+              signal,
+            );
+          } catch (err) {
+            lastErr = err as Error;
+            const msg = (err as Error).message || "";
+            const isRetryable =
+              msg.includes("503") ||
+              msg.includes("unavailable") ||
+              msg.includes("timed out") ||
+              msg.includes("Failed to fetch");
+            if (!isRetryable || i === retries) throw err;
+            // Короткая пауза перед повтором — даём серверу/сети восстановиться.
+            await new Promise((r) => setTimeout(r, 800));
+          }
+        }
+        throw lastErr;
+      }
+
+      const promptPromise = retryablePrompt(
         sidStr,
         parts,
         selectedModel ?? undefined,
         SYSTEM_INSTRUCTION,
-        // Релиз 4: централизованная отмена — кнопка «Стоп» обрывает и этот запрос.
         sessionSignal(sidStr),
+        2,
       );
 
       // P2-fix: вложения уже ушли в prompt — очищаем композер сразу,

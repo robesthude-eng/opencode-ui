@@ -196,31 +196,43 @@ function storageKey(key) {
 /** Returns a shared, fixed-window decision. */
 export async function takeRateLimit(key, { limit, windowMs }) {
   if (!redisUrl) return localTake(key, { limit, windowMs });
-  try {
-    const result = await redisCommand([
-      "EVAL",
-      TAKE_SCRIPT,
-      1,
-      storageKey(key),
-      windowMs,
-    ]);
-    const [count, ttlMs] = result.map(Number);
-    return {
-      allowed: count <= limit,
-      remaining: Math.max(0, limit - count),
-      retryAfterSec: count > limit ? Math.max(1, Math.ceil(ttlMs / 1000)) : 0,
-    };
-  } catch (error) {
-    // A configured shared store must not silently degrade into per-instance
-    // limiting. Return unavailable so callers can fail closed with 503.
-    logger.error({ err: error.message }, "Redis rate-limit store unavailable");
-    return {
-      allowed: false,
-      remaining: 0,
-      retryAfterSec: 1,
-      unavailable: true,
-    };
+  // Retry once on transient Redis errors — prevents temporary connection
+  // glitches from breaking active assistant sessions with 503.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = await redisCommand([
+        "EVAL",
+        TAKE_SCRIPT,
+        1,
+        storageKey(key),
+        windowMs,
+      ]);
+      const [count, ttlMs] = result.map(Number);
+      return {
+        allowed: count <= limit,
+        remaining: Math.max(0, limit - count),
+        retryAfterSec: count > limit ? Math.max(1, Math.ceil(ttlMs / 1000)) : 0,
+      };
+    } catch (error) {
+      logger.error(
+        { err: error.message, attempt },
+        "Redis rate-limit store error",
+      );
+      if (attempt === 1) {
+        // Second attempt also failed — fall back to local memory with a warning
+        // instead of hard 503, so temporary Redis outages don't stop the agent.
+        logger.warn(
+          { err: error.message },
+          "Redis rate-limit unavailable; falling back to local memory",
+        );
+        return localTake(key, { limit, windowMs });
+      }
+      // Brief pause before retry to let transient connection errors settle.
+      await new Promise((r) => setTimeout(r, 200));
+    }
   }
+  // Unreachable, but satisfies static analysis.
+  return localTake(key, { limit, windowMs });
 }
 
 /**
