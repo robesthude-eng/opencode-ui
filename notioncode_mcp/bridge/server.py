@@ -1162,8 +1162,35 @@ def extract_tool_call(text: str, tools: list[dict[str, Any]] | None) -> tuple[st
             continue
         if not isinstance(value, dict):
             continue
-        name = value.get("tool") or value.get("name")
-        arguments = value.get("arguments", value.get("parameters", {}))
+        name = str(value.get("tool") or value.get("name") or value.get("action") or "").strip()
+        arguments = value.get("arguments", value.get("parameters"))
+        if not isinstance(arguments, dict):
+            arguments = {}
+            for k, v in value.items():
+                if k not in ("tool", "name", "action"):
+                    arguments[k] = v
+
+        if name in ("run_shell", "shell", "exec", "command", "execute") and "bash" in allowed:
+            name = "bash"
+            if "command" not in arguments and "cmd" in arguments:
+                arguments["command"] = arguments["cmd"]
+        elif name in ("read_file", "file_read") and "read_file" in allowed:
+            name = "read_file"
+            if "path" not in arguments and "file_path" in arguments:
+                arguments["path"] = arguments["file_path"]
+        elif name in ("write_file", "file_write") and "write_file" in allowed:
+            name = "write_file"
+            if "path" not in arguments and "file_path" in arguments:
+                arguments["path"] = arguments["file_path"]
+        elif name in ("edit_file", "file_edit") and "edit_file" in allowed:
+            name = "edit_file"
+            if "path" not in arguments and "file_path" in arguments:
+                arguments["path"] = arguments["file_path"]
+        elif name in ("list_files", "list_dir", "ls") and "list_files" not in allowed and "bash" in allowed:
+            name = "bash"
+            directory = arguments.get("directory", arguments.get("path", "."))
+            arguments = {"command": f"ls -la {directory}"}
+
         if name in allowed and isinstance(arguments, dict):
             return str(name), arguments
     return None
