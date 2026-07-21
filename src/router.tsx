@@ -20,6 +20,7 @@ import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import Workspace from "./components/Workspace";
 import { applyTheme } from "./config/theme";
+import { isTmpSession } from "./lib/ids";
 import { useStore } from "./store/useStore";
 
 function AuthGate({ children }: { children: React.ReactNode }) {
@@ -79,7 +80,7 @@ function AppShell() {
   useEffect(() => {
     const sync = useStore.getState().syncSelfImproveFromServer;
     if (typeof sync === "function") {
-      void sync();
+      sync().catch(() => {});
     }
   }, []);
 
@@ -94,7 +95,7 @@ function AppShell() {
     const initialSid = useStore.getState().currentID;
     const stream = new EventStream(
       undefined,
-      initialSid && !initialSid.startsWith("tmp_") ? initialSid : null,
+      initialSid && !isTmpSession(initialSid) ? initialSid : null,
     );
     streamRef.current = stream;
     const off = stream.on((e) => applyEvent(e));
@@ -169,7 +170,7 @@ function AppShell() {
   useEffect(() => {
     const stream = streamRef.current;
     if (!stream) return;
-    const sid = currentID && !currentID.startsWith("tmp_") ? currentID : null;
+    const sid = currentID && !isTmpSession(currentID) ? currentID : null;
     stream.switchSession(sid);
   }, [currentID]);
 
@@ -186,14 +187,14 @@ function AppShell() {
     if (
       params.sessionId &&
       params.sessionId !== currentID &&
-      !params.sessionId.startsWith("tmp_")
+      !isTmpSession(params.sessionId)
     ) {
       if (lastNavigateFromStore.current === params.sessionId) {
         // We initiated this navigation; currentID already matches our intent.
         // Don't call select() — that would loop back.
         return;
       }
-      void select(params.sessionId);
+      select(params.sessionId).catch(() => {});
     }
   }, [params.sessionId, currentID, select]);
 
@@ -201,11 +202,11 @@ function AppShell() {
   useEffect(() => {
     if (
       currentID &&
-      !currentID.startsWith("tmp_") &&
+      !isTmpSession(currentID) &&
       params.sessionId !== currentID
     ) {
       lastNavigateFromStore.current = currentID;
-      void navigate({
+      navigate({
         to: "/chat/$sessionId",
         params: { sessionId: currentID },
         replace: true,

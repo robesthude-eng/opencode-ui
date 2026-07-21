@@ -136,7 +136,9 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
         authed: { ...s.authed, [providerId]: true },
         modelsLoaded: false,
       }));
-      void get().loadModels();
+      get()
+        .loadModels()
+        .catch(() => {});
       return true;
     } catch (e) {
       set({ error: (e as Error).message });
@@ -158,7 +160,9 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
           s.selectedModel?.providerID === providerId ? null : s.selectedModel;
         return { authed, selectedModel, modelsLoaded: false };
       });
-      void get().loadModels();
+      get()
+        .loadModels()
+        .catch(() => {});
     } catch (e) {
       set({ error: (e as Error).message });
     }

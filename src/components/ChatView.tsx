@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import { statusText } from "../api/eventGuards";
 import type { Message } from "../api/types";
@@ -115,8 +116,8 @@ const hasVisibleContent = (m: Message) =>
 
 export default function ChatView() {
   const currentID = useStore((s) => s.currentID);
-  const messages = useStore((s) =>
-    currentID ? s.messages[currentID] : undefined,
+  const messages = useStore(
+    useShallow((s) => (currentID ? s.messages[currentID] : undefined)),
   );
   const rawStatus = useStore((s) =>
     currentID ? s.status[currentID] : undefined,

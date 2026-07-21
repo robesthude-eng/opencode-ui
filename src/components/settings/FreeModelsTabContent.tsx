@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ZEN_FREE_MODELS, ZEN_PROVIDER_ID } from "../../config/providers";
@@ -16,6 +16,12 @@ export function FreeModelsTabContent() {
   const removeKey = useStore((s) => s.removeKey);
   const { values, saving, setValue, handleSave } = useApiKeyForm();
   const [editingZen, setEditingZen] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const zenConfigured = !!authed[ZEN_PROVIDER_ID];
 
@@ -79,9 +85,11 @@ export function FreeModelsTabContent() {
             onChange={(e) => setValue(ZEN_PROVIDER_ID, e.target.value)}
             onKeyDown={(e) =>
               e.key === "Enter" &&
-              handleSave(ZEN_PROVIDER_ID).then((ok) => {
-                if (ok) setEditingZen(false);
-              })
+              handleSave(ZEN_PROVIDER_ID)
+                .then((ok) => {
+                  if (ok && mountedRef.current) setEditingZen(false);
+                })
+                .catch(() => {})
             }
             className="max-w-sm"
             autoFocus={editingZen}
@@ -91,9 +99,11 @@ export function FreeModelsTabContent() {
               !values[ZEN_PROVIDER_ID]?.trim() || saving === ZEN_PROVIDER_ID
             }
             onClick={() => {
-              handleSave(ZEN_PROVIDER_ID).then((ok) => {
-                if (ok) setEditingZen(false);
-              });
+              handleSave(ZEN_PROVIDER_ID)
+                .then((ok) => {
+                  if (ok && mountedRef.current) setEditingZen(false);
+                })
+                .catch(() => {});
             }}
           >
             {saving === ZEN_PROVIDER_ID

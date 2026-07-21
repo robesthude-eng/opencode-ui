@@ -1,3 +1,4 @@
+import { isTmpSession } from "../lib/ids";
 import type {
   FileNode,
   Message,
@@ -423,7 +424,7 @@ export function workspaceDownloadUrl(
 }
 
 export function eventUrl(sessionId?: string | null): string {
-  if (sessionId && !sessionId.startsWith("tmp_")) {
+  if (sessionId && !isTmpSession(sessionId)) {
     return `${config.baseUrl}/event?sessionId=${encodeURIComponent(sessionId)}`;
   }
   return `${config.baseUrl}/event`;

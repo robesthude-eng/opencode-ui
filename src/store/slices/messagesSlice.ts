@@ -11,6 +11,7 @@ import type {
   SessionInfo,
   SessionStatus,
 } from "../../api/types";
+import { isTmpSession } from "../../lib/ids";
 import {
   normalizeMessage,
   normalizeMessages,
@@ -207,15 +208,15 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => {
       const { currentID, newSession, selectedModel } = get();
       let sid = currentID;
       // Handle tmp_ optimistic IDs — wait for real session or create new one (Claude-like)
-      if (!sid || sid.startsWith("tmp_")) {
-        if (sid?.startsWith("tmp_")) {
+      if (!sid || isTmpSession(sid)) {
+        if (isTmpSession(sid)) {
           // Optimistic creation is in progress — await its completion event
           // instead of a fixed 300ms nap: on a slow backend the nap ended
           // before the real id appeared, the forced newSession() bailed out on
           // the creatingSession guard, and the message was silently dropped.
           await waitForSessionCreation();
           sid = get().currentID;
-          if (sid?.startsWith("tmp_")) {
+          if (isTmpSession(sid)) {
             // Still temp, force create real session
             await newSession();
             sid = get().currentID;
@@ -224,7 +225,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => {
           await newSession();
           sid = get().currentID;
         }
-        if (!sid || sid.startsWith("tmp_")) return;
+        if (!sid || isTmpSession(sid)) return;
       }
       const sidStr = sid as string;
 
@@ -482,7 +483,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => {
           try {
             await get().newSession();
             const newSid = get().currentID;
-            if (newSid && !newSid.startsWith("tmp_")) {
+            if (newSid && !isTmpSession(newSid)) {
               // Race-fix: пока первая попытка висела, пользователь мог уже
               // прикрепить НОВЫЕ файлы к следующему сообщению. Не затираем
               // их старым снимком и не отдаём авторетраю (иначе новые
@@ -503,7 +504,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => {
                       ? currentAttachments
                       : s.attachments,
                 }));
-              void get().send(text);
+              get()
+                .send(text)
+                .catch(() => {});
             }
           } catch (recErr) {
             set((_s) => ({ error: (recErr as Error).message }));
@@ -778,8 +781,8 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => {
           // разрыва потеряны (нет Last-Event-ID replay). Один раз
           // дотягиваем историю активной сессии и мержим детерминированно.
           const cur = get().currentID;
-          if (!cur || cur.startsWith("tmp_")) break;
-          void (async () => {
+          if (!cur || isTmpSession(cur)) break;
+          (async () => {
             try {
               const msgs = normalizeMessages(await api.listMessages(cur));
               if (msgs.length === 0) return;

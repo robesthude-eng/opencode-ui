@@ -9,7 +9,7 @@ export function SelfImproveToggleCard({
 }: {
   selfImproveEnabled: boolean;
   toggleBusy: boolean;
-  handleToggleSelfImprove: () => void;
+  handleToggleSelfImprove: () => void | Promise<void>;
   isAdminUser: boolean;
 }) {
   return (
@@ -38,7 +38,7 @@ export function SelfImproveToggleCard({
         <Switch
           checked={!!selfImproveEnabled}
           onCheckedChange={() => {
-            void handleToggleSelfImprove();
+            Promise.resolve(handleToggleSelfImprove()).catch(() => {});
           }}
           disabled={!isAdminUser || toggleBusy}
         />
@@ -46,7 +46,7 @@ export function SelfImproveToggleCard({
           type="button"
           className="text-sm w-24 text-right hover:opacity-80 disabled:opacity-50"
           onClick={() => {
-            void handleToggleSelfImprove();
+            Promise.resolve(handleToggleSelfImprove()).catch(() => {});
           }}
           disabled={!isAdminUser || toggleBusy}
         >

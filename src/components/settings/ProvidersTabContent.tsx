@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,12 @@ export function ProvidersTabContent() {
   const [editingProviders, setEditingProviders] = useState<
     Record<string, boolean>
   >({});
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -91,13 +97,15 @@ export function ProvidersTabContent() {
                     onChange={(e) => setValue(p.id, e.target.value)}
                     onKeyDown={(e) =>
                       e.key === "Enter" &&
-                      handleSave(p.id).then((ok) => {
-                        if (ok)
-                          setEditingProviders((prev) => ({
-                            ...prev,
-                            [p.id]: false,
-                          }));
-                      })
+                      handleSave(p.id)
+                        .then((ok) => {
+                          if (ok && mountedRef.current)
+                            setEditingProviders((prev) => ({
+                              ...prev,
+                              [p.id]: false,
+                            }));
+                        })
+                        .catch(() => {})
                     }
                     className="flex-1 min-w-[180px] h-8"
                     autoFocus={editingProviders[p.id]}
@@ -106,13 +114,15 @@ export function ProvidersTabContent() {
                     size="sm"
                     disabled={!values[p.id]?.trim() || saving === p.id}
                     onClick={() => {
-                      handleSave(p.id).then((ok) => {
-                        if (ok)
-                          setEditingProviders((prev) => ({
-                            ...prev,
-                            [p.id]: false,
-                          }));
-                      });
+                      handleSave(p.id)
+                        .then((ok) => {
+                          if (ok && mountedRef.current)
+                            setEditingProviders((prev) => ({
+                              ...prev,
+                              [p.id]: false,
+                            }));
+                        })
+                        .catch(() => {});
                     }}
                   >
                     {saving === p.id

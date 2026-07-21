@@ -376,10 +376,42 @@ function sameMessageItems(
   const nextList = Array.isArray(next.messages)
     ? next.messages
     : [next.messages];
-  return (
-    prevList.length === nextList.length &&
-    prevList.every((message, i) => message === nextList[i])
-  );
+  if (prevList.length !== nextList.length) return false;
+
+  for (let i = 0; i < prevList.length; i++) {
+    const pMsg = prevList[i];
+    const nMsg = nextList[i];
+    if (!pMsg || !nMsg) return pMsg === nMsg;
+    if (pMsg === nMsg) continue;
+    if (
+      pMsg.id !== nMsg.id ||
+      pMsg.role !== nMsg.role ||
+      (pMsg.parts?.length ?? 0) !== (nMsg.parts?.length ?? 0)
+    ) {
+      return false;
+    }
+    const pParts = pMsg.parts ?? [];
+    const nParts = nMsg.parts ?? [];
+    for (let j = 0; j < pParts.length; j++) {
+      const pPart = pParts[j];
+      const nPart = nParts[j];
+      if (!pPart || !nPart) return pPart === nPart;
+      if (pPart === nPart) continue;
+      if (
+        pPart.id !== nPart.id ||
+        pPart.type !== nPart.type ||
+        (pPart as { text?: string }).text !==
+          (nPart as { text?: string }).text ||
+        (pPart as { output?: string }).output !==
+          (nPart as { output?: string }).output ||
+        (pPart as { reasoning?: string }).reasoning !==
+          (nPart as { reasoning?: string }).reasoning
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 export default memo(MessageItem, sameMessageItems);

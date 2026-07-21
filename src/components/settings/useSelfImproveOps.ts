@@ -360,7 +360,7 @@ export function useSelfImproveOps({
       } else if (next) {
         // Self-Improvement turned ON → auto-create & open the «Самоулучшение» chat
         // so the user can immediately study the project, find bugs, add features.
-        void ensureSelfImproveSession();
+        ensureSelfImproveSession().catch(() => {});
         setWorkspaceOpen(true);
       }
     } catch {
@@ -435,11 +435,11 @@ export function useSelfImproveOps({
   const prevOpenRef = useRef(false);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      void loadCheckpoints();
-      void loadAuditLogs();
-      void loadDistSnapshots();
-      void loadHealth();
-      void loadDbBackups();
+      loadCheckpoints().catch(() => {});
+      loadAuditLogs().catch(() => {});
+      loadDistSnapshots().catch(() => {});
+      loadHealth().catch(() => {});
+      loadDbBackups().catch(() => {});
     }
     prevOpenRef.current = open;
   }, [open]);

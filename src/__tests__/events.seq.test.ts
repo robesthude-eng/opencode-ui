@@ -13,20 +13,26 @@ class SeqEventSource {
   onerror: (() => void) | null = null;
   onmessage: ((event: Ev) => void) | null = null;
   readyState = 0;
+  private listeners: Map<string, Array<(event: Ev) => void>> = new Map();
   constructor(url: string) {
     this.url = url;
     SeqEventSource.instances.push(this);
   }
-  addEventListener() {}
+  addEventListener(type: string, handler: (event: Ev) => void) {
+    if (!this.listeners.has(type)) this.listeners.set(type, []);
+    this.listeners.get(type)?.push(handler);
+  }
   close() {
     this.readyState = 2;
   }
   /** Кадр с порядковым номером (id: N от прокси) или без него. */
   frame(n: number | null, payload: Record<string, unknown> = {}) {
-    this.onmessage?.({
+    const ev = {
       data: JSON.stringify({ type: "message", properties: payload }),
       lastEventId: n === null ? undefined : String(n),
-    });
+    };
+    this.onmessage?.(ev);
+    for (const h of this.listeners.get("message") || []) h(ev);
   }
 }
 

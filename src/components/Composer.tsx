@@ -70,7 +70,7 @@ export default function Composer() {
     if (!busy && queued.length > 0) {
       const [next, ...rest] = queued;
       setQueued(rest);
-      if (next) void send(next);
+      if (next) send(next).catch(() => {});
     }
   }, [busy, queued, send]);
 

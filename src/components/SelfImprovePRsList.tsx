@@ -27,8 +27,10 @@ export default function SelfImprovePRsList({ visible }: { visible: boolean }) {
 
   useEffect(() => {
     if (!visible) return;
-    void load();
-    const t = setInterval(() => void load(), 30_000);
+    load().catch(() => {});
+    const t = setInterval(() => {
+      load().catch(() => {});
+    }, 30_000);
     return () => clearInterval(t);
   }, [visible, load]);
 
@@ -48,7 +50,9 @@ export default function SelfImprovePRsList({ visible }: { visible: boolean }) {
         </div>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => {
+            load().catch(() => {});
+          }}
           disabled={loading}
           className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition disabled:opacity-50 shrink-0"
         >

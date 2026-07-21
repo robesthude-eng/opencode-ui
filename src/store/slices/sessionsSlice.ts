@@ -1,6 +1,7 @@
 import { abortSessionRequests } from "../../api/abortRegistry";
 import { api, isSessionDead, SessionGoneError } from "../../api/client";
 import type { SessionInfo, SessionStatus } from "../../api/types";
+import { isTmpSession } from "../../lib/ids";
 import { normalizeMessages } from "../helpers";
 import type { SessionsSlice, Slice } from "../types";
 import { byUpdated } from "../types";
@@ -225,7 +226,7 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
 
   abort: async () => {
     const sid = get().currentID;
-    if (!sid || sid.startsWith("tmp_")) return;
+    if (!sid || isTmpSession(sid)) return;
     // Релиз 4: централизованная отмена — обрываем и локальные HTTP-запросы
     // этой сессии (висящий promptWithParts), не только серверную генерацию.
     abortSessionRequests(sid);
@@ -282,7 +283,7 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
       sessions.find((s) => s.title === SELF_IMPROVE_TITLE);
     if (existing) {
       setSelfImproveSessionId(existing.id);
-      void persistSiSession(existing.id);
+      persistSiSession(existing.id).catch(() => {});
       if (currentID !== existing.id) await get().select(existing.id);
       return existing.id;
     }
@@ -297,7 +298,7 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
         status: { ...s.status, [session.id]: "idle" as SessionStatus },
       }));
       await get().select(session.id);
-      void persistSiSession(session.id);
+      persistSiSession(session.id).catch(() => {});
       return session.id;
     } catch (e) {
       set({ error: (e as Error).message });

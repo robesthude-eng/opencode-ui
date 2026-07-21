@@ -2,6 +2,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -10,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { api } from "../api/client";
+import { isTmpSession } from "../lib/ids";
 import { useStore } from "../store/useStore";
 import {
   ChevronDownIcon,
@@ -23,116 +25,15 @@ import {
   RefreshIcon,
   SearchIcon,
 } from "./icons";
-
-interface TreeNode {
-  name: string;
-  path: string;
-  isDir: boolean;
-  children?: TreeNode[] | undefined;
-  loaded?: boolean;
-}
-
-function toTree(
-  nodes: { path: string; type?: string; isDirectory?: boolean }[],
-): TreeNode[] {
-  const root: TreeNode = { name: "", path: "", isDir: true, children: [] };
-  for (const n of nodes) {
-    const parts = n.path.split("/").filter(Boolean);
-    let cur = root;
-    let acc = "";
-    for (let i = 0; i < parts.length; i++) {
-      const seg = parts[i];
-      if (seg === undefined) continue;
-      acc = acc ? `${acc}/${seg}` : seg;
-      const isLast = i === parts.length - 1;
-      const isDir = isLast ? !!(n.isDirectory ?? n.type === "directory") : true;
-      let child = cur.children?.find((c) => c.name === seg);
-      if (!child) {
-        child = {
-          name: seg,
-          path: acc,
-          isDir,
-          children: isDir ? [] : undefined,
-          loaded: false,
-        };
-        cur.children?.push(child);
-      }
-      if (isDir) cur = child;
-    }
-  }
-  const sort = (nodes: TreeNode[]): TreeNode[] => {
-    nodes.sort((a, b) =>
-      a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1,
-    );
-    for (const n of nodes) if (n.children) sort(n.children);
-    return nodes;
-  };
-  return sort(root.children ?? []);
-}
-
-function toRelPath(p: string): string {
-  if (!p) return p;
-  const m = p.match(/^\/app\/workspace\/sessions\/[^/]+\/workspace(\/.*)?$/);
-  if (m) return m[1] ? m[1].replace(/^\//, "") : ".";
-  if (p.startsWith("/app/workspace/")) return p.slice("/app/workspace/".length);
-  return p;
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  modified: "#fbbf24",
-  added: "#4ade80",
-  untracked: "#60a5fa",
-  deleted: "#f87171",
-  renamed: "#60a5fa",
-};
-
-const HIDDEN_SEGMENTS = new Set([
-  "node_modules",
-  ".git",
-  "dist",
-  "dist-ssr",
-  "coverage",
-  ".vite",
-  ".cache",
-  ".turbo",
-  ".next",
-  ".arena",
-  "__pycache__",
-  ".config_opencode",
-  ".opencode_data",
-  ".local",
-  ".config",
-  ".users.json",
-  ".sessions.json",
-  ".session_owners.json",
-  ".admin_password",
-  ".self_improve_mode",
-  "package-lock.json",
-  "opencode.db",
-  "opencode.db-wal",
-  "opencode.db-shm",
-  "backups",
-]);
-
-// Максимальная глубина рекурсивной перезагрузки раскрытых папок —
-// страховка от патологически глубоких деревьев (ограничивает число запросов).
-const DEEP_RELOAD_MAX_DEPTH = 8;
-
-// Synthetic root node that surfaces the live project source (opencode-ui) in the
-// Workspace. The server resolves its contents to /app/workspace/opencode-ui via a
-// strict allowlist (see server/index.mjs handleSelfImproveFileProxy).
-// Модульная константа (не в теле компонента): все обновления дерева создают
-// новые объекты через spread и эту ноду не мутируют, а стабильная идентичность
-// нужна, чтобы withSelfImproveRoot → refresh/autoRefresh → эффект поллинга
-// не пересоздавались на каждом рендере (раньше любой рендер сбрасывал
-// 8-секундный таймер setInterval).
-const SELF_IMPROVE_NODE: TreeNode = {
-  name: "opencode-ui",
-  path: "opencode-ui",
-  isDir: true,
-  children: [],
-  loaded: false,
-};
+import {
+  DEEP_RELOAD_MAX_DEPTH,
+  filterNodes as filterTreeNodes,
+  SELF_IMPROVE_NODE,
+  STATUS_COLORS,
+  type TreeNode,
+  toRelPath,
+  toTree,
+} from "./workspace/workspaceTreeHelpers";
 
 export default function Workspace() {
   const workspaceOpen = useStore((s) => s.workspaceOpen);
@@ -172,55 +73,20 @@ export default function Workspace() {
     [showSynthetic],
   );
 
+  const sessions = useStore((s) => s.sessions);
+  const mySessionIds = useMemo(
+    () => new Set(sessions.map((s) => s.id)),
+    [sessions],
+  );
   const filterNodes = useCallback(
-    (nodes: { path: string; type?: string; isDirectory?: boolean }[]) => {
-      if (!Array.isArray(nodes)) return [];
-      const mySessionIds = new Set(
-        useStore.getState().sessions.map((s) => s.id),
-      );
-      return nodes.filter((n) => {
-        const raw = (n.path || "").replace(/\\/g, "/");
-        const parts = raw.split("/").filter(Boolean);
-        const p = parts[0] || "";
-
-        if (parts.some((seg: string) => HIDDEN_SEGMENTS.has(seg))) return false;
-        if (raw.endsWith(".tsbuildinfo") || raw.endsWith(".map")) return false;
-
-        if (!selfImproveEnabled && p === "opencode-ui") return false;
-
-        if (selfImproveEnabled && p === "opencode-ui" && parts.length >= 2) {
-          const allowedTop = new Set([
-            "src",
-            "public",
-            "index.html",
-            "package.json",
-            "vite.config.ts",
-            "tsconfig.json",
-            "tsconfig.node.json",
-            "biome.json",
-            "vitest.config.ts",
-            "SELF_IMPROVE.md",
-            "SELF_IMPROVE_GUIDE.md",
-          ]);
-          if (!allowedTop.has(parts[1] ?? "")) return false;
-        }
-
-        if (
-          (p === "sessions" || p === "uploads" || p === "temp") &&
-          parts.length > 1
-        ) {
-          const sid = parts[1];
-          if (sid?.startsWith("ses_") && !mySessionIds.has(sid)) return false;
-        }
-        return true;
-      });
-    },
-    [selfImproveEnabled],
+    (nodes: { path: string; type?: string; isDirectory?: boolean }[]) =>
+      filterTreeNodes(nodes, { mySessionIds, selfImproveEnabled }),
+    [mySessionIds, selfImproveEnabled],
   );
 
   const loadDir = useCallback(
     async (path: string) => {
-      if (!currentID || currentID.startsWith("tmp_")) return [];
+      if (!currentID || isTmpSession(currentID)) return [];
       try {
         const nodes = await api.listDir(path, currentID);
         let tree = Array.isArray(nodes)
@@ -292,7 +158,7 @@ export default function Workspace() {
   // Синтетическая opencode-ui-нода живёт на allowlist-прокси и в обход
   // не попадает — она остаётся loaded:false и грузится при раскрытии.
   const loadTreeDeep = useCallback(async (): Promise<TreeNode[]> => {
-    if (!currentID || currentID.startsWith("tmp_")) return [];
+    if (!currentID || isTmpSession(currentID)) return [];
     try {
       const nodes = await api.listTree(currentID);
       if (!Array.isArray(nodes)) throw new Error("bad tree response");
@@ -318,7 +184,7 @@ export default function Workspace() {
   }, [currentID, filterNodes, withSelfImproveRoot, loadTreeDeepViaListDir]);
 
   const refresh = useCallback(async () => {
-    if (!currentID || currentID.startsWith("tmp_")) {
+    if (!currentID || isTmpSession(currentID)) {
       setTree([]);
       setLoading(false);
       setError(null);
@@ -341,7 +207,7 @@ export default function Workspace() {
   }, [currentID, loadTreeDeep, withSelfImproveRoot]);
 
   const autoRefresh = useCallback(async () => {
-    if (!currentID || currentID.startsWith("tmp_")) return;
+    if (!currentID || isTmpSession(currentID)) return;
     // Не бампаем loadGen (фоновый опрос не должен инвалидировать ручной
     // refresh), но запоминаем текущее значение: если за время запроса
     // сменилась сессия или прошёл ручной refresh — молча выбрасываем результат,
@@ -357,7 +223,7 @@ export default function Workspace() {
   }, [currentID, loadTreeDeep]);
 
   const loadGit = useCallback(async () => {
-    if (!currentID || currentID.startsWith("tmp_")) {
+    if (!currentID || isTmpSession(currentID)) {
       setGitFiles([]);
       return;
     }
@@ -417,7 +283,7 @@ export default function Workspace() {
           setUploadProgress(Math.min(i + BATCH, files.length));
         }
         setUploadMsg(`Done! ${files.length} file(s) uploaded.`);
-        void refresh();
+        refresh().catch(() => {});
         setTimeout(() => setUploadMsg(null), 3000);
       } catch (err: unknown) {
         setUploadMsg(`Error: ${(err as Error).message}`);
@@ -434,20 +300,20 @@ export default function Workspace() {
   expandedRef.current = expanded;
 
   useEffect(() => {
-    if (!workspaceOpen || !currentID || currentID.startsWith("tmp_")) return;
-    void refresh();
-    void loadGit();
+    if (!workspaceOpen || !currentID || isTmpSession(currentID)) return;
+    refresh().catch(() => {});
+    loadGit().catch(() => {});
     const poll = setInterval(() => {
       // Релиз 3: вкладка неактивна — не гоняем фоновые запросы к ФС.
       if (document.hidden) return;
-      void autoRefresh();
-      void loadGit();
+      autoRefresh().catch(() => {});
+      loadGit().catch(() => {});
     }, 8000);
     const onVisibility = () => {
       // Вернулись на вкладку — сразу освежаем, не дожидаясь тика таймера.
       if (!document.hidden) {
-        void autoRefresh();
-        void loadGit();
+        autoRefresh().catch(() => {});
+        loadGit().catch(() => {});
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -529,7 +395,9 @@ export default function Workspace() {
           )}
           style={{ paddingLeft: 8 + depth * 14 }}
           onClick={() =>
-            node.isDir ? void toggleDir(node) : void openFile(node.path)
+            node.isDir
+              ? toggleDir(node).catch(() => {})
+              : openFile(node.path).catch(() => {})
           }
         >
           {node.isDir ? (
@@ -628,7 +496,9 @@ export default function Workspace() {
               variant="ghost"
               size="icon"
               className="h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-              onClick={() => void refresh()}
+              onClick={() => {
+                refresh().catch(() => {});
+              }}
               title="Refresh now"
               disabled={loading}
             >
@@ -664,7 +534,7 @@ export default function Workspace() {
                   type="button"
                   className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-xs hover:bg-muted"
                   key={f.path}
-                  onClick={() => void openFile(f.path)}
+                  onClick={() => openFile(f.path).catch(() => {})}
                   title={toRelPath(f.path)}
                 >
                   <span
@@ -711,7 +581,9 @@ export default function Workspace() {
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs"
-                      onClick={() => void refresh()}
+                      onClick={() => {
+                        refresh().catch(() => {});
+                      }}
                     >
                       Повторить
                     </Button>
@@ -728,7 +600,9 @@ export default function Workspace() {
                       size="sm"
                       variant="secondary"
                       className="h-8"
-                      onClick={() => void refresh()}
+                      onClick={() => {
+                        refresh().catch(() => {});
+                      }}
                     >
                       Обновить
                     </Button>

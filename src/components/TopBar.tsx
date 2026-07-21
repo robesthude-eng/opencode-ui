@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { isTmpSession } from "../lib/ids";
 import { useStore } from "../store/useStore";
 import {
   BashIcon,
@@ -29,12 +30,12 @@ export default function TopBar() {
   const syncSelfImprove = useStore((s) => s.syncSelfImproveFromServer);
   const [showTerminal, setShowTerminal] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const sessionReady = !!currentID && !currentID.startsWith("tmp_");
+  const sessionReady = !!currentID && !isTmpSession(currentID);
 
   useEffect(() => {
     if (selfImproveEnabled && currentID === selfImproveSessionId) {
       const id = setInterval(() => {
-        void syncSelfImprove();
+        syncSelfImprove().catch(() => {});
       }, 5000);
       return () => clearInterval(id);
     }
