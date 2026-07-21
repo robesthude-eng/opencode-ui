@@ -297,7 +297,10 @@ async function ensureRunnerInner(sid) {
       await docker(["start", name]);
       await waitHealthy(name);
     } catch (startErr) {
-      logger.warn({ sid, err: startErr.message }, "[runner] start failed, recreating container");
+      logger.warn(
+        { sid, err: startErr.message },
+        "[runner] start failed, recreating container",
+      );
       await docker(["rm", "-f", name]).catch(() => {});
       const sessDir = path.join(WORKDIR, "sessions", sid);
       if (!fs.existsSync(sessDir)) {
