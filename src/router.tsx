@@ -270,7 +270,7 @@ function AppShell() {
                   : "w-0 opacity-0",
               )}
             >
-              <div className="w-[85vw] max-w-[320px] md:w-80 h-full">
+              <div className="w-[85vw] max-w-[320px] md:w-80 h-full flex flex-col min-h-0">
                 <Workspace />
               </div>
             </div>

@@ -449,12 +449,6 @@ export default function Workspace() {
 
   return (
     <>
-      {/* Mobile backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
-        onClick={() => setWorkspaceOpen(false)}
-      />
-
       {activeFile && (
         <>
           <div
@@ -462,38 +456,41 @@ export default function Workspace() {
             onClick={() => setActiveFile(null)}
           />
           <div className="fixed left-1/2 top-1/2 z-[65] flex h-[min(560px,85dvh)] w-[min(720px,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
               <span className="truncate font-mono text-sm">
                 {toRelPath(activeFile.path)}
               </span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 shrink-0"
                 onClick={() => setActiveFile(null)}
               >
                 <CloseIcon size={16} />
               </Button>
             </div>
-            <pre className="flex-1 overflow-auto p-4 font-mono text-[13px] leading-relaxed text-muted-foreground whitespace-pre">
-              {activeFile.content}
-            </pre>
+            <ScrollArea className="flex-1 min-h-0 w-full">
+              <pre className="p-4 font-mono text-[13px] leading-relaxed text-muted-foreground whitespace-pre">
+                {activeFile.content}
+              </pre>
+            </ScrollArea>
           </div>
         </>
       )}
 
       <aside
         className={cn(
-          "z-50 flex flex-col border border-border bg-background text-foreground shadow-[0_8px_30px_rgba(0,0,0,0.28)] ml-[31px]",
-          // Mobile: full-screen sheet from right; desktop: a dedicated floating panel.
-          "fixed inset-y-0 right-0 w-full max-w-full shadow-lg md:static md:my-2 md:mr-2 md:h-auto md:w-[260px] md:max-w-[260px] md:shrink-0 md:rounded-xl md:overflow-hidden md:shadow-none md:border md:border-border",
+          "z-50 flex flex-col border border-border bg-background text-foreground min-h-0",
+          // Mobile: fills the sliding right sidebar drawer perfectly without overflowing.
+          // Desktop: fixed maximum size window inside the right sidebar, height strictly clamped so ScrollArea scrolls.
+          "w-full h-full max-h-full shadow-lg md:static md:my-2 md:mx-2 md:h-[calc(100%-1rem)] md:max-h-[calc(100%-1rem)] md:w-[calc(100%-1rem)] md:max-w-[calc(100%-1rem)] md:shrink-0 md:rounded-xl md:overflow-hidden md:shadow-none md:border md:border-border",
         )}
       >
         <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3 safe-top">
           <div className="flex gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             <span className="text-white">Files</span>
           </div>
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
@@ -506,10 +503,20 @@ export default function Workspace() {
             >
               <RefreshIcon size={15} />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
+              onClick={() => setWorkspaceOpen(false)}
+              title="Close workspace"
+              aria-label="Close workspace"
+            >
+              <CloseIcon size={15} />
+            </Button>
           </div>
         </header>
 
-        <div className="border-b border-border px-2.5 py-2">
+        <div className="border-b border-border px-2.5 py-2 shrink-0">
           <div className="relative">
             <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
               <SearchIcon size={14} />
@@ -524,7 +531,7 @@ export default function Workspace() {
         </div>
 
         {gitFiles.length > 0 && (
-          <div className="border-b border-border px-3 pb-2">
+          <div className="border-b border-border px-3 pb-2 shrink-0">
             <div className="mb-1 flex items-center gap-2 py-1 text-xs text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
               {gitFiles.length} changed{" "}
@@ -556,7 +563,7 @@ export default function Workspace() {
           </div>
         )}
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0 w-full">
           <div className="px-2 py-2 pb-8">
             {!currentID ? (
               <p className="px-2 py-3 text-xs text-muted-foreground">
