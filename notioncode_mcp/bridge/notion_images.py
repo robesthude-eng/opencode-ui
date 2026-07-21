@@ -199,14 +199,19 @@ def extract_chat_images(messages: list[dict[str, Any]]) -> list[ResponseImage]:
     for message in messages:
         if not isinstance(message, dict):
             continue
+        parts_to_check = []
         content = message.get("content")
-        if not isinstance(content, list):
-            continue
-        for part in content:
+        if isinstance(content, list):
+            parts_to_check.extend(content)
+        for key in ("images", "attachments", "files", "parts"):
+            val = message.get(key)
+            if isinstance(val, list):
+                parts_to_check.extend(val)
+        for part in parts_to_check:
             if not isinstance(part, dict):
                 continue
             part_type = part.get("type")
-            raw_url = part.get("image_url") or part.get("url") or part.get("source")
+            raw_url = part.get("image_url") or part.get("url") or part.get("source") or part.get("image") or part.get("data")
             if isinstance(raw_url, dict):
                 if raw_url.get("type") == "base64" and raw_url.get("data") and raw_url.get("media_type"):
                     mt = raw_url["media_type"]
@@ -216,7 +221,7 @@ def extract_chat_images(messages: list[dict[str, Any]]) -> list[ResponseImage]:
                     raw_url = raw_url.get("url")
             if not raw_url or not isinstance(raw_url, str):
                 continue
-            if part_type not in ("image_url", "input_image", "image", "file") and not raw_url.startswith("data:image/"):
+            if part_type not in ("image_url", "input_image", "image", "file", "attachment") and not raw_url.startswith("data:image/"):
                 continue
             if len(images) >= MAX_IMAGE_COUNT:
                 raise ImageInputError(f"at most {MAX_IMAGE_COUNT} images are supported per request")
