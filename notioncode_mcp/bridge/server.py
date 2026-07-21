@@ -1899,7 +1899,8 @@ async def completions(request: Request):
     except ValueError as exc:
         return JSONResponse({"error": {"message": str(exc)}}, status_code=400)
     stream = bool(body.get("stream"))
-    planner_mode = bool(tools) and not WORKFLOW_ID
+    # Disable internal planner loop for chat completions with tools so OpenCode executes tools directly in /session/workspace
+    planner_mode = False
 
     if not prompt:
         return JSONResponse({"error": {"message": "messages must contain text"}}, status_code=400)
