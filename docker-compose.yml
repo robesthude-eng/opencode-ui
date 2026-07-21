@@ -19,6 +19,8 @@ services:
       # shorter GEMINI_API_KEY as the deployment-facing alias.
       - GOOGLE_GENERATIVE_AI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      # Cloudflare Gemini Proxy (решает проблему региона)
+      - GEMINI_PROXY_URL=${GEMINI_PROXY_URL:-https://browserai-proxy.robesthud.workers.dev}
       - PORT=3000
       - NODE_ENV=production
       - OPENCODE_WORKDIR=/app/workspace
