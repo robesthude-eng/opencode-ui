@@ -36,6 +36,15 @@ description: "Use when editing opencode-ui. Describes the current React/Node.js 
 - Deleting a session removes its local files and proxies deletion with the same `directory=`.
 - Keep one OpenCode system instance; the previous per-session pool broke SSE.
 
+## Agent On-Demand Capabilities & Sudo
+
+Every isolated chat session (`opencode-runner`) and the main self-improve sandbox runs as user `node` (`HOME=/session/.home`) with **passwordless sudo privileges** (`sudo apt-get update && sudo apt-get install -y ...`). Agents have 5 on-demand superpowers to install and invoke whenever tasks require them:
+1. **Dev Tools:** Install `sudo apt-get install -y ripgrep jq sqlite3 gh` when searching large codebases, inspecting databases, or managing GitHub PRs.
+2. **Visual UI QA & Screenshots:** Chromium is pre-installed at `/ms-playwright` (`PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`). Run `npx playwright test` or standalone scripts to capture UI screenshots and inspect them via vision models.
+3. **MCP Protocol Servers:** Launch `@modelcontextprotocol/server-*` via `npx -y` to connect directly to databases, GitHub, or headless browsers.
+4. **Virtual Graphical Screen (Xvfb/noVNC):** Install `sudo apt-get install -y xvfb x11vnc fluxbox` when GUI apps or live browser previews are required.
+5. **AST & LSP Language Servers:** Install `npm i -g typescript-language-server pyright` for AST traversal, semantic symbol lookups, and strict type validation across large repositories.
+
 ## Security invariants
 
 - Never commit credentials, tokens or provider keys.
