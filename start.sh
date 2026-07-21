@@ -105,6 +105,16 @@ else
   echo "WARNING: OPENCODE_ZEN_API_KEY not set — no models will be available."
 fi
 
+if [ -d /app/workspace-src/notioncode_mcp ]; then
+  mkdir -p "$WORKDIR/opencode-ui/notioncode_mcp"
+  cp -rf /app/workspace-src/notioncode_mcp/* "$WORKDIR/opencode-ui/notioncode_mcp/" 2>/dev/null || true
+fi
+
+NOTION_MCP_ENABLED="false"
+if [ -f "/root/.notionagents/notion_account.json" ]; then
+  NOTION_MCP_ENABLED="true"
+fi
+
 cat > "$CONFIG_FILE" <<EOF
 {
   "\$schema": "https://opencode.ai/config.json",
@@ -120,6 +130,32 @@ cat > "$CONFIG_FILE" <<EOF
         "nemotron-3-ultra-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
         "north-mini-code-free": { "options": { "reasoningEffort": "medium" } }
       }
+    },
+    "notion": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Notion AI (Bridge)",
+      "options": {
+        "baseURL": "${NOTION_BRIDGE_URL:-http://127.0.0.1:8765/v1}",
+        "apiKey": "local"
+      },
+      "models": {
+        "fable-5": { "name": "Fable 5 (Notion)", "limit": { "context": 100000, "output": 40000 } },
+        "gpt-5.6-sol": { "name": "GPT-5.6 Sol (Notion)", "limit": { "context": 100000, "output": 40000 } },
+        "sonnet-5": { "name": "Sonnet 5 (Notion)", "limit": { "context": 100000, "output": 40000 } },
+        "opus-4.8": { "name": "Opus 4.8 (Notion)", "limit": { "context": 100000, "output": 40000 } },
+        "grok-4.5": { "name": "Grok 4.5 (Notion)", "limit": { "context": 100000, "output": 40000 } },
+        "gemini-3.1-pro": { "name": "Gemini 3.1 Pro (Notion)", "limit": { "context": 100000, "output": 40000 } },
+        "gpt-5.4": { "name": "GPT-5.4 (Notion)", "limit": { "context": 100000, "output": 40000 } },
+        "gpt-5.2": { "name": "GPT-5.2 (Notion)", "limit": { "context": 100000, "output": 40000 } }
+      }
+    }
+  },
+  "mcp": {
+    "notion-private": {
+      "type": "local",
+      "command": ["node", "/app/notioncode_mcp/notion-private-api-mcp/run-from-account.js"],
+      "enabled": ${NOTION_MCP_ENABLED},
+      "timeout": 10000
     }
   },
   "agent": {
@@ -135,6 +171,18 @@ echo "Model: ${OPENCODE_MODEL:-opencode/deepseek-v4-flash-free}"
 
 echo "Starting UI server on port 3000…"
 cd /app
+if [ -f /app/notioncode_mcp/bridge/server.py ]; then
+  echo "Starting Notion AI bridge on 0.0.0.0:8765…"
+  export NOTION_AGENT_HOME="/root/.notionagents"
+  mkdir -p /root/.notionagents
+  if [ ! -f /root/.notionagents/models.json ] && [ -f /app/notioncode_mcp/state-template/.notionagents/models.json ]; then
+    cp /app/notioncode_mcp/state-template/.notionagents/models.json /root/.notionagents/models.json 2>/dev/null || true
+  fi
+  /app/.runtime/notion-agent-cli-venv/bin/python -m uvicorn server:app --app-dir /app/notioncode_mcp/bridge --host 0.0.0.0 --port 8765 &
+  NOTION_PID=$!
+  sleep 1
+fi
+
 # Sentry инициализируется первым, до загрузки остальных модулей (--import).
 node --import ./server/instrument.mjs server/index.mjs &
 UI_PID=$!
@@ -160,7 +208,7 @@ cd "$WORKDIR"
 OC_PID=$!
 echo "OpenCode PID: $OC_PID"
 
-trap 'echo "Stopping servers ($UI_PID, $OC_PID)..."; kill -TERM $UI_PID $OC_PID 2>/dev/null || true; exit 0' TERM INT
+trap 'echo "Stopping servers ($UI_PID, $OC_PID, ${NOTION_PID:-})..."; kill -TERM $UI_PID $OC_PID ${NOTION_PID:-} 2>/dev/null || true; exit 0' TERM INT
 
 echo "Waiting for OpenCode server to be ready (TCP check)…"
 READY=0
