@@ -146,7 +146,7 @@ export default function Composer() {
   const canSend = text.trim().length > 0 || attachments.length > 0;
 
   return (
-    <div className="w-full max-w-3xl h-[95.375px] mx-auto px-3 md:px-6 pb-6 pointer-events-none">
+    <div className="w-full max-w-3xl shrink-0 mx-auto px-3 md:px-6 pb-6 pointer-events-none">
       <div
         className={cn(
           "pointer-events-auto w-full transition-all duration-200",
