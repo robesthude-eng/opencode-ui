@@ -1,5 +1,9 @@
 import { api } from "../../api/client";
-import { ZEN_FREE_MODELS, ZEN_PROVIDER_ID } from "../../config/providers";
+import {
+  GOOGLE_FALLBACK_MODELS,
+  ZEN_FREE_MODELS,
+  ZEN_PROVIDER_ID,
+} from "../../config/providers";
 import type { ModelEntry, ModelsSlice, Slice } from "../types";
 
 export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
@@ -66,6 +70,21 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
             providerName: (p.name ?? p.id) as string,
             modelID,
             modelName: (m.name ?? modelID) as string,
+            free: false,
+          });
+        }
+      }
+      // Fallback: if the user saved a Google API key in the UI DB but OpenCode
+      // doesn't return a "google" provider in /config/providers (known issue
+      // with OpenCode 1.18.x — accepts PUT /auth/google but doesn't list it),
+      // inject the standard Gemini model set so they appear in the selector.
+      if (auth["google"] && !res.providers?.some((p) => p.id === "google")) {
+        for (const m of GOOGLE_FALLBACK_MODELS) {
+          entries.push({
+            providerID: "google",
+            providerName: "Google",
+            modelID: m.id,
+            modelName: m.name,
             free: false,
           });
         }

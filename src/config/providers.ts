@@ -160,3 +160,19 @@ export const PROVIDERS: ProviderInfo[] = [
     docsUrl: "https://dashboard.cohere.com/api-keys",
   },
 ];
+
+/**
+ * Fallback Google/Gemini models — used when OpenCode's /config/providers
+ * doesn't return a "google" provider (e.g. OpenCode 1.18.x doesn't list
+ * Google even after PUT /auth/google succeeds) but the user has saved a
+ * Google API key in the UI's own database.
+ *
+ * These are the standard Gemini model IDs supported by OpenCode's
+ * @ai-sdk/google integration.
+ */
+export const GOOGLE_FALLBACK_MODELS: { id: string; name: string }[] = [
+  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash" },
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
+  { id: "gemini-3-flash-preview", name: "Gemini 3 Flash Preview" },
+  { id: "gemini-3-pro-preview", name: "Gemini 3 Pro Preview" },
+];
