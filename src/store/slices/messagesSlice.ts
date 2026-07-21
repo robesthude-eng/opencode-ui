@@ -304,8 +304,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               msg.includes("503") ||
               msg.includes("unavailable") ||
               msg.includes("timed out") ||
-              msg.includes("Failed to fetch") ||
-              msg.includes("500");
+              msg.includes("Failed to fetch");
             if (!isRetryable || i === retries) throw err;
             // Короткая пауза перед повтором — даём серверу/сети восстановиться.
             await new Promise((r) => setTimeout(r, 800));
@@ -833,4 +832,3 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     }
   },
 });
-// Server health: build OK, redeploy triggered

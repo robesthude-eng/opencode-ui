@@ -13,7 +13,7 @@ RUN npm run build
 FROM node:24-slim AS runtime
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv python3-pip make g++ git ca-certificates curl bash \
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ git ca-certificates curl bash \
   && update-ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
@@ -33,19 +33,6 @@ COPY --from=build /app/dist ./dist
 
 ARG DEPLOY_TS=unknown
 COPY server/ ./server/
-COPY notioncode_mcp/ ./notioncode_mcp/
-
-RUN python3 -m venv /app/.runtime/notion-agent-cli-venv && \
-    /app/.runtime/notion-agent-cli-venv/bin/pip install --no-cache-dir -r ./notioncode_mcp/requirements.txt && \
-    /app/.runtime/notion-agent-cli-venv/bin/python -c 'import notion_agent_cli.bootstrap, notion_agent_cli.provider; \
-b_file = notion_agent_cli.bootstrap.__file__; \
-p_file = notion_agent_cli.provider.__file__; \
-b_code = open(b_file).read().replace("client = http_client or httpx.AsyncClient(timeout=30.0)", "from curl_cffi import CurlHttpVersion\n            from curl_cffi.requests import AsyncSession as CurlAsyncSession\n            client = http_client or CurlAsyncSession(impersonate=\"chrome110\", http_version=CurlHttpVersion.V1_1)"); \
-open(b_file, "w").write(b_code); \
-p_code = open(p_file).read().replace("from curl_cffi.requests import AsyncSession as CurlAsyncSession", "from curl_cffi.requests import AsyncSession as CurlAsyncSession\nfrom curl_cffi import CurlHttpVersion").replace("self._client = httpx.AsyncClient(timeout=DEFAULT_TIMEOUT, http2=True)", "self._client = CurlAsyncSession(impersonate=\"chrome110\", http_version=CurlHttpVersion.V1_1)").replace("self._inference_session = CurlAsyncSession()", "self._inference_session = CurlAsyncSession(impersonate=\"chrome110\", http_version=CurlHttpVersion.V1_1)"); \
-open(p_file, "w").write(p_code)' && \
-    npm --prefix ./notioncode_mcp/runtime ci --omit=dev && \
-    if [ -f ./notioncode_mcp/notion-private-api-mcp/package.json ]; then npm --prefix ./notioncode_mcp/notion-private-api-mcp ci --omit=dev || true; fi
 
 COPY src ./workspace-src/src
 COPY public ./workspace-src/public
@@ -58,7 +45,6 @@ COPY vite.config.ts ./workspace-src/vite.config.ts
 COPY biome.json ./workspace-src/biome.json
 COPY vitest.config.ts ./workspace-src/vitest.config.ts
 COPY SELF_IMPROVE.md SELF_IMPROVE_GUIDE.md ./workspace-src/
-COPY notioncode_mcp ./workspace-src/notioncode_mcp
 
 RUN node --input-type=module -e "\
   import './server/db.mjs'; \

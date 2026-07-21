@@ -1,17 +1,5 @@
 import { api } from "../../api/client";
 import { ZEN_FREE_MODELS, ZEN_PROVIDER_ID } from "../../config/providers";
-
-export const NOTION_MODELS = [
-  { id: "fable-5", name: "Fable 5 (Notion)" },
-  { id: "gpt-5.6-sol", name: "GPT-5.6 Sol (Notion)" },
-  { id: "sonnet-5", name: "Sonnet 5 (Notion)" },
-  { id: "opus-4.8", name: "Opus 4.8 (Notion)" },
-  { id: "grok-4.5", name: "Grok 4.5 (Notion)" },
-  { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro (Notion)" },
-  { id: "gpt-5.4", name: "GPT-5.4 (Notion)" },
-  { id: "gpt-5.2", name: "GPT-5.2 (Notion)" },
-];
-
 import type { ModelEntry, ModelsSlice, Slice } from "../types";
 
 export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
@@ -39,41 +27,11 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
       });
     }
 
-    // Add Notion AI bridge free models
-    for (const m of NOTION_MODELS) {
-      entries.push({
-        providerID: "notion",
-        providerName: "Notion AI (Bridge)",
-        modelID: m.id,
-        modelName: m.name,
-        free: true,
-      });
-    }
-
     let def: Record<string, string> = {};
     try {
       const res = await api.listProviders();
       def = res.default ?? {};
       for (const p of res.providers ?? []) {
-        // Skip non-free and non-Notion providers (balance 0 — only free needed)
-        if (p.id === "notion" && p.models) {
-          for (const [modelID, m] of Object.entries(p.models)) {
-            if (
-              !entries.some(
-                (e) => e.modelID === modelID && e.providerID === "notion",
-              )
-            ) {
-              entries.push({
-                providerID: "notion",
-                providerName: "Notion AI (Bridge)",
-                modelID,
-                modelName: (m.name ?? modelID) as string,
-                free: true,
-              });
-            }
-          }
-          continue;
-        }
         if (p.id === ZEN_PROVIDER_ID) {
           if (p.models) {
             for (const [modelID, m] of Object.entries(p.models)) {

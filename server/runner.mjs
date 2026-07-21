@@ -182,7 +182,6 @@ function runnerEnvArgs() {
   const env = {
     OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY || "",
     OPENCODE_MODEL: process.env.OPENCODE_MODEL || "",
-    NOTION_BRIDGE_URL: process.env.NOTION_BRIDGE_URL || "http://opencode-ui:8765/v1",
     UI_API_BASE: "http://opencode-ui:3000",
     // Единая таймзона для таймстемпов и бэкапов независимо от хоста/ДЦ.
     TZ: process.env.TZ || "UTC",
@@ -226,42 +225,6 @@ function chownForRunner(localSessionDir) {
 
 async function runRunnerContainer(name, hostSessionDir, localSessionDir) {
   requireHostDir();
-  if (localSessionDir && fs.existsSync("/root/.notionagents/notion_account.json")) {
-    const naDir = path.join(localSessionDir, ".notionagents");
-    fs.mkdirSync(naDir, { recursive: true });
-    try {
-      fs.copyFileSync("/root/.notionagents/notion_account.json", path.join(naDir, "notion_account.json"));
-    } catch {}
-    if (fs.existsSync("/root/.notionagents/models.json")) {
-      try {
-        fs.copyFileSync("/root/.notionagents/models.json", path.join(naDir, "models.json"));
-      } catch {}
-    }
-  }
-  if (localSessionDir) {
-    const wsDir = path.join(localSessionDir, "workspace");
-    fs.mkdirSync(wsDir, { recursive: true });
-    fs.mkdirSync(path.join(WORKDIR, "uploads"), { recursive: true });
-    fs.mkdirSync(path.join(wsDir, "uploads"), { recursive: true });
-    try {
-      const items = fs.readdirSync(WORKDIR, { withFileTypes: true });
-      const ignore = new Set(["sessions", "backups", "dist-versions", "opencode.db", "opencode.db-journal", "opencode-ui", ".git", ".opencode_data", ".config_opencode", "uploads", "node_modules"]);
-      for (const item of items) {
-        if (ignore.has(item.name) || item.name.startsWith(".")) continue;
-        const srcPath = path.join(WORKDIR, item.name);
-        const destPath = path.join(wsDir, item.name);
-        if (!fs.existsSync(destPath)) {
-          try {
-            if (item.isDirectory()) {
-              fs.cpSync(srcPath, destPath, { recursive: true });
-            } else {
-              fs.copyFileSync(srcPath, destPath);
-            }
-          } catch {}
-        }
-      }
-    } catch {}
-  }
   chownForRunner(localSessionDir);
   const args = [
     "run",
@@ -286,8 +249,6 @@ async function runRunnerContainer(name, hostSessionDir, localSessionDir) {
     "no",
     "-v",
     `${hostSessionDir}:${RUNNER_SESSION_MOUNT}`,
-    "-v",
-    `${path.posix.join(HOST_WORKSPACE_DIR, "uploads")}:${RUNNER_WORKSPACE}/uploads`,
     ...runnerEnvArgs(),
   ];
   for (const p of RUNNER_PUBLISH_PORTS)

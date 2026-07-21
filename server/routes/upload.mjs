@@ -128,11 +128,6 @@ export async function handleUpload(
       fs.mkdirSync(uploadDir, { recursive: true });
       const dest = path.join(uploadDir, safeName);
       fs.writeFileSync(dest, part.data);
-      try {
-        const globalUploads = path.join(WORKDIR, "uploads");
-        fs.mkdirSync(globalUploads, { recursive: true });
-        fs.writeFileSync(path.join(globalUploads, safeName), part.data);
-      } catch {}
       let entryCount = null;
       const ext = path.extname(safeName).toLowerCase();
       if (ext === ".zip") {
