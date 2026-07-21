@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { jsonOrNull } from "../../api/client";
 import { useStore } from "../../store/useStore";
 
@@ -79,6 +79,23 @@ export function useSelfImproveOps({
   const [diffStatus, setDiffStatus] = useState<string | null>(null);
   const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
 
+  const timersRef = useRef<number[]>([]);
+  const tickRef = useRef(0);
+  useEffect(() => {
+    return () => {
+      for (const t of timersRef.current) clearTimeout(t);
+    };
+  }, []);
+
+  const schedule = useCallback((fn: () => void, delay: number) => {
+    const t = window.setTimeout(() => {
+      timersRef.current = timersRef.current.filter((id) => id !== t);
+      fn();
+    }, delay);
+    timersRef.current.push(t);
+    return t;
+  }, []);
+
   const loadAuditLogs = async () => {
     try {
       const res = await fetch("/api/git/audit-logs", {
@@ -141,14 +158,14 @@ export function useSelfImproveOps({
           data.status === "noop" ? "✔ Нет изменений" : `✔ ${data.commit}`,
         );
         await loadCheckpoints();
-        setTimeout(() => setCheckpointStatus(null), 3500);
+        schedule(() => setCheckpointStatus(null), 3500);
       } else {
         setCheckpointStatus(`Ошибка: ${data.error || "ошибка"}`);
-        setTimeout(() => setCheckpointStatus(null), 4000);
+        schedule(() => setCheckpointStatus(null), 4000);
       }
     } catch {
       setCheckpointStatus("Ошибка сети");
-      setTimeout(() => setCheckpointStatus(null), 3000);
+      schedule(() => setCheckpointStatus(null), 3000);
     }
   };
 
@@ -218,14 +235,14 @@ export function useSelfImproveOps({
       if (res.ok) {
         setBackupStatus(`✔ ${data.name || "ok"}`);
         await loadDbBackups();
-        setTimeout(() => setBackupStatus(null), 4000);
+        schedule(() => setBackupStatus(null), 4000);
       } else {
         setBackupStatus(`Ошибка: ${data.error || data.detail || "failed"}`);
-        setTimeout(() => setBackupStatus(null), 5000);
+        schedule(() => setBackupStatus(null), 5000);
       }
     } catch {
       setBackupStatus("Ошибка сети");
-      setTimeout(() => setBackupStatus(null), 3000);
+      schedule(() => setBackupStatus(null), 3000);
     }
   };
 
@@ -248,14 +265,14 @@ export function useSelfImproveOps({
       const data = await jsonBody(res);
       if (res.ok) {
         setRestoreStatus("✔ База восстановлена! Перезагрузка…");
-        setTimeout(() => window.location.reload(), 1500);
+        schedule(() => window.location.reload(), 1500);
       } else {
         setRestoreStatus(`Ошибка: ${data.error || "failed"}`);
-        setTimeout(() => setRestoreStatus(null), 5000);
+        schedule(() => setRestoreStatus(null), 5000);
       }
     } catch {
       setRestoreStatus("Ошибка сети");
-      setTimeout(() => setRestoreStatus(null), 3000);
+      schedule(() => setRestoreStatus(null), 3000);
     }
   };
 
@@ -278,14 +295,14 @@ export function useSelfImproveOps({
       if (res.ok) {
         setInstantStatus(`✔ ${data.version || "готово"} — перезагрузка…`);
         await loadDistSnapshots();
-        setTimeout(() => window.location.reload(), 800);
+        schedule(() => window.location.reload(), 800);
       } else {
         setInstantStatus(`Ошибка: ${data.error || data.detail || "failed"}`);
-        setTimeout(() => setInstantStatus(null), 5000);
+        schedule(() => setInstantStatus(null), 5000);
       }
     } catch {
       setInstantStatus("Ошибка сети");
-      setTimeout(() => setInstantStatus(null), 3000);
+      schedule(() => setInstantStatus(null), 3000);
     }
   };
 
@@ -307,14 +324,14 @@ export function useSelfImproveOps({
       const data = await jsonBody(res);
       if (res.ok) {
         setRollbackStatus("✔ Собрано! Перезагрузка…");
-        setTimeout(() => window.location.reload(), 1500);
+        schedule(() => window.location.reload(), 1500);
       } else {
         setRollbackStatus(`Ошибка: ${data.error || "failed"}`);
-        setTimeout(() => setRollbackStatus(null), 4000);
+        schedule(() => setRollbackStatus(null), 4000);
       }
     } catch {
       setRollbackStatus("Ошибка сети");
-      setTimeout(() => setRollbackStatus(null), 3000);
+      schedule(() => setRollbackStatus(null), 3000);
     }
   };
 
@@ -339,7 +356,7 @@ export function useSelfImproveOps({
             ? "Только администратор может менять этот режим"
             : `Ошибка: ${data.error || "не удалось изменить режим"}`,
         );
-        setTimeout(() => setRebuildStatus(null), 4000);
+        schedule(() => setRebuildStatus(null), 4000);
       } else if (next) {
         // Self-Improvement turned ON → auto-create & open the «Самоулучшение» chat
         // so the user can immediately study the project, find bugs, add features.
@@ -349,7 +366,7 @@ export function useSelfImproveOps({
     } catch {
       setSelfImproveEnabled(!next);
       setRebuildStatus("Ошибка сети");
-      setTimeout(() => setRebuildStatus(null), 3000);
+      schedule(() => setRebuildStatus(null), 3000);
     } finally {
       setToggleBusy(false);
     }
@@ -368,7 +385,7 @@ export function useSelfImproveOps({
         setRebuildStatus("success");
         await loadDistSnapshots();
         // New build is live — soft prompt to reload
-        setTimeout(() => {
+        schedule(() => {
           if (confirm("UI пересобран. Обновить страницу сейчас?")) {
             window.location.reload();
           } else {
@@ -377,11 +394,11 @@ export function useSelfImproveOps({
         }, 400);
       } else {
         setRebuildStatus(`error: ${data.error || "failed"}`);
-        setTimeout(() => setRebuildStatus(null), 5000);
+        schedule(() => setRebuildStatus(null), 5000);
       }
     } catch {
       setRebuildStatus("error: network");
-      setTimeout(() => setRebuildStatus(null), 4000);
+      schedule(() => setRebuildStatus(null), 4000);
     }
   };
 
@@ -402,14 +419,14 @@ export function useSelfImproveOps({
       const data = await jsonBody(res);
       if (res.ok) {
         setResetStatus("success");
-        setTimeout(() => window.location.reload(), 1500);
+        schedule(() => window.location.reload(), 1500);
       } else {
         setResetStatus(`error: ${data.error || "failed"}`);
       }
     } catch {
       setResetStatus("error: network");
     }
-    setTimeout(() => setResetStatus(null), 4000);
+    schedule(() => setResetStatus(null), 4000);
   };
 
   // UX-fix: загружаем данные только когда open переключается false→true, а НЕ на
@@ -430,14 +447,14 @@ export function useSelfImproveOps({
   // Keep health + logs fresh while admin is on self-improve tab (staggered, not 4 parallel)
   useEffect(() => {
     if (!open || !isActiveTab || !isAdminUser || toggleBusy) return;
-    let tick = 0;
     const id = setInterval(() => {
-      tick += 1;
+      tickRef.current += 1;
+      const tick = tickRef.current;
       // Round-robin so we never hammer the server with 4 concurrent requests
-      if (tick % 4 === 1) void loadHealth();
-      else if (tick % 4 === 2) void loadAuditLogs();
-      else if (tick % 4 === 3) void loadDistSnapshots();
-      else void loadDbBackups();
+      if (tick % 4 === 1) loadHealth().catch(() => {});
+      else if (tick % 4 === 2) loadAuditLogs().catch(() => {});
+      else if (tick % 4 === 3) loadDistSnapshots().catch(() => {});
+      else loadDbBackups().catch(() => {});
     }, 10000);
     return () => clearInterval(id);
   }, [open, isActiveTab, isAdminUser, toggleBusy]);
