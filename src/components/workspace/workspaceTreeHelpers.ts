@@ -121,29 +121,6 @@ export function filterNodes<
     if (parts.some((seg: string) => HIDDEN_SEGMENTS.has(seg))) return false;
     if (raw.endsWith(".tsbuildinfo") || raw.endsWith(".map")) return false;
 
-    if (!options.selfImproveEnabled && p === "opencode-ui") return false;
-
-    if (
-      options.selfImproveEnabled &&
-      p === "opencode-ui" &&
-      parts.length >= 2
-    ) {
-      const allowedTop = new Set([
-        "src",
-        "public",
-        "index.html",
-        "package.json",
-        "vite.config.ts",
-        "tsconfig.json",
-        "tsconfig.node.json",
-        "biome.json",
-        "vitest.config.ts",
-        "SELF_IMPROVE.md",
-        "SELF_IMPROVE_GUIDE.md",
-      ]);
-      if (!allowedTop.has(parts[1] ?? "")) return false;
-    }
-
     if (
       (p === "sessions" || p === "uploads" || p === "temp") &&
       parts.length > 1

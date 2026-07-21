@@ -69,7 +69,9 @@ export default function Workspace() {
     selfImproveEnabled && currentID !== selfImproveSessionId;
   const withSelfImproveRoot = useCallback(
     (nodes: TreeNode[]): TreeNode[] =>
-      showSynthetic ? [SELF_IMPROVE_NODE, ...nodes] : nodes,
+      showSynthetic
+        ? [SELF_IMPROVE_NODE, ...nodes.filter((n) => n.path !== "opencode-ui")]
+        : nodes,
     [showSynthetic],
   );
 
