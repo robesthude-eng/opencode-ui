@@ -12,7 +12,17 @@ type AuthJson = {
   error?: string;
 };
 
-const CUSTOM_PROVIDERS = new Set<string>();
+/**
+ * Providers whose API keys are persisted in the UI's own database (per-user
+ * key file) IN ADDITION to being forwarded to OpenCode. This ensures keys
+ * survive Settings panel reopen cycles even when OpenCode's /provider endpoint
+ * doesn't echo them back as "connected".
+ *
+ * Google is included because OpenCode 1.18.x accepts the key (PUT /auth/google
+ * returns 200) but does not always report it in GET /provider → connected[],
+ * causing the UI to lose the "connected" state on loadAuth() refresh.
+ */
+const CUSTOM_PROVIDERS = new Set<string>(["google"]);
 
 async function performAuthAction(
   endpoint: string,
@@ -128,7 +138,16 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
   saveKey: async (providerId, key) => {
     try {
       if (CUSTOM_PROVIDERS.has(providerId)) {
+        // Persist in the UI's own database so the key survives Settings
+        // reopen cycles (loadAuth → GET /provider may not echo it back).
         await api.saveCustomKey(providerId, key);
+        // Best-effort: also forward to OpenCode so it can make API calls.
+        try {
+          await api.setAuth(providerId, key);
+        } catch {
+          // Non-fatal: key is already saved in the UI DB; OpenCode may
+          // not support this provider natively (e.g. needs a plugin).
+        }
       } else {
         await api.setAuth(providerId, key);
       }
@@ -149,7 +168,14 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
   removeKey: async (providerId) => {
     try {
       if (CUSTOM_PROVIDERS.has(providerId)) {
+        // Remove from UI DB
         await api.removeCustomKey(providerId);
+        // Best-effort: also remove from OpenCode
+        try {
+          await api.removeAuth(providerId);
+        } catch {
+          // Non-fatal
+        }
       } else {
         await api.removeAuth(providerId);
       }
