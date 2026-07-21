@@ -56,24 +56,28 @@ export function isGlobalRoute(urlPath) {
   );
 }
 
-export function extractSessionId(req) {
+export function extractSessionIdRaw(req) {
   const urlPath = req.url.split("?")[0];
   const m = urlPath.match(/^\/api\/session\/([^/?]+)/);
   if (m) {
-    const sid = decodeURIComponent(m[1]);
-    if (isValidSessionId(sid)) return sid;
+    return decodeURIComponent(m[1]);
   }
   try {
     const qs = new URL(req.url, "http://localhost").searchParams.get(
       "sessionId",
     );
-    if (qs && isValidSessionId(qs)) return qs;
+    if (qs) return qs;
   } catch (e) {
     console.warn("Ignored error:", e.message);
   }
   const hdr = req.headers["x-session-id"];
-  if (hdr && isValidSessionId(hdr)) return hdr;
+  if (hdr) return hdr;
   return null;
+}
+
+export function extractSessionId(req) {
+  const sid = extractSessionIdRaw(req);
+  return sid && isValidSessionId(sid) ? sid : null;
 }
 
 export function checkSessionOwnership(

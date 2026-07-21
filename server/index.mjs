@@ -34,6 +34,7 @@ import { startPrStatusPoller } from "./github-pr.mjs";
 import {
   checkSessionOwnership,
   extractSessionId,
+  extractSessionIdRaw,
   getSessionWorkspace,
   isGlobalRoute,
   isValidSessionId,
@@ -398,6 +399,20 @@ const server = http.createServer(async (req, res) => {
     });
     return;
   }
+  const rawSessionId = extractSessionIdRaw(req);
+  if (rawSessionId && rawSessionId.startsWith("tmp_")) {
+    if (req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify([]));
+    } else if (req.method === "DELETE") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "deleted" }));
+    } else {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "optimistic_session_not_ready" }));
+    }
+    return;
+  }
   const sessionId = extractSessionId(req);
   if (sessionId && userEmail) {
     if (
@@ -483,16 +498,6 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
       });
-    return;
-  }
-  if (sessionId && sessionId.startsWith("tmp_")) {
-    if (req.method === "GET") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify([]));
-    } else {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "optimistic_session_not_ready" }));
-    }
     return;
   }
   // Изоляция «новый чат = новый контейнер»: сессии из реестра раннеров
@@ -587,12 +592,13 @@ server.on("upgrade", (req, socket, head) => {
     socket.destroy();
     return;
   }
-  const sessionId = extractSessionId(req);
-  if (sessionId && sessionId.startsWith("tmp_")) {
+  const rawSessionId = extractSessionIdRaw(req);
+  if (rawSessionId && rawSessionId.startsWith("tmp_")) {
     socket.write("HTTP/1.1 200 OK\r\n\r\n");
     socket.destroy();
     return;
   }
+  const sessionId = extractSessionId(req);
   if (sessionId) {
     const userEmail = session?.email || null;
     if (userEmail) {
