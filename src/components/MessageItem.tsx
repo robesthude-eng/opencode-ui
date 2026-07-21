@@ -365,6 +365,19 @@ function MessageItem({
   );
 }
 
+function isValueEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (
+    typeof a === "object" &&
+    a !== null &&
+    typeof b === "object" &&
+    b !== null
+  ) {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+  return false;
+}
+
 function sameMessageItems(
   prev: { messages: Message | Message[]; isWorking?: boolean },
   next: { messages: Message | Message[]; isWorking?: boolean },
@@ -400,12 +413,66 @@ function sameMessageItems(
       if (
         pPart.id !== nPart.id ||
         pPart.type !== nPart.type ||
-        (pPart as { text?: string }).text !==
-          (nPart as { text?: string }).text ||
-        (pPart as { output?: string }).output !==
-          (nPart as { output?: string }).output ||
-        (pPart as { reasoning?: string }).reasoning !==
-          (nPart as { reasoning?: string }).reasoning
+        !isValueEqual(
+          (pPart as { text?: unknown }).text,
+          (nPart as { text?: unknown }).text,
+        ) ||
+        !isValueEqual(
+          (pPart as { output?: unknown }).output,
+          (nPart as { output?: unknown }).output,
+        ) ||
+        !isValueEqual(
+          (pPart as { reasoning?: unknown }).reasoning,
+          (nPart as { reasoning?: unknown }).reasoning,
+        ) ||
+        !isValueEqual(
+          (pPart as { status?: unknown }).status,
+          (nPart as { status?: unknown }).status,
+        ) ||
+        !isValueEqual(
+          (pPart as { state?: unknown }).state,
+          (nPart as { state?: unknown }).state,
+        ) ||
+        !isValueEqual(
+          (pPart as { tool?: unknown }).tool,
+          (nPart as { tool?: unknown }).tool,
+        ) ||
+        !isValueEqual(
+          (pPart as { callID?: unknown }).callID,
+          (nPart as { callID?: unknown }).callID,
+        ) ||
+        !isValueEqual(
+          (pPart as { input?: unknown }).input,
+          (nPart as { input?: unknown }).input,
+        ) ||
+        !isValueEqual(
+          (pPart as { name?: unknown }).name,
+          (nPart as { name?: unknown }).name,
+        ) ||
+        !isValueEqual(
+          (pPart as { size?: unknown }).size,
+          (nPart as { size?: unknown }).size,
+        ) ||
+        !isValueEqual(
+          (pPart as { kind?: unknown }).kind,
+          (nPart as { kind?: unknown }).kind,
+        ) ||
+        !isValueEqual(
+          (pPart as { path?: unknown }).path,
+          (nPart as { path?: unknown }).path,
+        ) ||
+        !isValueEqual(
+          (pPart as { dataUrl?: unknown }).dataUrl,
+          (nPart as { dataUrl?: unknown }).dataUrl,
+        ) ||
+        !isValueEqual(
+          (pPart as { filename?: unknown }).filename,
+          (nPart as { filename?: unknown }).filename,
+        ) ||
+        !isValueEqual(
+          (pPart as { url?: unknown }).url,
+          (nPart as { url?: unknown }).url,
+        )
       ) {
         return false;
       }

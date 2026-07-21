@@ -1,4 +1,5 @@
 import type { FileNode } from "../../api/types";
+import { isSessionId } from "../../lib/ids";
 
 export interface TreeNode {
   name: string;
@@ -126,8 +127,7 @@ export function filterNodes<
       parts.length > 1
     ) {
       const sid = parts[1];
-      if (sid?.startsWith("ses_") && !options.mySessionIds.has(sid))
-        return false;
+      if (isSessionId(sid) && !options.mySessionIds.has(sid)) return false;
     }
     return true;
   });

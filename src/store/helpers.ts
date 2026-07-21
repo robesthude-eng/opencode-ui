@@ -3,6 +3,7 @@ import {
   userMessageTexts,
 } from "../api/messageMerge";
 import type { Message, Part, TextPart, ToolPart } from "../api/types";
+import { isLocalMessage } from "../lib/ids";
 
 export function cleanSysText(t: string): string {
   if (!t || typeof t !== "string") return t || "";
@@ -81,7 +82,7 @@ export function normalizeMessages(msgs: Message[]): Message[] {
 export function upsertMessage(messages: Message[], msg: Message): Message[] {
   const idx = messages.findIndex((m) => m.id === msg.id);
   if (idx === -1) {
-    if (msg.role === "user" && !msg.id.startsWith("local_")) {
+    if (msg.role === "user" && !isLocalMessage(msg.id)) {
       // Correlate by explicit text content (oldest match wins), never by
       // "the first local_ found" — parallel sends must not swap counterparts.
       const localIdx = findLocalUserMessageIndex(messages, msg);
@@ -110,12 +111,12 @@ export function upsertMessage(messages: Message[], msg: Message): Message[] {
       : existing.parts;
   const { parts: _omit, ...rest } = msg;
   copy[idx] = { ...existing, ...rest, parts } as Message;
-  if (msg.role === "user" && !msg.id.startsWith("local_")) {
+  if (msg.role === "user" && !isLocalMessage(msg.id)) {
     // Drop only the optimistic counterpart(s) of THIS confirmed message;
     // other pending optimistic sends must survive.
     const confirmedTexts = userMessageTexts(msg);
     return copy.filter((m) => {
-      if (m.id === msg.id || !m.id.startsWith("local_")) return true;
+      if (m.id === msg.id || !isLocalMessage(m.id)) return true;
       for (const text of userMessageTexts(m)) {
         if (confirmedTexts.has(text)) return false;
       }

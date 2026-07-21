@@ -145,7 +145,7 @@ export function flushStreamDeltas() {
  * a fast double send (same millisecond); `crypto.randomUUID()` cannot. The
  * fallback covers non-secure contexts (plain HTTP), where randomUUID is
  * unavailable. The `local_` prefix is load-bearing: all optimistic-message
- * correlation checks `id.startsWith("local_")`.
+ * correlation checks `isLocalMessage(id)`.
  */
 function newLocalMessageId(): string {
   const uuid =
@@ -782,7 +782,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => {
           // дотягиваем историю активной сессии и мержим детерминированно.
           const cur = get().currentID;
           if (!cur || isTmpSession(cur)) break;
-          (async () => {
+          void (async () => {
             try {
               const msgs = normalizeMessages(await api.listMessages(cur));
               if (msgs.length === 0) return;

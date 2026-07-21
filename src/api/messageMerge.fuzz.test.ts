@@ -2,6 +2,7 @@
 // Seeds are fixed in a loop, so any failure is deterministically reproducible;
 // the failing seed is included in every assertion message.
 import { describe, expect, it } from "vitest";
+import { isLocalMessage } from "../lib/ids";
 import { mergeMessages } from "./messageMerge";
 import type { Message } from "./types";
 
@@ -143,7 +144,7 @@ describe("mergeMessages: property-based (fuzz)", () => {
 
       // 4. Non-optimistic local messages are never lost.
       for (const l of local) {
-        if (!l.id.startsWith("local_")) {
+        if (!isLocalMessage(l.id)) {
           expect(ids.includes(l.id), `${tag} lost ${l.id}`).toBe(true);
         }
       }

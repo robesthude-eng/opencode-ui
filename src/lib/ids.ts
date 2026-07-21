@@ -5,14 +5,14 @@ export const ID_PREFIX = {
   MESSAGE: "msg_",
 } as const;
 
-export function isTmpSession(id?: string | null): boolean {
+export function isTmpSession(id?: string | null): id is string {
   return typeof id === "string" && id.startsWith(ID_PREFIX.TMP);
 }
 
-export function isLocalMessage(id?: string | null): boolean {
+export function isLocalMessage(id?: string | null): id is string {
   return typeof id === "string" && id.startsWith(ID_PREFIX.LOCAL);
 }
 
-export function isSessionId(id?: string | null): boolean {
+export function isSessionId(id?: string | null): id is string {
   return typeof id === "string" && id.startsWith(ID_PREFIX.SESSION);
 }

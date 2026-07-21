@@ -13,6 +13,7 @@
  * 4. For user messages, preserve local attachment parts that server hasn't echoed yet.
  * 5. Never use JSON.stringify length — use actual text length and part-level comparison.
  */
+import { isLocalMessage } from "../lib/ids";
 import type { Message as MergeMessage } from "./types";
 
 // export interface MergeMessage {
@@ -77,7 +78,7 @@ export function findLocalUserMessageIndex(
   let pendingCount = 0;
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
-    if (!m || m.role !== "user" || !m.id.startsWith("local_")) continue;
+    if (!m || m.role !== "user" || !isLocalMessage(m.id)) continue;
     pendingCount++;
     if (pendingCount === 1) onlyPendingIdx = i;
     for (const text of userMessageTexts(m)) {
@@ -251,7 +252,7 @@ export function mergeMessages(
   // Релиз 4: Set идентификаторов вместо merged.find на каждой итерации.
   const mergedIds = new Set(merged.map((m) => m.id));
   for (const [id, lMsg] of localById) {
-    if (id.startsWith("local_")) continue; // optimistic already handled or replaced
+    if (isLocalMessage(id)) continue; // optimistic already handled or replaced
     if (!mergedIds.has(id)) {
       merged.push(lMsg);
       mergedIds.add(id);
@@ -270,12 +271,12 @@ export function mergeMessages(
     }
   }
   for (const lMsg of localMsgs) {
-    if (lMsg.id.startsWith("local_") && !mergedIds.has(lMsg.id)) {
+    if (isLocalMessage(lMsg.id) && !mergedIds.has(lMsg.id)) {
       // If server has a user message that corresponds to this local_ (by exact text content across any user message), don't duplicate
       const localTexts = userMessageTexts(lMsg);
       let alreadyConfirmed = false;
       for (const m of merged) {
-        if (m.role === "user" && !m.id.startsWith("local_")) {
+        if (m.role === "user" && !isLocalMessage(m.id)) {
           for (const t of userMessageTexts(m)) {
             if (localTexts.has(t)) {
               alreadyConfirmed = true;
