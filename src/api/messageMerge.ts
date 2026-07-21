@@ -152,6 +152,7 @@ export function mergeMessages(
         const localOptimistic =
           localOptimisticIdx === -1 ? undefined : localMsgs[localOptimisticIdx];
         if (localOptimistic) {
+          localById.delete(localOptimistic.id);
           const localAtts = localOptimistic.parts.filter(
             (p) => p.type === "attachment",
           );
@@ -159,7 +160,6 @@ export function mergeMessages(
             const hasAtts = sMsg.parts.some((p) => p.type === "attachment");
             if (!hasAtts) {
               merged.push({ ...sMsg, parts: [...localAtts, ...sMsg.parts] });
-              localById.delete(localOptimistic.id);
               continue;
             }
           }
@@ -271,21 +271,21 @@ export function mergeMessages(
   }
   for (const lMsg of localMsgs) {
     if (lMsg.id.startsWith("local_") && !mergedIds.has(lMsg.id)) {
-      // If server has a user message that corresponds to this local_ (by text similarity), don't duplicate
-      // Simple heuristic: if last user message in merged is same text as local_, skip
-      const localText = lMsg.parts.find((p) => p.type === "text") as
-        | { text?: string }
-        | undefined;
-      const serverText = lastUser?.parts.find((p) => p.type === "text") as
-        | { text?: string }
-        | undefined;
-      if (
-        localText?.text &&
-        serverText?.text &&
-        localText.text === serverText.text
-      ) {
-        continue;
+      // If server has a user message that corresponds to this local_ (by exact text content across any user message), don't duplicate
+      const localTexts = userMessageTexts(lMsg);
+      let alreadyConfirmed = false;
+      for (const m of merged) {
+        if (m.role === "user" && !m.id.startsWith("local_")) {
+          for (const t of userMessageTexts(m)) {
+            if (localTexts.has(t)) {
+              alreadyConfirmed = true;
+              break;
+            }
+          }
+        }
+        if (alreadyConfirmed) break;
       }
+      if (alreadyConfirmed) continue;
       merged.push(lMsg);
       mergedIds.add(lMsg.id);
       if (lMsg.role === "user") lastUser = lMsg;
