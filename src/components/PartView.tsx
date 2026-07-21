@@ -11,6 +11,7 @@ import React, {
   memo,
   type ReactNode,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -198,20 +199,38 @@ const LimitedMarkdown = ({
   );
 };
 
+function formatRussianSeconds(secs: number): string {
+  if (secs === 1) return "1 секунду";
+  const mod100 = secs % 100;
+  const mod10 = secs % 10;
+  if (mod100 >= 11 && mod100 <= 19) return `${secs} секунд`;
+  if (mod10 === 1) return `${secs} секунду`;
+  if (mod10 >= 2 && mod10 <= 4) return `${secs} секунды`;
+  return `${secs} секунд`;
+}
+
 function useThinkingDuration(streaming?: boolean): string {
   const [startedAt] = useState(() => Date.now());
+  const frozenEndRef = useRef<number | null>(null);
   const [, setTick] = useState(0);
 
   useEffect(() => {
     if (streaming) {
+      frozenEndRef.current = null;
       const id = setInterval(() => setTick((t) => t + 1), 500);
       return () => clearInterval(id);
     }
+    if (frozenEndRef.current === null) {
+      frozenEndRef.current = Date.now();
+    }
   }, [streaming]);
 
-  const end = streaming ? Date.now() : Date.now();
+  const end =
+    streaming || frozenEndRef.current === null
+      ? Date.now()
+      : frozenEndRef.current;
   const secs = Math.max(0, Math.round((end - startedAt) / 1000));
-  return secs <= 1 ? "1 секунду" : `${secs} секунд`;
+  return formatRussianSeconds(secs);
 }
 
 function ReasoningCard({

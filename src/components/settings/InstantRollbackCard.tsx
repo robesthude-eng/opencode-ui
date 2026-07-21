@@ -79,9 +79,8 @@ export function InstantRollbackCard({
                       const currentIndex = distSnapshots.findIndex(
                         (item) => item.current,
                       );
-                      handleInstantRollback(
-                        i - (currentIndex >= 0 ? currentIndex : 0) - 1,
-                      );
+                      const cur = currentIndex >= 0 ? currentIndex : 0;
+                      handleInstantRollback(cur - i - 1);
                     }}
                   >
                     Восстановить

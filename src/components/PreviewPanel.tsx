@@ -1,5 +1,5 @@
 import { ExternalLink, RefreshCw } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 
 interface PreviewPanelProps {
@@ -9,8 +9,19 @@ interface PreviewPanelProps {
 export function PreviewPanel({ url }: PreviewPanelProps) {
   const [key, setKey] = useState(0); // Used to force reload iframe
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => {
+      setLoading(false);
+      setError("Preview load timeout");
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [loading, key]);
 
   const handleRefresh = () => {
+    setError(null);
     setLoading(true);
     setKey((prev) => prev + 1);
   };
@@ -58,6 +69,14 @@ export function PreviewPanel({ url }: PreviewPanelProps) {
             No preview URL available
           </div>
         )}
+        {error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-red-500 bg-background/80">
+            <span>{error}</span>
+            <Button size="sm" variant="outline" onClick={handleRefresh}>
+              Retry
+            </Button>
+          </div>
+        )}
         {url && (
           <iframe
             key={key}
@@ -65,7 +84,14 @@ export function PreviewPanel({ url }: PreviewPanelProps) {
             className="h-full w-full border-none"
             title="Preview"
             sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
-            onLoad={() => setLoading(false)}
+            onLoad={() => {
+              setLoading(false);
+              setError(null);
+            }}
+            onError={() => {
+              setLoading(false);
+              setError("Failed to load preview iframe");
+            }}
           />
         )}
       </div>

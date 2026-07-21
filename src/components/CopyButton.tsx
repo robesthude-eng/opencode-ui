@@ -1,6 +1,6 @@
 import { Check, Copy } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,13 @@ export default function CopyButton({
   className?: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -25,7 +32,8 @@ export default function CopyButton({
       .writeText(text)
       .then(() => {
         setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setCopied(false), 1500);
       })
       .catch(() => {
         // нет разрешения/фокуса — молча игнорируем, как и раньше
