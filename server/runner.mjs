@@ -183,8 +183,17 @@ function runnerEnvArgs() {
     OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY || "",
     OPENCODE_MODEL: process.env.OPENCODE_MODEL || "",
     // Provider API keys — forwarded so runner containers can use models
-    // from providers configured via environment variables.
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
+    // from providers configured via environment variables. OpenCode's Google
+    // provider uses AI SDK, which requires GOOGLE_GENERATIVE_AI_API_KEY.
+    // Keep GEMINI_API_KEY as a backwards-compatible deployment alias.
+    GOOGLE_GENERATIVE_AI_API_KEY:
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      process.env.GEMINI_API_KEY ||
+      "",
+    GEMINI_API_KEY:
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+      "",
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
     OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
     DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || "",

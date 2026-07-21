@@ -15,6 +15,9 @@ services:
     env_file:
       - .env
     environment:
+      # OpenCode's Google AI SDK reads GOOGLE_GENERATIVE_AI_API_KEY. Keep the
+      # shorter GEMINI_API_KEY as the deployment-facing alias.
+      - GOOGLE_GENERATIVE_AI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - PORT=3000
       - NODE_ENV=production
