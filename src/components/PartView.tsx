@@ -395,18 +395,24 @@ const OptimizedPartView = ({
     case "text": {
       if (!p.text) return null;
       const txt = asText(p.text);
+      // Если это старое или текущее вложенное текстовое сообщение формата «📄 filename\n```...```»,
+      // превращаем «📄 filename\n```...```» в «📎 filename → uploads/filename», чтобы отрендерить чипом!
+      const normalizedTxt = txt.replace(
+        /^📄 ([^\n]+?)\n```[\s\S]*?```/gm,
+        "📎 $1 → uploads/$1",
+      );
       // Строки вида «📎 name → path …» — вложения (zip/бинарники), отправленные
       // агенту путём. Рендерим их файл-чипами; работает и для старых сообщений,
       // где строка была приклеена к тексту пользователя.
       const isAttLine = (l: string) => /^📎 .+ → \S+/.test(l.trim());
-      const lines = txt.split("\n");
+      const lines = normalizedTxt.split("\n");
       const attLines = lines.filter(isAttLine);
       const restText = attLines.length
         ? lines
             .filter((l) => !isAttLine(l))
             .join("\n")
             .trim()
-        : txt;
+        : normalizedTxt;
       return (
         <>
           {attLines.length > 0 && (

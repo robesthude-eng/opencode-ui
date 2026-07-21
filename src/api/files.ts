@@ -100,6 +100,7 @@ export async function processFile(file: File): Promise<ProcessedFile> {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   const kind = fileKind(file.name);
   const mime = file.type || mimeFromExt(ext);
+  const dataUrl = await fileToBase64(file);
 
   const result: ProcessedFile = {
     name: file.name,
@@ -107,27 +108,14 @@ export async function processFile(file: File): Promise<ProcessedFile> {
     mime,
     ext,
     kind,
-  };
-
-  if (kind === "text" && file.size <= MAX_TEXT_SIZE) {
-    // Read text content and send as a text part (inline).
-    const text = await file.text();
-    result.textPart = {
-      type: "text",
-      text: `📄 ${file.name}\n\`\`\`\n${text}\n\`\`\``,
-    };
-    result.dataUrl = `data:${mime};base64,${btoa(unescape(encodeURIComponent(text)))}`;
-  } else {
-    // Binary / image / pdf / zip / large-text → base64 data URL as file part
-    const dataUrl = await fileToBase64(file);
-    result.dataUrl = dataUrl;
-    result.part = {
+    dataUrl,
+    part: {
       type: "file",
       mime,
       url: dataUrl,
       filename: file.name,
-    };
-  }
+    },
+  };
 
   return result;
 }
