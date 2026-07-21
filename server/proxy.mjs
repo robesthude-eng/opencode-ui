@@ -49,6 +49,11 @@ export function createProxy(targetBase) {
       }
       if (proxyRes.statusCode === 404 && sessionMsgMatch) {
         const staleSid = sessionMsgMatch[1];
+        if (process.env.RUNNER_ISOLATION === "1") {
+          res.writeHead(404, headers);
+          proxyRes.pipe(res);
+          return;
+        }
         proxyRes.resume();
         try {
           const dbPath = path.join(WORKDIR, "opencode.db");

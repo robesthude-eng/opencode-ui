@@ -485,6 +485,16 @@ const server = http.createServer(async (req, res) => {
       });
     return;
   }
+  if (sessionId && sessionId.startsWith("tmp_")) {
+    if (req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify([]));
+    } else {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "optimistic_session_not_ready" }));
+    }
+    return;
+  }
   // Изоляция «новый чат = новый контейнер»: сессии из реестра раннеров
   // обслуживаются собственным контейнером (directory=/session/workspace внутри
   // него). Legacy-сессии без раннера — по прежней схеме через системный инстанс.
@@ -578,6 +588,11 @@ server.on("upgrade", (req, socket, head) => {
     return;
   }
   const sessionId = extractSessionId(req);
+  if (sessionId && sessionId.startsWith("tmp_")) {
+    socket.write("HTTP/1.1 200 OK\r\n\r\n");
+    socket.destroy();
+    return;
+  }
   if (sessionId) {
     const userEmail = session?.email || null;
     if (userEmail) {

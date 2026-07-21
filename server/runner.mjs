@@ -293,8 +293,19 @@ async function ensureRunnerInner(sid) {
     await waitHealthy(name);
   } else if (state) {
     logger.info({ sid }, "[runner] starting stopped container");
-    await docker(["start", name]);
-    await waitHealthy(name);
+    try {
+      await docker(["start", name]);
+      await waitHealthy(name);
+    } catch (startErr) {
+      logger.warn({ sid, err: startErr.message }, "[runner] start failed, recreating container");
+      await docker(["rm", "-f", name]).catch(() => {});
+      const sessDir = path.join(WORKDIR, "sessions", sid);
+      if (!fs.existsSync(sessDir)) {
+        throw new Error(`session directory missing for ${sid}`);
+      }
+      await runRunnerContainer(name, hostSessionDir(sid), sessDir);
+      await waitHealthy(name);
+    }
   } else {
     // Контейнера нет (перезагрузка хоста / docker system prune) — пересоздаём
     // из каталога сессии. Данные сессии живут на диске, ничего не теряется.
