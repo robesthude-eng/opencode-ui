@@ -10,7 +10,9 @@ function ensureOk(response, bodyText) {
     return;
   }
 
-  throw new Error(`HTTP ${response.status} ${response.statusText}: ${bodyText}`);
+  throw new Error(
+    `HTTP ${response.status} ${response.statusText}: ${bodyText}`,
+  );
 }
 
 function sleep(ms) {
@@ -24,7 +26,9 @@ function extractUuid(raw) {
     throw new Error("Notion id is required.");
   }
 
-  const match = input.match(/([0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g);
+  const match = input.match(
+    /([0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g,
+  );
   if (!match?.length) {
     throw new Error(`Unable to extract Notion id from: ${input}`);
   }
@@ -40,7 +44,7 @@ function titleFromValue(value) {
   }
 
   return title
-    .map((part) => Array.isArray(part) ? part[0] : "")
+    .map((part) => (Array.isArray(part) ? part[0] : ""))
     .join("")
     .trim();
 }
@@ -50,14 +54,18 @@ function pageUrl(pageId) {
 }
 
 function isCrossCellError(error) {
-  return error instanceof Error
-    && error.message.includes("MemcachedCrossCellError");
+  return (
+    error instanceof Error && error.message.includes("MemcachedCrossCellError")
+  );
 }
 
 export class NotionClient {
   constructor() {
     this.token = env("NOTION_TOKEN_V2");
-    this.privateApiBase = env("NOTION_PRIVATE_API_BASE", "https://www.notion.so").replace(/\/$/, "");
+    this.privateApiBase = env(
+      "NOTION_PRIVATE_API_BASE",
+      "https://www.notion.so",
+    ).replace(/\/$/, "");
     // Note: the token is validated lazily (see requireToken) rather than in the
     // constructor, so the MCP server can boot and answer tools/list without it.
     // This is what registry introspection (e.g. Glama) relies on; the token is
@@ -94,7 +102,11 @@ export class NotionClient {
     return bodyText ? JSON.parse(bodyText) : {};
   }
 
-  async privatePostWithRetry(path, payload, { retries = 2, delayMs = 250 } = {}) {
+  async privatePostWithRetry(
+    path,
+    payload,
+    { retries = 2, delayMs = 250 } = {},
+  ) {
     let lastError;
 
     for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -120,7 +132,15 @@ export class NotionClient {
   // одной пачкой. В отличие от getRecordValues, эта ручка маршрутизируется по
   // содержимому страницы и не упирается в MemcachedCrossCellError на multi-cell
   // workspace'ах. Используется как fallback при чтении детей.
-  async loadPageChunk(pageId, { chunkNumber = 0, limit = 100, cursor = { stack: [] }, verticalColumns = false } = {}) {
+  async loadPageChunk(
+    pageId,
+    {
+      chunkNumber = 0,
+      limit = 100,
+      cursor = { stack: [] },
+      verticalColumns = false,
+    } = {},
+  ) {
     const id = this.normalizeId(pageId);
     return this.privatePostWithRetry("/api/v3/loadPageChunk", {
       pageId: id,
@@ -148,7 +168,11 @@ export class NotionClient {
         }
       }
       const nextCursor = chunk?.cursor;
-      if (!nextCursor || !Array.isArray(nextCursor.stack) || nextCursor.stack.length === 0) {
+      if (
+        !nextCursor ||
+        !Array.isArray(nextCursor.stack) ||
+        nextCursor.stack.length === 0
+      ) {
         break;
       }
       cursor = nextCursor;
@@ -222,10 +246,13 @@ export class NotionClient {
   }
 
   async getBlocks(blockIds) {
-    const ids = Array.from(new Set(
-      (Array.isArray(blockIds) ? blockIds : [])
-        .map((blockId) => this.normalizeId(blockId)),
-    ));
+    const ids = Array.from(
+      new Set(
+        (Array.isArray(blockIds) ? blockIds : []).map((blockId) =>
+          this.normalizeId(blockId),
+        ),
+      ),
+    );
 
     if (!ids.length) {
       return [];
@@ -233,23 +260,27 @@ export class NotionClient {
 
     let data;
     try {
-      data = await this.getRecordValues(ids.map((id) => ({ id, table: "block" })));
+      data = await this.getRecordValues(
+        ids.map((id) => ({ id, table: "block" })),
+      );
     } catch (error) {
       if (!isCrossCellError(error) || ids.length === 1) {
         throw error;
       }
 
-      const values = await Promise.all(ids.map(async (id) => {
-        try {
-          const result = await this.getRecordValues([{ id, table: "block" }]);
-          return result?.results?.[0] ?? null;
-        } catch (childError) {
-          if (isCrossCellError(childError)) {
-            return null;
+      const values = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const result = await this.getRecordValues([{ id, table: "block" }]);
+            return result?.results?.[0] ?? null;
+          } catch (childError) {
+            if (isCrossCellError(childError)) {
+              return null;
+            }
+            throw childError;
           }
-          throw childError;
-        }
-      }));
+        }),
+      );
 
       data = { results: values.filter(Boolean) };
     }
@@ -327,7 +358,8 @@ export class NotionClient {
         parent_id: normalizedParentId,
         child_ids: childIds,
         children: [],
-        warning: "Notion returned MemcachedCrossCellError on both getRecordValues and loadPageChunk. Returned child ids without payloads.",
+        warning:
+          "Notion returned MemcachedCrossCellError on both getRecordValues and loadPageChunk. Returned child ids without payloads.",
       };
     }
   }
@@ -504,11 +536,15 @@ export class NotionClient {
   async deleteBlocks({ pageId, blockIds }) {
     const page = await this.getBlock(pageId);
     const normalizedPageId = this.normalizeId(pageId);
-    const normalizedBlockIds = Array.from(new Set(blockIds.map((blockId) => this.normalizeId(blockId))));
+    const normalizedBlockIds = Array.from(
+      new Set(blockIds.map((blockId) => this.normalizeId(blockId))),
+    );
     const spaceId = page.space_id;
     const existingContent = Array.isArray(page.content) ? page.content : [];
     const blockIdSet = new Set(normalizedBlockIds);
-    const nextContent = existingContent.filter((childId) => !blockIdSet.has(childId));
+    const nextContent = existingContent.filter(
+      (childId) => !blockIdSet.has(childId),
+    );
     let warning;
     let blocks;
     try {
@@ -518,13 +554,16 @@ export class NotionClient {
         throw error;
       }
       blocks = [];
-      warning = "Notion returned MemcachedCrossCellError while reading blocks to delete. Archived requested blocks only; nested children may remain archived=false.";
+      warning =
+        "Notion returned MemcachedCrossCellError while reading blocks to delete. Archived requested blocks only; nested children may remain archived=false.";
     }
     const childIds = blocks
       .filter(Boolean)
-      .flatMap((block) => Array.isArray(block.content) ? block.content : [])
+      .flatMap((block) => (Array.isArray(block.content) ? block.content : []))
       .map((blockId) => this.normalizeId(blockId));
-    const archivedIds = Array.from(new Set([...normalizedBlockIds, ...childIds]));
+    const archivedIds = Array.from(
+      new Set([...normalizedBlockIds, ...childIds]),
+    );
 
     const operations = [
       {

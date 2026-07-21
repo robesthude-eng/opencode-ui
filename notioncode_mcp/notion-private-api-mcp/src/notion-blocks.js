@@ -111,7 +111,14 @@ function createBlockPayload({ block, id, parentId, spaceId, now, childIds }) {
   return payload;
 }
 
-function walkBlocks(inputBlocks, parentId, spaceId, setOps, rootIds, depth = 0) {
+function walkBlocks(
+  inputBlocks,
+  parentId,
+  spaceId,
+  setOps,
+  rootIds,
+  depth = 0,
+) {
   if (depth > 50) {
     throw new Error("Block nesting is too deep.");
   }

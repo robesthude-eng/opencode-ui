@@ -187,10 +187,10 @@ export function patchPart(
         m.parts[0] !== undefined &&
         m.parts[0].type === cleanedPart.type &&
         !hasId(m.parts[0]) &&
-        (m.parts[0].type !== "tool" || (
-          (m.parts[0] as { tool?: string }).tool === (cleanedPart as { tool?: string }).tool &&
-          (m.parts[0] as { status?: string }).status !== "completed"
-        ))
+        (m.parts[0].type !== "tool" ||
+          ((m.parts[0] as { tool?: string }).tool ===
+            (cleanedPart as { tool?: string }).tool &&
+            (m.parts[0] as { status?: string }).status !== "completed"))
       ) {
         idx = 0;
       }

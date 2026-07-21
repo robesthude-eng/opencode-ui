@@ -20,4 +20,8 @@ installed.friendly_aliases = {
 installed.updated_at = template.updated_at;
 
 fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
-fs.writeFileSync(destinationPath, `${JSON.stringify(installed, null, 2)}\n`, "utf8");
+fs.writeFileSync(
+  destinationPath,
+  `${JSON.stringify(installed, null, 2)}\n`,
+  "utf8",
+);

@@ -68,7 +68,7 @@ export const STYLE_DOCUMENTATION = {
       type: "code",
       notion_type: "code",
       markdown: "Triple-backtick fence with optional language.",
-      example_markdown: "```kotlin\nfun hello() = println(\"hi\")\n```",
+      example_markdown: '```kotlin\nfun hello() = println("hi")\n```',
       notes:
         "Content is stored verbatim, inline markdown is NOT parsed inside code blocks. Language goes to properties.language.",
     },
@@ -87,7 +87,8 @@ export const STYLE_DOCUMENTATION = {
     {
       type: "toggle",
       notion_type: "toggle",
-      markdown: "Not produced by Markdown parser — pass via `blocks[]` with `children`.",
+      markdown:
+        "Not produced by Markdown parser — pass via `blocks[]` with `children`.",
       example_blocks: [
         {
           type: "toggle",
@@ -114,13 +115,15 @@ export const STYLE_DOCUMENTATION = {
     {
       tag: "s",
       meaning: "strikethrough",
-      markdown: "~~text~~  (currently only via `blocks[]`, Markdown parser does not emit `s` yet)",
+      markdown:
+        "~~text~~  (currently only via `blocks[]`, Markdown parser does not emit `s` yet)",
       run_example: ["struck", [["s"]]],
     },
     {
       tag: "_",
       meaning: "underline",
-      markdown: "Not available in Markdown — pass a run like ['text', [['_']]] via `blocks[]`.",
+      markdown:
+        "Not available in Markdown — pass a run like ['text', [['_']]] via `blocks[]`.",
       run_example: ["underlined", [["_"]]],
     },
     {
@@ -134,7 +137,8 @@ export const STYLE_DOCUMENTATION = {
       meaning: "link",
       markdown: "[text](https://example.com)",
       run_example: ["дока", [["a", "https://example.com"]]],
-      notes: "The href is the second element of the tuple. Can stack with b/i/c.",
+      notes:
+        "The href is the second element of the tuple. Can stack with b/i/c.",
     },
     {
       tag: "h",
@@ -178,19 +182,14 @@ export const STYLE_DOCUMENTATION = {
     {
       tag: "d",
       meaning: "date / datetime",
-      run_example: [
-        "‣",
-        [["d", { type: "date", start_date: "2026-04-19" }]],
-      ],
+      run_example: ["‣", [["d", { type: "date", start_date: "2026-04-19" }]]],
     },
   ],
 
   annotation_stacking: {
-    description: "Multiple annotations can be applied to a single run. Order within the tuple is preserved by Notion.",
-    example: [
-      "жирная ссылка",
-      [["b"], ["a", "https://example.com"]],
-    ],
+    description:
+      "Multiple annotations can be applied to a single run. Order within the tuple is preserved by Notion.",
+    example: ["жирная ссылка", [["b"], ["a", "https://example.com"]]],
   },
 
   block_format_hints: [
@@ -215,7 +214,15 @@ export const STYLE_DOCUMENTATION = {
     },
   ],
 
-  markdown_supported_inline: ["**bold**", "__bold__", "*italic*", "_italic_", "`code`", "[text](url)", "escaped \\*"],
+  markdown_supported_inline: [
+    "**bold**",
+    "__bold__",
+    "*italic*",
+    "_italic_",
+    "`code`",
+    "[text](url)",
+    "escaped \\*",
+  ],
 
   markdown_unsupported_currently: [
     "~~strikethrough~~ (not emitted)",
@@ -238,7 +245,7 @@ export const STYLE_DOCUMENTATION = {
       "> Цитата.",
       "",
       "```kotlin",
-      "fun hello() = println(\"hi\")",
+      'fun hello() = println("hi")',
       "```",
       "",
       "---",

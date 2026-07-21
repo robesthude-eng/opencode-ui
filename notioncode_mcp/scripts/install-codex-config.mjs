@@ -3,13 +3,14 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const [templatePath, destination, projectRoot, userHome, notionMcpEnabled] = process.argv.slice(2);
+const [templatePath, destination, projectRoot, userHome, notionMcpEnabled] =
+  process.argv.slice(2);
 if (
-  !templatePath
-  || !destination
-  || !projectRoot
-  || !userHome
-  || !["true", "false"].includes(notionMcpEnabled)
+  !templatePath ||
+  !destination ||
+  !projectRoot ||
+  !userHome ||
+  !["true", "false"].includes(notionMcpEnabled)
 ) {
   throw new Error(
     "usage: install-codex-config.mjs <template> <destination> <project-root> <user-home> <notion-mcp-enabled:true|false>",
@@ -83,12 +84,13 @@ function cleanExisting(value) {
     }
     if (skipManagedTable) continue;
     const assignment = line.match(/^\s*([A-Za-z0-9_-]+)\s*=/);
-    if (currentTable === null && assignment && ROOT_KEYS.has(assignment[1])) continue;
+    if (currentTable === null && assignment && ROOT_KEYS.has(assignment[1]))
+      continue;
     if (
-      currentTable === "features"
-      && assignment
-      && ["apps", "plugins", "remote_plugin"].includes(assignment[1])
-      && /^\s*[A-Za-z0-9_-]+\s*=\s*false\s*(?:#.*)?$/.test(line)
+      currentTable === "features" &&
+      assignment &&
+      ["apps", "plugins", "remote_plugin"].includes(assignment[1]) &&
+      /^\s*[A-Za-z0-9_-]+\s*=\s*false\s*(?:#.*)?$/.test(line)
     ) {
       continue;
     }
@@ -107,8 +109,12 @@ const existing = fs.existsSync(destination)
   : "";
 const cleaned = cleanExisting(existing);
 const firstExistingTable = cleaned.search(/^\s*\[/m);
-const existingRoot = firstExistingTable === -1 ? cleaned : cleaned.slice(0, firstExistingTable).trim();
-const existingTables = firstExistingTable === -1 ? "" : cleaned.slice(firstExistingTable).trim();
+const existingRoot =
+  firstExistingTable === -1
+    ? cleaned
+    : cleaned.slice(0, firstExistingTable).trim();
+const existingTables =
+  firstExistingTable === -1 ? "" : cleaned.slice(firstExistingTable).trim();
 const pieces = [
   existingRoot,
   `${ROOT_BEGIN}\n${managedRoot}\n${ROOT_END}`,
@@ -119,7 +125,10 @@ const next = `${pieces.join("\n\n")}\n`;
 
 fs.mkdirSync(path.dirname(destination), { recursive: true });
 if (existing && existing !== next) {
-  const stamp = new Date().toISOString().replaceAll(":", "-").replace(/\.\d{3}Z$/, "Z");
+  const stamp = new Date()
+    .toISOString()
+    .replaceAll(":", "-")
+    .replace(/\.\d{3}Z$/, "Z");
   fs.copyFileSync(destination, `${destination}.notioncode-backup-${stamp}`);
 }
 fs.writeFileSync(destination, next, "utf8");

@@ -43,22 +43,35 @@ for (const relative of [
   "deploy/systemd/notion-fable-proxy.service",
 ]) {
   const content = fs.readFileSync(path.join(root, relative), "utf8");
-  for (const placeholder of ["__NOTIONCODE_ROOT__", "__USER_HOME__", "__SERVICE_USER__"]) {
+  for (const placeholder of [
+    "__NOTIONCODE_ROOT__",
+    "__USER_HOME__",
+    "__SERVICE_USER__",
+  ]) {
     if (!content.includes(placeholder)) {
-      throw new Error(`Portable systemd template is missing ${placeholder}: ${relative}`);
+      throw new Error(
+        `Portable systemd template is missing ${placeholder}: ${relative}`,
+      );
     }
   }
   if (content.includes(legacyProjectPath)) {
-    throw new Error(`Systemd template contains a machine-specific path: ${relative}`);
+    throw new Error(
+      `Systemd template contains a machine-specific path: ${relative}`,
+    );
   }
 }
 for (const relative of forbiddenDuplicates) {
   if (fs.existsSync(path.join(root, relative))) {
-    throw new Error(`Platform-specific shared-code duplicate is forbidden: ${relative}`);
+    throw new Error(
+      `Platform-specific shared-code duplicate is forbidden: ${relative}`,
+    );
   }
 }
 
-for (const relative of ["config/codex-cli-config.toml", "config/opencode.jsonc"]) {
+for (const relative of [
+  "config/codex-cli-config.toml",
+  "config/opencode.jsonc",
+]) {
   const content = fs.readFileSync(path.join(root, relative), "utf8");
   if (!content.includes("__NOTIONCODE_ROOT__")) {
     throw new Error(`Shared config must use __NOTIONCODE_ROOT__: ${relative}`);

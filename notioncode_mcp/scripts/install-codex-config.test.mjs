@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -25,21 +25,26 @@ function install(config, initial = "", notionMcpEnabled = "false") {
 }
 
 test("merges the provider without losing unrelated Codex settings", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "notioncode-config-"));
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "notioncode-config-"),
+  );
   try {
     const config = path.join(directory, "config.toml");
-    const output = install(config, [
-      'model = "gpt-old"',
-      'approval_policy = "on-request"',
-      "",
-      "[features]",
-      "apps = false",
-      "shell_snapshot = true",
-      "",
-      "[projects.\"/work\"]",
-      'trust_level = "trusted"',
-      "",
-    ].join("\n"));
+    const output = install(
+      config,
+      [
+        'model = "gpt-old"',
+        'approval_policy = "on-request"',
+        "",
+        "[features]",
+        "apps = false",
+        "shell_snapshot = true",
+        "",
+        '[projects."/work"]',
+        'trust_level = "trusted"',
+        "",
+      ].join("\n"),
+    );
     assert.match(output, /model = "gpt-5\.5"/);
     assert.match(output, /model_provider = "notion-ai"/);
     assert.match(output, /model_context_window = 100000/);
@@ -59,21 +64,31 @@ test("merges the provider without losing unrelated Codex settings", () => {
 });
 
 test("is idempotent", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "notioncode-config-"));
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "notioncode-config-"),
+  );
   try {
     const config = path.join(directory, "config.toml");
     const first = install(config);
     const second = install(config);
     assert.equal(second, first);
-    assert.equal((second.match(/BEGIN notioncode_mcp managed root/g) || []).length, 1);
-    assert.equal((second.match(/\[model_providers\.notion-ai]/g) || []).length, 1);
+    assert.equal(
+      (second.match(/BEGIN notioncode_mcp managed root/g) || []).length,
+      1,
+    );
+    assert.equal(
+      (second.match(/\[model_providers\.notion-ai]/g) || []).length,
+      1,
+    );
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 
 test("enables Notion MCP only after the credential gate passes", () => {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "notioncode-config-"));
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "notioncode-config-"),
+  );
   try {
     const config = path.join(directory, "config.toml");
     const disabled = install(config, "", "false");
@@ -81,7 +96,10 @@ test("enables Notion MCP only after the credential gate passes", () => {
     const enabled = install(config, disabled, "true");
     assert.match(enabled, /enabled = true/);
     assert.doesNotMatch(enabled, /enabled = false/);
-    assert.equal((enabled.match(/\[mcp_servers\.notion-private]/g) || []).length, 1);
+    assert.equal(
+      (enabled.match(/\[mcp_servers\.notion-private]/g) || []).length,
+      1,
+    );
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

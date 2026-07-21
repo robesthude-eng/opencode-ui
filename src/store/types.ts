@@ -99,7 +99,16 @@ export interface MessagesSlice {
   // P2-fix: текст сообщения, отправка которого упала — Composer
   // возвращает его в поле ввода, чтобы он не потерялся.
   failedSendText: string | null;
-  _deltaBuffer: Map<string, { sid: string; messageID: string; partID: string; field: string; text: string }>;
+  _deltaBuffer: Map<
+    string,
+    {
+      sid: string;
+      messageID: string;
+      partID: string;
+      field: string;
+      text: string;
+    }
+  >;
   _flushTimer: ReturnType<typeof setTimeout> | null;
   send: (text: string) => Promise<void>;
   addAttachments: (files: ProcessedFile[]) => void;

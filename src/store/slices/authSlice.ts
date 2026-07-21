@@ -35,8 +35,12 @@ async function performAuthAction(
         localStorage.removeItem("opencode_auth_token");
       }
       set({ currentUser: data.user || { email }, authChecking: false });
-      get().loadSessions().catch((e: unknown) => console.error("[Auth] loadSessions:", e));
-      get().loadModels(true).catch((e: unknown) => console.error("[Auth] loadModels:", e));
+      get()
+        .loadSessions()
+        .catch((e: unknown) => console.error("[Auth] loadSessions:", e));
+      get()
+        .loadModels(true)
+        .catch((e: unknown) => console.error("[Auth] loadModels:", e));
       return { ok: true };
     }
     return {
@@ -69,10 +73,24 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
   },
 
   login: (email, password) =>
-    performAuthAction("/api/auth/login", email, password, "Ошибка входа", get, set),
+    performAuthAction(
+      "/api/auth/login",
+      email,
+      password,
+      "Ошибка входа",
+      get,
+      set,
+    ),
 
   register: (email, password) =>
-    performAuthAction("/api/auth/register", email, password, "Ошибка регистрации", get, set),
+    performAuthAction(
+      "/api/auth/register",
+      email,
+      password,
+      "Ошибка регистрации",
+      get,
+      set,
+    ),
 
   logout: async () => {
     try {

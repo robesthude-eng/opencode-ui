@@ -13,15 +13,23 @@ test("uses non-interactive PowerShell on Windows", () => {
   assert.deepEqual(shellInvocation("Get-Location", { platform: "win32" }), {
     executable: "powershell.exe",
     args: [
-      "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
-      "Bypass", "-Command", "Get-Location",
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-Command",
+      "Get-Location",
     ],
   });
 });
 
 test("allows an explicit platform shell override", () => {
   assert.equal(
-    shellInvocation("echo ok", { platform: "linux", configuredShell: "/usr/bin/bash" }).executable,
+    shellInvocation("echo ok", {
+      platform: "linux",
+      configuredShell: "/usr/bin/bash",
+    }).executable,
     "/usr/bin/bash",
   );
 });

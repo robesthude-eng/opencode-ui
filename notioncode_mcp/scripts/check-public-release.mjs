@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tracked = execFileSync("git", ["ls-files", "-z"], {
   cwd: root,
   encoding: "utf8",
-}).split("\0").filter(Boolean);
+})
+  .split("\0")
+  .filter(Boolean);
 
 const forbiddenPaths = [
   /^\.runtime\//,
@@ -52,7 +54,10 @@ for (const relative of tracked) {
 }
 
 for (const required of ["README.md", "LICENSE", "SECURITY.md", "AGENTS.md"]) {
-  if (!tracked.includes(required) && !fs.existsSync(path.join(root, required))) {
+  if (
+    !tracked.includes(required) &&
+    !fs.existsSync(path.join(root, required))
+  ) {
     errors.push(`missing public repository file: ${required}`);
   }
 }
