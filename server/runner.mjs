@@ -182,6 +182,17 @@ function runnerEnvArgs() {
   const env = {
     OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY || "",
     OPENCODE_MODEL: process.env.OPENCODE_MODEL || "",
+    // Provider API keys — forwarded so runner containers can use models
+    // from providers configured via environment variables.
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
+    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || "",
+    XAI_API_KEY: process.env.XAI_API_KEY || "",
+    GROQ_API_KEY: process.env.GROQ_API_KEY || "",
+    MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || "",
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN || "",
     UI_API_BASE: "http://opencode-ui:3000",
     // Единая таймзона для таймстемпов и бэкапов независимо от хоста/ДЦ.
     TZ: process.env.TZ || "UTC",
