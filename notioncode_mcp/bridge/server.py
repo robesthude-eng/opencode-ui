@@ -39,6 +39,7 @@ from notion_images import (
     ImageInputError,
     complete_with_images,
     estimated_image_tokens,
+    extract_chat_images,
     extract_response_images,
 )
 from turn_affinity import (
@@ -283,18 +284,32 @@ async def complete_agent(
     system: str | None = None,
     planner_mode: bool = False,
     model_id: str = MODEL_ID,
+    images: list[ResponseImage] | None = None,
 ):
     if planner_mode and not WORKFLOW_ID:
         first_prompt = planner_prompt(prompt, system)
-        response = await lease.run(
-            lambda notion: notion.complete(
-                prompt=first_prompt,
-                model=model_id,
-                web_search=False,
-                workspace_search=False,
-                ask_mode=True,
+        if images:
+            response = await lease.run(
+                lambda notion: complete_with_images(
+                    notion,
+                    prompt=first_prompt,
+                    images=images,
+                    model=model_id,
+                    web_search=False,
+                    workspace_search=False,
+                    ask_mode=True,
+                )
             )
-        )
+        else:
+            response = await lease.run(
+                lambda notion: notion.complete(
+                    prompt=first_prompt,
+                    model=model_id,
+                    web_search=False,
+                    workspace_search=False,
+                    ask_mode=True,
+                )
+            )
         completed_actions: list[str] = []
         for _ in range(20):
             action = extract_planner_action(response.text)
@@ -345,17 +360,31 @@ async def complete_agent(
                 ),
             )
         raise RuntimeError("The planner exceeded the maximum action-loop depth")
-    response = await lease.run(
-        lambda notion: notion.complete(
-            prompt=prompt,
-            system=system,
-            model=model_id,
-            web_search=False,
-            workspace_search=True,
-            ask_mode=not bool(WORKFLOW_ID),
-            workflow_id=WORKFLOW_ID or None,
+    if images:
+        response = await lease.run(
+            lambda notion: complete_with_images(
+                notion,
+                prompt=prompt,
+                images=images,
+                system=system,
+                model=model_id,
+                web_search=False,
+                workspace_search=True,
+                ask_mode=not bool(WORKFLOW_ID),
+            )
         )
-    )
+    else:
+        response = await lease.run(
+            lambda notion: notion.complete(
+                prompt=prompt,
+                system=system,
+                model=model_id,
+                web_search=False,
+                workspace_search=True,
+                ask_mode=not bool(WORKFLOW_ID),
+                workflow_id=WORKFLOW_ID or None,
+            )
+        )
     if not WORKFLOW_ID:
         return response
     completed_tools: list[str] = []
@@ -1745,8 +1774,19 @@ async def anthropic_messages(request: Request):
             status_code=503,
         )
     prompt = anthropic_planner_prompt(body)
+    images = extract_chat_images(body.get("messages") or [])
 
     async def initial_completion(notion: NotionAgentClient):
+        if images:
+            return await complete_with_images(
+                notion,
+                prompt=prompt,
+                images=images,
+                model=model,
+                web_search=False,
+                workspace_search=False,
+                ask_mode=True,
+            )
         return await notion.complete(
             prompt=prompt,
             model=model,
@@ -1818,12 +1858,14 @@ async def completions(request: Request):
     messages = body.get("messages") or []
     tools = body.get("tools") or []
     system, prompt = build_prompt(messages, tools)
+    images = extract_chat_images(messages)
     requested_model = str(body.get("model") or MODEL_ID).lower()
     set_log_context(model=requested_model, stream=bool(body.get("stream", False)))
     log_event(
         log,
         "request_details",
         tool_count=len(tools) if isinstance(tools, list) else 0,
+        image_count=len(images),
     )
     try:
         model = resolve_model(requested_model)
@@ -1846,6 +1888,7 @@ async def completions(request: Request):
                     system,
                     planner_mode=planner_mode,
                     model_id=model,
+                    images=images,
                 )
         except Exception as exc:
             log_event(
@@ -1916,6 +1959,20 @@ async def completions(request: Request):
                         system,
                         planner_mode=planner_mode,
                         model_id=model,
+                        images=images,
+                    )
+                elif images:
+                    response = await lease.run(
+                        lambda notion: complete_with_images(
+                            notion,
+                            prompt=prompt,
+                            images=images,
+                            system=system,
+                            model=model,
+                            web_search=False,
+                            workspace_search=True,
+                            ask_mode=True,
+                        )
                     )
                 else:
                     response = await lease.run(

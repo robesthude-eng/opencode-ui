@@ -191,6 +191,51 @@ def extract_response_images(body: dict[str, Any]) -> list[ResponseImage]:
     return images
 
 
+def extract_chat_images(messages: list[dict[str, Any]]) -> list[ResponseImage]:
+    images: list[ResponseImage] = []
+    fingerprints: set[str] = set()
+    if not isinstance(messages, list):
+        return images
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            part_type = part.get("type")
+            raw_url = part.get("image_url") or part.get("url") or part.get("source")
+            if isinstance(raw_url, dict):
+                if raw_url.get("type") == "base64" and raw_url.get("data") and raw_url.get("media_type"):
+                    mt = raw_url["media_type"]
+                    dt = raw_url["data"]
+                    raw_url = f"data:{mt};base64,{dt}"
+                else:
+                    raw_url = raw_url.get("url")
+            if not raw_url or not isinstance(raw_url, str):
+                continue
+            if part_type not in ("image_url", "input_image", "image", "file") and not raw_url.startswith("data:image/"):
+                continue
+            if len(images) >= MAX_IMAGE_COUNT:
+                raise ImageInputError(f"at most {MAX_IMAGE_COUNT} images are supported per request")
+            try:
+                image = decode_response_image(raw_url, len(images) + 1)
+                if image.fingerprint in fingerprints:
+                    continue
+                fingerprints.add(image.fingerprint)
+                images.append(image)
+            except ImageInputError:
+                pass
+    total = sum(len(image.data) for image in images)
+    if total > MAX_TOTAL_IMAGE_BYTES:
+        raise ImageInputError(
+            f"combined image data exceeds the {MAX_TOTAL_IMAGE_BYTES // (1024 * 1024)} MiB limit"
+        )
+    return images
+
+
 def _openai_image_tokens(width: int, height: int) -> int:
     # This mirrors the estimate emitted by Notion's web composer for a
     # high-detail attachment. It is metadata, not usage charged by the bridge.
