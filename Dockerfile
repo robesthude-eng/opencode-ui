@@ -13,8 +13,16 @@ RUN npm run build
 FROM node:24-slim AS runtime
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv python3-pip make g++ git ca-certificates curl bash \
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-venv python3-pip make g++ git ca-certificates curl bash sudo \
+  && npx playwright install-deps chromium \
+  && npx playwright install chromium \
+  && chmod -R 777 /ms-playwright \
   && update-ca-certificates \
+  && echo "node ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/node \
+  && chmod 0440 /etc/sudoers.d/node \
   && rm -rf /var/lib/apt/lists/*
 
 # Docker CLI (только клиент): управление контейнерами-раннерами сессий

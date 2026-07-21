@@ -5,9 +5,16 @@
 # Сборка: docker compose --profile build-runner build runner-image
 FROM node:24-slim
 
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git ca-certificates curl bash python3 make g++ procps \
+    git ca-certificates curl bash python3 make g++ procps sudo \
+  && npx playwright install-deps chromium \
+  && npx playwright install chromium \
+  && chmod -R 777 /ms-playwright \
   && update-ca-certificates \
+  && echo "node ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/node \
+  && chmod 0440 /etc/sudoers.d/node \
   && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g opencode-ai@1.18.3
