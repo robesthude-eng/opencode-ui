@@ -1,23 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Плавный «typewriter»-стрим. Сетевые дельты приходят пачками, из-за чего
- * текст в чате и карточках COMMAND/STDOUT прыгает крупными кусками.
- * Хук постепенно догоняет целевой текст через requestAnimationFrame;
- * скорость пропорциональна отставанию — при больших пачках вывод
- * ускоряется и никогда не отстаёт от реального стрима надолго.
+ * Плавный «typewriter»-стрим без утечек rAF.
+ * Когда отставание догнано (`lenRef.current === target.length`), rAF останавливается
+ * и ждёт поступления новых символов, не нагружая CPU.
  */
 export function useSmoothStreamingText(
   text: string,
   streaming: boolean,
   opts?: {
-    /** За сколько мс догонять накопившееся отставание. */
     catchUpMs?: number;
-    /** Минимум символов за кадр. */
     minStep?: number;
-    /** Минимальный интервал между обновлениями, мс (~30fps по умолчанию). */
     frameMs?: number;
-    /** Тексты длиннее лимита не анимируем посимвольно (защита от фризов). */
     hardLimit?: number;
   },
 ): string {
@@ -28,48 +22,58 @@ export function useSmoothStreamingText(
 
   const [shown, setShown] = useState(text);
   const targetRef = useRef(text);
-  targetRef.current = text;
   const lenRef = useRef(text.length);
+  const rafRef = useRef<number>(0);
+
+  targetRef.current = text;
 
   useEffect(() => {
     if (!streaming) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
       lenRef.current = targetRef.current.length;
       setShown(targetRef.current);
       return;
     }
-    let raf = 0;
+
+    if (lenRef.current === targetRef.current.length) {
+      return;
+    }
+
     let last = performance.now();
     const tick = (now: number) => {
-      raf = requestAnimationFrame(tick);
-      if (now - last < frameMs) return;
-      const dt = now - last;
-      last = now;
-      const target = targetRef.current;
-      // Очень длинные тексты применяем сразу — посимвольная анимация
-      // здесь дороже, чем польза от неё.
-      if (target.length > hardLimit) {
-        if (lenRef.current !== target.length) {
+      if (now - last >= frameMs) {
+        const dt = now - last;
+        last = now;
+        const target = targetRef.current;
+
+        if (target.length > hardLimit || lenRef.current > target.length) {
           lenRef.current = target.length;
           setShown(target);
+          rafRef.current = 0;
+          return;
         }
-        return;
+
+        if (lenRef.current < target.length) {
+          const backlog = target.length - lenRef.current;
+          const step = Math.max(minStep, Math.ceil((backlog * dt) / catchUpMs));
+          lenRef.current = Math.min(target.length, lenRef.current + step);
+          setShown(target.slice(0, lenRef.current));
+        }
+
+        if (lenRef.current === target.length) {
+          rafRef.current = 0;
+          return;
+        }
       }
-      // Текст заменился на более короткий — синхронизируемся мгновенно.
-      if (lenRef.current > target.length) {
-        lenRef.current = target.length;
-        setShown(target);
-        return;
-      }
-      if (lenRef.current < target.length) {
-        const backlog = target.length - lenRef.current;
-        const step = Math.max(minStep, Math.ceil((backlog * dt) / catchUpMs));
-        lenRef.current = Math.min(target.length, lenRef.current + step);
-        setShown(target.slice(0, lenRef.current));
-      }
+      rafRef.current = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [streaming, catchUpMs, minStep, frameMs, hardLimit]);
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [streaming, text, catchUpMs, minStep, frameMs, hardLimit]);
 
   return streaming ? shown : text;
 }

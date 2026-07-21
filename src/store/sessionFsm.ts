@@ -116,6 +116,31 @@ export class SessionFsm {
     return true;
   }
 
+  /**
+   * Ожидать перехода сессии в состояние idle после вызова abort() или запроса.
+   * Если сессия уже idle, возвращает true немедленно.
+   */
+  waitForIdle(sessionId: string, maxWaitMs = 15000): Promise<boolean> {
+    if (!this.isBusy(sessionId)) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let done = false;
+      const timer = setTimeout(() => {
+        if (!done) {
+          done = true;
+          this.clearIdleResolver(sessionId);
+          resolve(false);
+        }
+      }, maxWaitMs);
+      this.onIdle(sessionId, () => {
+        if (!done) {
+          done = true;
+          clearTimeout(timer);
+          resolve(true);
+        }
+      });
+    });
+  }
+
   /** Полный сброс (для тестов). */
   reset(): void {
     this.generations.clear();

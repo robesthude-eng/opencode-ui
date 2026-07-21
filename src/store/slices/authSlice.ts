@@ -14,6 +14,40 @@ type AuthJson = {
 
 const CUSTOM_PROVIDERS = new Set<string>();
 
+async function performAuthAction(
+  endpoint: string,
+  email: string,
+  password: string | undefined,
+  defaultError: string,
+  get: () => any,
+  set: (updater: Partial<AuthSlice>) => void,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = ((await jsonOrNull(res)) ?? {}) as AuthJson;
+    if (res.ok && data.status === "success" && data.user) {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("opencode_auth_token");
+      }
+      set({ currentUser: data.user || { email }, authChecking: false });
+      get().loadSessions().catch((e: unknown) => console.error("[Auth] loadSessions:", e));
+      get().loadModels(true).catch((e: unknown) => console.error("[Auth] loadModels:", e));
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      error: data.error || `${defaultError} (HTTP ${res.status})`,
+    };
+  } catch {
+    return { ok: false, error: "Ошибка соединения с сервером" };
+  }
+}
+
 export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
   authed: {},
   currentUser: null,
@@ -34,60 +68,11 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
     }
   },
 
-  login: async (email, password) => {
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = ((await jsonOrNull(res)) ?? {}) as AuthJson;
-      if (res.ok && data.status === "success" && data.user) {
-        // Session is HttpOnly cookie only — never store token in JS
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("opencode_auth_token");
-        }
-        set({ currentUser: data.user || { email }, authChecking: false });
-        void get().loadSessions();
-        void get().loadModels(true);
-        return { ok: true };
-      }
-      return {
-        ok: false,
-        error: data.error || `Ошибка входа (HTTP ${res.status})`,
-      };
-    } catch {
-      return { ok: false, error: "Ошибка соединения с сервером" };
-    }
-  },
+  login: (email, password) =>
+    performAuthAction("/api/auth/login", email, password, "Ошибка входа", get, set),
 
-  register: async (email, password) => {
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = ((await jsonOrNull(res)) ?? {}) as AuthJson;
-      if (res.ok && data.status === "success" && data.user) {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("opencode_auth_token");
-        }
-        set({ currentUser: data.user || { email }, authChecking: false });
-        void get().loadSessions();
-        void get().loadModels(true);
-        return { ok: true };
-      }
-      return {
-        ok: false,
-        error: data.error || `Ошибка регистрации (HTTP ${res.status})`,
-      };
-    } catch {
-      return { ok: false, error: "Ошибка соединения с сервером" };
-    }
-  },
+  register: (email, password) =>
+    performAuthAction("/api/auth/register", email, password, "Ошибка регистрации", get, set),
 
   logout: async () => {
     try {

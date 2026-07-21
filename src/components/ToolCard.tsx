@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { api } from "../api/client";
 import type { ToolPart, ToolState } from "../api/types";
 import { useSmoothStreamingText } from "../lib/useSmoothText";
+import { sessionFsm } from "../store/sessionFsm";
 import { useStore } from "../store/useStore";
 import { toolIcon } from "../utils/toolUtils";
 
@@ -265,7 +266,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
       try {
         await api.abortSession(sid);
         // маленькая пауза, чтобы сервер успел записать abort в БД��
-        await new Promise((r) => setTimeout(r, 200));
+        await sessionFsm.waitForIdle(sid, 3000);
       } catch (e) {
         console.warn("[QuestionCard] abortSession failed (ok, продолжаем):", e);
       }

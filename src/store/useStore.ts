@@ -1,3 +1,4 @@
+import * as idb from "idb-keyval";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { createAuthSlice } from "./slices/authSlice";
@@ -14,31 +15,33 @@ export type { ModelEntry, State };
  * Only UI prefs are persisted (theme, sidebar, last model) — never auth tokens.
  */
 function makeStorage() {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || typeof indexedDB === "undefined") {
     return createJSONStorage(() => localStorage);
   }
-  try {
-    // Lazy dynamic shape compatible with zustand StateStorage
-    // idb-keyval is sync-ish via promises; zustand persist supports async storage
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return createJSONStorage(() => ({
-      getItem: async (name: string) => {
-        const { get } = await import("idb-keyval");
-        const v = await get(name);
-        return (v as string) ?? null;
-      },
-      setItem: async (name: string, value: string) => {
-        const { set } = await import("idb-keyval");
-        await set(name, value);
-      },
-      removeItem: async (name: string) => {
-        const { del } = await import("idb-keyval");
-        await del(name);
-      },
-    }));
-  } catch {
-    return createJSONStorage(() => localStorage);
-  }
+  return createJSONStorage(() => ({
+    getItem: async (name: string): Promise<string | null> => {
+      try {
+        const v = await idb.get<string>(name);
+        return v ?? null;
+      } catch {
+        return localStorage.getItem(name);
+      }
+    },
+    setItem: async (name: string, value: string): Promise<void> => {
+      try {
+        await idb.set(name, value);
+      } catch {
+        localStorage.setItem(name, value);
+      }
+    },
+    removeItem: async (name: string): Promise<void> => {
+      try {
+        await idb.del(name);
+      } catch {
+        localStorage.removeItem(name);
+      }
+    },
+  }));
 }
 
 export const useStore = create<State>()(

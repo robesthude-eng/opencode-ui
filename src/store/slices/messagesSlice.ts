@@ -129,57 +129,14 @@ export function assistantFinishState(msgs: Message[]) {
 // в максимум ~60 обновлений стора в секунду (раз в DELTA_FLUSH_MS) — иначе
 // каждый токен заставляет React пересчитывать всё дерево сообщений.
 const DELTA_FLUSH_MS = 16;
-type DeltaSet = (
-  updater: (s: { messages: Record<string, Message[]> }) => {
-    messages: Record<string, Message[]>;
-  },
-) => void;
-const deltaBuffer = new Map<
-  string,
-  {
-    sid: string;
-    messageID: string;
-    partID: string;
-    field: string;
-    text: string;
-  }
->();
-let deltaFlushTimer: ReturnType<typeof setTimeout> | null = null;
-let deltaFlushSet: DeltaSet | null = null;
 
+let __activeStoreFlush: (() => void) | null = null;
 /**
  * Досылает накопленные стрим-дельты одним обновлением стора.
  * Экспортируется для тестов (там нет ожидания 16мс-таймера).
  */
 export function flushStreamDeltas() {
-  if (deltaFlushTimer) {
-    clearTimeout(deltaFlushTimer);
-    deltaFlushTimer = null;
-  }
-  if (deltaBuffer.size === 0) return;
-  const setFn = deltaFlushSet;
-  if (!setFn) {
-    deltaBuffer.clear();
-    return;
-  }
-  const pending = [...deltaBuffer.values()];
-  deltaBuffer.clear();
-  setFn((s) => {
-    let messages = s.messages;
-    for (const d of pending) {
-      messages = {
-        ...messages,
-        [d.sid]: patchPartDelta(
-          messages[d.sid] ?? [],
-          d.messageID,
-          d.partID,
-          d.field,
-          d.text,
-        ),
-      };
-    }
-    return { messages };
-  });
+  __activeStoreFlush?.();
 }
 
 /**
@@ -197,20 +154,52 @@ function newLocalMessageId(): string {
   return `local_${uuid}`;
 }
 
-export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
-  messages: {},
-  attachments: [],
-  failedSendText: null,
+export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => {
+  __activeStoreFlush = () => get().flushStreamDeltas();
+  return {
+    messages: {},
+    attachments: [],
+    failedSendText: null,
+    _deltaBuffer: new Map(),
+    _flushTimer: null,
 
-  addAttachments: (files) =>
-    set((s) => ({ attachments: [...s.attachments, ...files] })),
+    flushStreamDeltas: () => {
+      const timer = get()._flushTimer;
+      if (timer) {
+        clearTimeout(timer);
+        set({ _flushTimer: null });
+      }
+      const buf = get()._deltaBuffer;
+      if (!buf || buf.size === 0) return;
+      const pending = [...buf.values()];
+      buf.clear();
+      set((s) => {
+        let messages = s.messages;
+        for (const d of pending) {
+          messages = {
+            ...messages,
+            [d.sid]: patchPartDelta(
+              messages[d.sid] ?? [],
+              d.messageID,
+              d.partID,
+              d.field,
+              d.text,
+            ),
+          };
+        }
+        return { messages };
+      });
+    },
 
-  removeAttachment: (name) =>
-    set((s) => ({ attachments: s.attachments.filter((a) => a.name !== name) })),
+    addAttachments: (files) =>
+      set((s) => ({ attachments: [...s.attachments, ...files] })),
 
-  clearAttachments: () => set({ attachments: [] }),
+    removeAttachment: (name) =>
+      set((s) => ({ attachments: s.attachments.filter((a) => a.name !== name) })),
 
-  clearFailedSendText: () => set({ failedSendText: null }),
+    clearAttachments: () => set({ attachments: [] }),
+
+    clearFailedSendText: () => set({ failedSendText: null }),
 
   send: async (text) => {
     const { currentID, newSession, selectedModel } = get();
@@ -553,7 +542,7 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
     // Релиз 3: любое не-дельтовое событие сначала досылает буфер дельт,
     // чтобы не нарушать порядок применения (например, message.part.updated
     // затирает поле целиком и должен видеть уже применённые дельты).
-    if (e.type !== "message.part.delta") flushStreamDeltas();
+    if (e.type !== "message.part.delta") get().flushStreamDeltas();
     const p = e.properties;
     const sid =
       p.sessionID ||
@@ -731,15 +720,14 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         if (!sid || !messageID || !partID || !field || delta === undefined) {
           break;
         }
-        deltaFlushSet = set;
         if (typeof delta === "string") {
-          // Релиз 3: строковые дельты копим и применяем пачкой раз в 16мс.
           const key = `${sid}\u0000${messageID}\u0000${partID}\u0000${field}`;
-          const buffered = deltaBuffer.get(key);
+          const buf = get()._deltaBuffer;
+          const buffered = buf.get(key);
           if (buffered) {
             buffered.text += delta;
           } else {
-            deltaBuffer.set(key, {
+            buf.set(key, {
               sid,
               messageID,
               partID,
@@ -747,13 +735,16 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
               text: delta,
             });
           }
-          if (!deltaFlushTimer) {
-            deltaFlushTimer = setTimeout(flushStreamDeltas, DELTA_FLUSH_MS);
+          if (!get()._flushTimer) {
+            const timer = setTimeout(() => {
+              get().flushStreamDeltas();
+            }, DELTA_FLUSH_MS);
+            set({ _flushTimer: timer });
           }
           break;
         }
         // Не-строковая дельта — досылаем буфер и применяем сразу (порядок!).
-        flushStreamDeltas();
+        get().flushStreamDeltas();
         set((s) => {
           const updated = patchPartDelta(
             s.messages[sid] ?? [],
@@ -831,4 +822,5 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => ({
         break;
     }
   },
-});
+};
+};

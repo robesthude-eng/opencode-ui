@@ -236,52 +236,7 @@ export default function Sidebar() {
                     }}
                     title="Удалить чат"
                     aria-label={`Удалить чат ${displayTitle}`}
-                    style={{
-                      flexShrink: 0,
-                      alignSelf: "center",
-                      width: 32,
-                      height: 32,
-                      marginRight: 4,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderRadius: 8,
-                      background: "transparent",
-                      color: "currentColor",
-                      opacity: 0.45,
-                      border: "none",
-                      cursor: "pointer",
-                      padding: 0,
-                      transition:
-                        "background 160ms ease, color 160ms ease, opacity 160ms ease, transform 100ms ease",
-                    }}
-                    onPointerEnter={(e) => {
-                      e.currentTarget.style.background =
-                        "rgba(239, 68, 68, 0.12)";
-                      e.currentTarget.style.color = "#ef4444";
-                      e.currentTarget.style.opacity = "1";
-                    }}
-                    onPointerLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "currentColor";
-                      e.currentTarget.style.opacity = "0.45";
-                    }}
-                    onPointerDown={(e) => {
-                      e.currentTarget.style.transform = "scale(0.88)";
-                      e.currentTarget.style.background =
-                        "rgba(239, 68, 68, 0.18)";
-                      e.currentTarget.style.color = "#ef4444";
-                      e.currentTarget.style.opacity = "1";
-                    }}
-                    onPointerUp={(e) => {
-                      e.currentTarget.style.transform = "scale(1)";
-                    }}
-                    onPointerCancel={(e) => {
-                      e.currentTarget.style.transform = "scale(1)";
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "currentColor";
-                      e.currentTarget.style.opacity = "0.45";
-                    }}
+                    className="mr-1 inline-flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-lg border-none bg-transparent p-0 text-current opacity-45 transition-all duration-150 hover:bg-red-500/12 hover:text-red-500 hover:opacity-100 active:scale-90"
                   >
                     <svg
                       width="16"
