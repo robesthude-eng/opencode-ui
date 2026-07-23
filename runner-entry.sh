@@ -19,17 +19,91 @@ ln -sfn /session/.config_opencode "$HOME/.config/opencode"
 AUTH_FILE="/session/.opencode_data/auth.json"
 CONFIG_FILE="/session/.config_opencode/opencode.jsonc"
 
-if [ -n "$OPENCODE_ZEN_API_KEY" ]; then
-  cat > "$AUTH_FILE" <<AUTH_EOF
+# Build auth.json with ALL available provider keys (from env vars forwarded by runner.mjs).
+# OpenCode reads auth.json to authenticate providers. Without this, user-connected
+# keys (Google, Z.ai, Anthropic, etc.) are invisible to the runner's OpenCode instance.
 {
-  "opencode": {
-    "type": "api",
-    "key": "$OPENCODE_ZEN_API_KEY"
-  }
-}
-AUTH_EOF
-else
-  echo "WARNING: OPENCODE_ZEN_API_KEY not set — no models will be available."
+  echo "{"
+  FIRST=1
+
+  if [ -n "$OPENCODE_ZEN_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "opencode": { "type": "api", "key": "%s" }' "$OPENCODE_ZEN_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$GOOGLE_GENERATIVE_AI_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "google": { "type": "api", "key": "%s" }' "$GOOGLE_GENERATIVE_AI_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$ZAI_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "zai": { "type": "api", "key": "%s" }' "$ZAI_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$ANTHROPIC_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "anthropic": { "type": "api", "key": "%s" }' "$ANTHROPIC_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$OPENAI_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "openai": { "type": "api", "key": "%s" }' "$OPENAI_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$XAI_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "xai": { "type": "api", "key": "%s" }' "$XAI_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$DEEPSEEK_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "deepseek": { "type": "api", "key": "%s" }' "$DEEPSEEK_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$GROQ_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "groq": { "type": "api", "key": "%s" }' "$GROQ_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$MISTRAL_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "mistral": { "type": "api", "key": "%s" }' "$MISTRAL_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$OPENROUTER_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "openrouter": { "type": "api", "key": "%s" }' "$OPENROUTER_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$TOGETHER_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "together": { "type": "api", "key": "%s" }' "$TOGETHER_API_KEY"
+    FIRST=0
+  fi
+
+  if [ -n "$COHERE_API_KEY" ]; then
+    [ "$FIRST" = "0" ] && echo ","
+    printf '  "cohere": { "type": "api", "key": "%s" }' "$COHERE_API_KEY"
+    FIRST=0
+  fi
+
+  echo ""
+  echo "}"
+} > "$AUTH_FILE"
+
+if [ "$FIRST" = "1" ]; then
+  echo "WARNING: No API keys available — no models will work."
 fi
 
 cat > "$CONFIG_FILE" <<CONFIG_EOF
