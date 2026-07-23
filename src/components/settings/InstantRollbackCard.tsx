@@ -73,7 +73,7 @@ export function InstantRollbackCard({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-6 text-[10px] shrink-0"
+                    className="h-6 text-[11px] shrink-0"
                     disabled={!!instantStatus}
                     onClick={() => {
                       const currentIndex = distSnapshots.findIndex(

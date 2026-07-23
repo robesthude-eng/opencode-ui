@@ -157,7 +157,7 @@ test.describe("2. Sidebar", () => {
   });
 
   test("2.2 Settings button opens panel", async ({ page }) => {
-    await page.getByRole("button", { name: /Settings/i }).click();
+    await page.getByRole("button", { name: /Settings|Настройки/i }).click();
     await expect(
       page
         .locator("text=/Self-Improvement|self-improve|Self-improve/i")
@@ -235,13 +235,17 @@ test.describe("2. Sidebar", () => {
   });
 
   test("2.8 Hide sidebar (desktop)", async ({ page }) => {
-    const hideBtn = page.locator('button[title="Hide sidebar"]').first();
+    const hideBtn = page
+      .locator('button[title="Скрыть боковую панель"]')
+      .first();
     if (await hideBtn.isVisible().catch(() => false)) {
       await hideBtn.click();
       await page.waitForTimeout(500);
       // A "show sidebar" button should appear (title may be "Show sidebar")
       const showBtn = page
-        .locator('button[title="Show sidebar"], button[title="Show chats"]')
+        .locator(
+          'button[title="Показать боковую панель"], button[title="Show chats"]',
+        )
         .first();
       await expect(showBtn).toBeVisible({ timeout: 2000 });
       // Click to show again
@@ -271,7 +275,7 @@ test.describe("3. TopBar", () => {
   });
 
   test("3.1 Workspace toggle opens workspace panel", async ({ page }) => {
-    const wsBtn = page.locator('button[title="Toggle workspace"]').first();
+    const wsBtn = page.locator('button[title="Файлы проекта"]').first();
     await wsBtn.click();
     await page.waitForTimeout(300);
     // Workspace panel is now labelled "Files" in the header
@@ -371,7 +375,7 @@ test.describe("5. Composer", () => {
   });
 
   test("5.2 Send button disabled when empty", async ({ page }) => {
-    const sendBtn = page.locator('button[title="Send"]').first();
+    const sendBtn = page.locator('button[title="Отправить"]').first();
     // Should be disabled when no text and no attachments
     await expect(sendBtn).toBeDisabled();
   });
@@ -379,7 +383,7 @@ test.describe("5. Composer", () => {
   test("5.3 Send button enabled when text entered", async ({ page }) => {
     const textarea = page.locator("textarea").first();
     await textarea.fill("Hello world");
-    const sendBtn = page.locator('button[title="Send"]').first();
+    const sendBtn = page.locator('button[title="Отправить"]').first();
     await expect(sendBtn).toBeEnabled();
   });
 
@@ -406,7 +410,7 @@ test.describe("5. Composer", () => {
   test("5.6 Attach button opens file picker (click)", async ({ page }) => {
     // Attach button in Composer — title may be "Attach file" (singular) in the current build
     const attachBtn = page
-      .locator('button[title="Attach file"], button[title="Attach files"]')
+      .locator('button[title="Прикрепить файл"], button[title="Attach files"]')
       .first();
     await expect(attachBtn).toBeVisible();
     await expect(attachBtn).toBeEnabled();
@@ -438,7 +442,7 @@ test.describe("6. Workspace panel", () => {
   test.beforeEach(async ({ page }) => {
     await login(page, ADMIN);
     // Open workspace
-    await page.locator('button[title="Toggle workspace"]').first().click();
+    await page.locator('button[title="Файлы проекта"]').first().click();
     await page.waitForTimeout(500);
   });
 
@@ -447,7 +451,7 @@ test.describe("6. Workspace panel", () => {
   });
 
   test("6.2 Refresh button visible and clickable", async ({ page }) => {
-    const refreshBtn = page.locator('button[title="Refresh now"]').first();
+    const refreshBtn = page.locator('button[title="Обновить"]').first();
     await expect(refreshBtn).toBeVisible();
     await refreshBtn.click();
     await page.waitForTimeout(500);
@@ -456,7 +460,7 @@ test.describe("6. Workspace panel", () => {
   test("6.3 Close button hides panel", async ({ page }) => {
     // The Workspace panel header is now labelled "Files" and doesn't have a
     // dedicated close button. Toggle it closed via the TopBar toggle button instead.
-    const wsToggle = page.locator('button[title="Toggle workspace"]').first();
+    const wsToggle = page.locator('button[title="Файлы проекта"]').first();
     await expect(page.locator("text=/^Files$/").first()).toBeVisible();
     await wsToggle.click();
     await page.waitForTimeout(500);
@@ -468,7 +472,7 @@ test.describe("6. Workspace panel", () => {
   });
 
   test("6.4 Search filter input", async ({ page }) => {
-    const search = page.locator('input[placeholder*="Filter"]').first();
+    const search = page.locator('input[placeholder*="Фильтр"]').first();
     await expect(search).toBeVisible();
     await search.fill("test");
     await expect(search).toHaveValue("test");
@@ -477,7 +481,7 @@ test.describe("6. Workspace panel", () => {
   test("6.5 Filter files input visible", async ({ page }) => {
     // "Upload folder" button was removed; the Files panel always shows the
     // filter input at the top.
-    const filterInput = page.locator('input[placeholder*="Filter"]').first();
+    const filterInput = page.locator('input[placeholder*="Фильтр"]').first();
     await expect(filterInput).toBeVisible();
   });
 
@@ -495,7 +499,7 @@ test.describe("6. Workspace panel", () => {
 test.describe("7. Settings panel", () => {
   test.beforeEach(async ({ page }) => {
     await login(page, ADMIN);
-    await page.getByRole("button", { name: /Settings/i }).click();
+    await page.getByRole("button", { name: /Settings|Настройки/i }).click();
     await page.waitForTimeout(500);
   });
 
@@ -588,7 +592,7 @@ test.describe("7. Settings panel", () => {
     // Find close button (X)
     const closeBtn = page
       .locator(
-        'button[title="Close"], button:has-text("Close"), [aria-label="Close"]',
+        'button[title="Закрыть"], button[title="Close"], [aria-label="Закрыть"], [aria-label="Close"]',
       )
       .first();
     if (await closeBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
@@ -609,7 +613,7 @@ test.describe("8. Settings — non-admin restrictions", () => {
       password: "nonadmin123",
     };
     await register(page, newUser);
-    await page.getByRole("button", { name: /Settings/i }).click();
+    await page.getByRole("button", { name: /Settings|Настройки/i }).click();
     await page.waitForTimeout(500);
   });
 
@@ -687,12 +691,12 @@ test.describe("10. Mobile responsive", () => {
 
   test("10.1 Sidebar hidden by default on mobile", async ({ page }) => {
     // On mobile, sidebar is hidden behind a hamburger
-    const menuBtn = page.locator('button[title="Menu"]').first();
+    const menuBtn = page.locator('button[title="Меню"]').first();
     await expect(menuBtn).toBeVisible();
   });
 
   test("10.2 Open sidebar via hamburger", async ({ page }) => {
-    const menuBtn = page.locator('button[title="Menu"]').first();
+    const menuBtn = page.locator('button[title="Меню"]').first();
     // Force-click in case something transient overlays the button
     await menuBtn.click({ force: true });
     await page.waitForTimeout(1000);
@@ -714,7 +718,7 @@ test.describe("10. Mobile responsive", () => {
   test("10.3 Backdrop closes sidebar (via tap on backdrop)", async ({
     page,
   }) => {
-    await page.locator('button[title="Menu"]').first().click();
+    await page.locator('button[title="Меню"]').first().click();
     await page.waitForTimeout(500);
     // The sidebar backdrop is a fixed div — use evaluate to click it (since sidebar may intercept)
     await page.evaluate(() => {
@@ -725,7 +729,7 @@ test.describe("10. Mobile responsive", () => {
     });
     await page.waitForTimeout(500);
     // Sidebar should be hidden again — menu button should still be visible
-    await expect(page.locator('button[title="Menu"]').first()).toBeVisible();
+    await expect(page.locator('button[title="Меню"]').first()).toBeVisible();
   });
 });
 
@@ -784,7 +788,7 @@ test.describe("11. Network resilience", () => {
     await page.waitForTimeout(300);
     await page.evaluate(() => {
       const btn = document.querySelector(
-        'button[title="Send"]',
+        'button[title="Отправить"]',
       ) as HTMLButtonElement;
       if (btn) btn.click();
     });

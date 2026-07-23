@@ -89,7 +89,8 @@ const SUGGESTIONS = [
   },
   {
     title: "Объяснить код",
-    prompt: "Объясни, как работает этот код: def quicksort(arr): ...",
+    prompt:
+      "Объясни, как работает этот код:\n\ndef quicksort(arr):\n    if len(arr) <= 1:\n        return arr\n    pivot = arr[len(arr) // 2]\n    left = [x for x in arr if x < pivot]\n    mid = [x for x in arr if x == pivot]\n    right = [x for x in arr if x > pivot]\n    return quicksort(left) + mid + quicksort(right)",
     icon: "📖",
   },
   {
@@ -352,6 +353,7 @@ export default function ChatView() {
           className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-card border border-border shadow-lg p-2 hover:bg-muted transition"
           onClick={scrollToBottom}
           title="К последнему сообщению"
+          aria-label="К последнему сообщению"
         >
           <ChevronDownIcon size={18} />
         </button>

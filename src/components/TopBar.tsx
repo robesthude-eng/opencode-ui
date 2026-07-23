@@ -35,6 +35,8 @@ export default function TopBar() {
   useEffect(() => {
     if (selfImproveEnabled && currentID === selfImproveSessionId) {
       const id = setInterval(() => {
+        // Не опрашиваем сервер из фоновой вкладки — бережём сеть и батарею.
+        if (document.visibilityState !== "visible") return;
         syncSelfImprove().catch(() => {});
       }, 5000);
       return () => clearInterval(id);
@@ -49,7 +51,8 @@ export default function TopBar() {
           size="icon"
           className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
           onClick={() => setSidebarOpen(true)}
-          title="Menu"
+          title="Меню"
+          aria-label="Открыть меню"
         >
           <MenuIcon />
         </Button>
@@ -59,8 +62,16 @@ export default function TopBar() {
           size="icon"
           className="hidden md:flex h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
           onClick={toggleSidebar}
-          title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
-          aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+          title={
+            sidebarCollapsed
+              ? "Показать боковую панель"
+              : "Скрыть боковую панель"
+          }
+          aria-label={
+            sidebarCollapsed
+              ? "Показать боковую панель"
+              : "Скрыть боковую панель"
+          }
         >
           {sidebarCollapsed ? (
             <SidebarLeftExpandIcon size={16} />
@@ -74,7 +85,7 @@ export default function TopBar() {
             <ModelSelector />
           </div>
           {selfImproveEnabled && currentID === selfImproveSessionId && (
-            <div className="hidden items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1 text-[10px] md:flex">
+            <div className="hidden items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1 text-[11px] md:flex">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
                   testStatus === "running"
@@ -105,8 +116,8 @@ export default function TopBar() {
           className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
           onClick={() => setShowTerminal(true)}
           disabled={!sessionReady}
-          title="Terminal"
-          aria-label="Open terminal"
+          title="Терминал"
+          aria-label="Открыть терминал"
         >
           <BashIcon size={16} />
         </Button>
@@ -117,8 +128,8 @@ export default function TopBar() {
           className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
           onClick={() => setShowPreview(true)}
           disabled={!sessionReady}
-          title="Preview"
-          aria-label="Open preview"
+          title="Предпросмотр"
+          aria-label="Открыть предпросмотр"
         >
           <PreviewIcon size={16} />
         </Button>
@@ -128,8 +139,8 @@ export default function TopBar() {
           size="icon"
           className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
           onClick={() => setWorkspaceOpen(!workspaceOpen)}
-          title="Toggle workspace"
-          aria-label="Toggle workspace"
+          title="Файлы проекта"
+          aria-label="Показать или скрыть файлы проекта"
         >
           {workspaceOpen ? (
             <WorkspaceOpenIcon size={16} />
@@ -140,7 +151,7 @@ export default function TopBar() {
       </header>
 
       <PanelModal
-        title="Terminal"
+        title="Терминал"
         open={showTerminal}
         onClose={() => setShowTerminal(false)}
       >
@@ -150,7 +161,7 @@ export default function TopBar() {
       </PanelModal>
 
       <PanelModal
-        title="Preview"
+        title="Предпросмотр"
         open={showPreview}
         onClose={() => setShowPreview(false)}
       >

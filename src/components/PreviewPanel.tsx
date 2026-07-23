@@ -44,7 +44,8 @@ export function PreviewPanel({ url }: PreviewPanelProps) {
             size="icon"
             className="h-7 w-7"
             onClick={handleRefresh}
-            title="Refresh"
+            title="Обновить"
+            aria-label="Обновить"
           >
             <RefreshCw
               size={14}
@@ -56,7 +57,8 @@ export function PreviewPanel({ url }: PreviewPanelProps) {
             size="icon"
             className="h-7 w-7"
             onClick={handleOpenExternal}
-            title="Open in new tab"
+            title="Открыть в новой вкладке"
+            aria-label="Открыть в новой вкладке"
           >
             <ExternalLink size={14} />
           </Button>
@@ -66,14 +68,14 @@ export function PreviewPanel({ url }: PreviewPanelProps) {
         {/* Placeholder if url is missing */}
         {!url && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-            No preview URL available
+            Нет URL для предпросмотра
           </div>
         )}
         {error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-red-500 bg-background/80">
             <span>{error}</span>
             <Button size="sm" variant="outline" onClick={handleRefresh}>
-              Retry
+              Повторить
             </Button>
           </div>
         )}
@@ -82,7 +84,7 @@ export function PreviewPanel({ url }: PreviewPanelProps) {
             key={key}
             src={url}
             className="h-full w-full border-none"
-            title="Preview"
+            title="Предпросмотр"
             sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
             onLoad={() => {
               setLoading(false);

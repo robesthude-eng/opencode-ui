@@ -74,12 +74,12 @@ const SAFE_MD_COMPONENTS = {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 px-1.5 py-0.5 rounded bg-background/50 border border-border">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/60 px-1.5 py-0.5 rounded bg-background/50 border border-border">
               {language}
             </span>
             <CopyButton
               text={codeText || String(children)}
-              title="Copy code"
+              title="Копировать код"
               className="h-6 w-6"
             />
           </div>

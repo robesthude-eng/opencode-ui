@@ -293,7 +293,7 @@ function ConnectionBanner({ onRetry }: { onRetry: () => void }) {
     >
       <span className="inline-flex items-center gap-2">
         <span className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
-        Can&apos;t connect to the OpenCode server. Start it with{" "}
+        Нет соединения с сервером OpenCode. Запустите его командой{" "}
         <code className="rounded bg-background/40 px-1.5 py-0.5 font-mono text-xs">
           opencode serve
         </code>
@@ -304,7 +304,7 @@ function ConnectionBanner({ onRetry }: { onRetry: () => void }) {
         className="h-7 border-amber-500/40 text-amber-100 hover:bg-amber-500/15"
         onClick={onRetry}
       >
-        Retry
+        Повторить
       </Button>
     </div>
   );

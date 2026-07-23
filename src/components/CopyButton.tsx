@@ -51,7 +51,7 @@ export default function CopyButton({
         className,
       )}
       onClick={handleCopy}
-      title={copied ? "Copied!" : (title ?? "Copy")}
+      title={copied ? "Скопировано!" : (title ?? "Копировать")}
     >
       {copied ? (
         <Check className="h-3.5 w-3.5" />

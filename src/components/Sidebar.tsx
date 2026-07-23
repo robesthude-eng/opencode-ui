@@ -103,13 +103,14 @@ export default function Sidebar() {
               }}
             >
               <NewChatIcon />
-              <span>New chat</span>
+              <span>Новый чат</span>
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={close}
-              title="Close"
+              title="Закрыть"
+              aria-label="Закрыть меню"
               className="md:hidden"
             >
               <CloseIcon />
@@ -144,7 +145,7 @@ export default function Sidebar() {
           >
             {sessions.length === 0 && (
               <p className="px-3 py-8 text-sm text-muted-foreground text-center">
-                No conversations yet
+                Пока нет диалогов
               </p>
             )}
             {sessions.map((s) => {
@@ -154,7 +155,7 @@ export default function Sidebar() {
               const displayTitle =
                 selfImproveEnabled && s.id === selfImproveSessionId
                   ? "🤖 Самоулучшение"
-                  : s.title || "New chat";
+                  : s.title || "Новый чат";
               const sStatus =
                 typeof status[s.id] === "string"
                   ? status[s.id]
@@ -210,7 +211,7 @@ export default function Sidebar() {
                           width: 6,
                           height: 6,
                           borderRadius: "50%",
-                          background: "#10b981",
+                          background: "var(--color-success)",
                           flexShrink: 0,
                         }}
                       />
@@ -229,7 +230,7 @@ export default function Sidebar() {
                   </button>
                   {confirmDeleteId === s.id ? (
                     <div className="flex items-center gap-1 bg-red-500/10 rounded-lg mr-1 self-center py-0.5 border border-red-500/20">
-                      <span className="text-[10px] font-semibold text-red-500/90 pl-1.5 pr-0.5">
+                      <span className="text-[11px] font-semibold text-red-500/90 pl-1.5 pr-0.5">
                         Удалить?
                       </span>
                       <button
@@ -322,11 +323,11 @@ export default function Sidebar() {
               onClick={() => setSettingsOpen(true)}
             >
               <SettingsIcon />
-              <span>Settings</span>
+              <span>Настройки</span>
               {authedCount > 0 && (
                 <Badge
                   variant="secondary"
-                  className="ml-auto h-5 px-1.5 text-[10px]"
+                  className="ml-auto h-5 px-1.5 text-[11px]"
                 >
                   {authedCount}
                 </Badge>
@@ -336,6 +337,7 @@ export default function Sidebar() {
               variant="ghost"
               size="icon"
               data-testid="theme-toggle"
+              aria-label="Переключить тему"
               onClick={toggleTheme}
               title={`Тема: ${
                 theme === "dark"

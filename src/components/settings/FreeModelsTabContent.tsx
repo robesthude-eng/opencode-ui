@@ -80,7 +80,7 @@ export function FreeModelsTabContent() {
         <div className="flex gap-2 flex-wrap items-center">
           <Input
             type="password"
-            placeholder="Paste your OpenCode Zen API key"
+            placeholder="Вставьте API-ключ OpenCode Zen"
             value={values[ZEN_PROVIDER_ID] ?? ""}
             onChange={(e) => setValue(ZEN_PROVIDER_ID, e.target.value)}
             onKeyDown={(e) =>
@@ -134,11 +134,11 @@ export function FreeModelsTabContent() {
             className="rounded-xl border border-border bg-card p-3"
           >
             <div className="flex items-center gap-2 text-sm font-medium">
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                 {m.badge}
               </span>
               <span className="truncate">{m.name}</span>
-              <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">
+              <span className="ml-auto text-[11px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">
                 FREE
               </span>
             </div>

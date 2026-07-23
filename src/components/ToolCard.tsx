@@ -333,7 +333,7 @@ function QuestionCard({ part }: { part: ToolPart }) {
             )}
           >
             {q.header && (
-              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-300/90">
                 {q.header}
               </div>
             )}
@@ -463,15 +463,15 @@ function CodeBlock({
           background: "color-mix(in srgb, var(--color-card) 100%, white 8%)",
         }}
       >
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
           {label}
         </span>
         <button
           type="button"
           onClick={copy}
           className="p-1 rounded hover:bg-accent/60 text-muted-foreground/60 hover:text-foreground transition"
-          title="Copy"
-          aria-label="Copy"
+          title="Копировать"
+          aria-label="Копировать"
         >
           {copied ? (
             <Check className="h-3 w-3 text-emerald-500" />

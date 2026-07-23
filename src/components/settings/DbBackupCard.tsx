@@ -75,7 +75,7 @@ export function DbBackupCard({
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-5 text-[10px] shrink-0"
+                      className="h-5 text-[11px] shrink-0"
                       disabled={!!restoreStatus}
                       onClick={() => handleRestoreBackup(b.name)}
                     >

@@ -56,7 +56,7 @@ export default function ModelSelector() {
         <span className="flex items-center gap-2">
           {m.modelName}
           {m.free && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">
+            <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">
               FREE
             </span>
           )}
@@ -74,10 +74,10 @@ export default function ModelSelector() {
       >
         <span className="flex items-center gap-2 min-w-0">
           <span className="truncate">
-            {current?.modelName ?? "Select model"}
+            {current?.modelName ?? "Выбрать модель"}
           </span>
           {current?.free && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold shrink-0">
+            <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold shrink-0">
               FREE
             </span>
           )}

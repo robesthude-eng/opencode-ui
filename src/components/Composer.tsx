@@ -27,7 +27,7 @@ export default function Composer() {
   const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [_uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
     {},
   );
   const [_uploadedPaths, setUploadedPaths] = useState<Record<string, string>>(
@@ -172,6 +172,7 @@ export default function Composer() {
                   <button
                     type="button"
                     className="hover:text-destructive"
+                    aria-label="Убрать сообщение из очереди"
                     onClick={() =>
                       setQueued((prev) => prev.filter((_, j) => j !== i))
                     }
@@ -194,10 +195,27 @@ export default function Composer() {
                   <button
                     type="button"
                     className="hover:text-destructive"
+                    aria-label={`Убрать файл ${att.name}`}
                     onClick={() => removeAttachment(att.name)}
                   >
                     <CloseIcon size={12} />
                   </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* UX-fix: видимый прогресс загрузки файлов */}
+          {Object.keys(uploadProgress).length > 0 && (
+            <div className="flex flex-wrap gap-2 px-2 pb-2">
+              {Object.entries(uploadProgress).map(([name, pct]) => (
+                <div
+                  key={name}
+                  className="flex items-center gap-2 rounded-full bg-muted border border-border px-2 py-1 text-xs text-muted-foreground"
+                >
+                  <span className="animate-pulse">⬆</span>
+                  <span className="truncate max-w-[120px]">{name}</span>
+                  <span className="tabular-nums">{pct}%</span>
                 </div>
               ))}
             </div>
@@ -211,7 +229,8 @@ export default function Composer() {
               size="icon"
               className="h-9 w-9 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
               onClick={() => fileInputRef.current?.click()}
-              title="Attach file"
+              title="Прикрепить файл"
+              aria-label="Прикрепить файл"
             >
               <PaperclipIcon size={18} />
             </Button>
@@ -226,6 +245,7 @@ export default function Composer() {
               ref={textareaRef}
               rows={1}
               placeholder="Что хотите сделать?"
+              aria-label="Сообщение ассистенту"
               className="flex-1 min-h-[40px] max-h-[200px] bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 text-foreground placeholder:text-muted-foreground resize-none py-2 text-[15px] leading-relaxed"
               value={text}
               onChange={(e) => {
@@ -247,7 +267,8 @@ export default function Composer() {
                   size="icon"
                   className="h-9 w-9 shrink-0 rounded-full"
                   onClick={() => abort()}
-                  title="Stop"
+                  title="Остановить генерацию"
+                  aria-label="Остановить генерацию"
                 >
                   <StopIcon size={18} />
                 </Button>
@@ -263,7 +284,8 @@ export default function Composer() {
                   )}
                   onClick={submit}
                   disabled={!canSend}
-                  title="Send"
+                  title="Отправить"
+                  aria-label="Отправить сообщение"
                 >
                   <SendIcon size={18} />
                 </Button>

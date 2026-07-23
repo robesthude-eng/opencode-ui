@@ -1,12 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { useStore } from "../store/useStore";
+
+// OpenCode 1.18+ expects "once" | "always" | "reject" for permission responses
+// (older versions used "allow" | "deny"). We send the new enum; the server
+// validates the body strictly, so anything else is a 400.
+type PermissionResponse = "once" | "always" | "reject";
 
 function fmt(value: unknown): string {
   if (value == null) return "";
@@ -18,78 +17,150 @@ function fmt(value: unknown): string {
   }
 }
 
-// OpenCode 1.18+ expects "once" | "always" | "reject" for permission responses
-// (older versions used "allow" | "deny"). We send the new enum; the server
-// validates the body strictly, so anything else is a 400.
-type PermissionResponse = "once" | "always" | "reject";
+type ToolPresentation = {
+  /** Человечное описание — отвечает, чему именно даётся разрешение. */
+  action: string;
+  /** Главная деталь (команда, путь, URL) из input. */
+  detail?: string;
+};
 
+function presentTool(tool: string, input: unknown): ToolPresentation {
+  const t = tool.toLowerCase();
+  const obj = (input && typeof input === "object" ? input : {}) as Record<
+    string,
+    unknown
+  >;
+  const str = (k: string) =>
+    typeof obj[k] === "string" ? (obj[k] as string) : undefined;
+
+  if (["bash", "shell", "cmd"].includes(t)) {
+    return {
+      action: "Выполнить команду в терминале песочницы этой сессии:",
+      detail: str("command") ?? str("cmd"),
+    };
+  }
+  if (t === "write") {
+    return {
+      action: "Создать или перезаписать файл в песочнице:",
+      detail: str("filePath") ?? str("path") ?? str("file"),
+    };
+  }
+  if (["edit", "multiedit", "patch", "apply_patch"].includes(t)) {
+    return {
+      action: "Изменить файл в песочнице:",
+      detail: str("filePath") ?? str("path") ?? str("file"),
+    };
+  }
+  if (["read", "grep", "glob", "list", "ls"].includes(t)) {
+    return {
+      action: "Прочитать файлы проекта:",
+      detail: str("filePath") ?? str("path") ?? str("pattern"),
+    };
+  }
+  if (["webfetch", "websearch", "fetch"].includes(t)) {
+    return {
+      action: "Выполнить запрос в интернет:",
+      detail: str("url") ?? str("query"),
+    };
+  }
+  if (t === "task") {
+    return {
+      action: "Запустить фоновую подзадачу:",
+      detail: str("description"),
+    };
+  }
+  return { action: `Запустить инструмент «${tool}»` };
+}
+
+/**
+ * UX-fix: инлайн-карточка запроса разрешения вместо полноэкранной модалки:
+ * — чат остаётся видимым, контекст запроса не теряется;
+ * — клик по фону и Esc больше НЕ отклоняют запрос;
+ * — описание объясняет суть действия (команда/файл/URL);
+ * — скоуп кнопки «Всегда» виден прямо на кнопке.
+ */
 export default function PermissionDialog() {
   const permissions = useStore((s) => s.permissions);
   const respond = useStore((s) => s.respondPermission);
 
-  const open = permissions.length > 0;
   const req = permissions[0];
   const queueLen = permissions.length;
+  if (!req) return null;
 
-  const answer = (r: PermissionResponse) => {
-    if (req) respond(req.id, r);
-  };
+  const tool = typeof req.tool === "string" && req.tool ? req.tool : "tool";
+  const { action, detail } = presentTool(tool, req.input);
+  const answer = (r: PermissionResponse) => respond(req.id, r);
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        // Dismiss via backdrop/Esc -> reject
-        if (!next && req) answer("reject");
-      }}
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-[116px] z-40 px-3 md:px-6"
+      role="region"
+      aria-live="polite"
+      aria-label={`Запрос разрешения: ${action}`}
     >
-      <DialogContent className="max-w-md gap-0 p-0 sm:rounded-xl">
-        <DialogHeader className="px-5 py-4 border-b border-border">
-          <div className="flex items-center justify-between gap-3">
-            <DialogTitle>Запрос разрешения</DialogTitle>
-            {queueLen > 1 && (
-              <Badge variant="secondary" className="shrink-0">
-                1 из {queueLen}
-              </Badge>
-            )}
-          </div>
-        </DialogHeader>
+      <div className="pointer-events-auto mx-auto w-full max-w-3xl rounded-xl border border-warning/50 bg-card shadow-xl animate-in fade-in slide-in-from-bottom-2">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+          <span aria-hidden="true">🔐</span>
+          <span className="text-sm font-semibold">Запрос разрешения</span>
+          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+            {tool}
+          </span>
+          {queueLen > 1 && (
+            <Badge variant="secondary" className="ml-auto shrink-0">
+              1 из {queueLen}
+            </Badge>
+          )}
+        </div>
 
-        {req && (
-          <div className="space-y-4 px-5 py-4">
-            <p className="text-sm text-muted-foreground">
-              Ассистент хочет запустить инструмент. Разрешите продолжить.
-            </p>
+        <div className="space-y-3 px-4 py-3">
+          <p className="text-sm">{action}</p>
 
-            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2">
-              <span className="font-mono text-sm font-semibold">
-                {typeof req.tool === "string" && req.tool ? req.tool : "tool"}
-              </span>
-            </div>
+          {detail && (
+            <pre className="max-h-32 overflow-auto rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs whitespace-pre-wrap break-all">
+              {detail}
+            </pre>
+          )}
 
-            {req.input != null && (
-              <pre className="max-h-48 overflow-auto rounded-xl border border-border bg-background p-3 font-mono text-xs text-muted-foreground whitespace-pre-wrap break-all">
+          {req.input != null && (
+            <details className="text-xs text-muted-foreground">
+              <summary className="cursor-pointer select-none hover:text-foreground">
+                Все параметры вызова
+              </summary>
+              <pre className="mt-2 max-h-40 overflow-auto rounded-lg border border-border bg-background p-3 font-mono whitespace-pre-wrap break-all">
                 {fmt(req.input)}
               </pre>
-            )}
+            </details>
+          )}
 
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" onClick={() => answer("reject")}>
-                Отклонить
-              </Button>
-              {/* "once" is the safe default — allow this single call only */}
-              <Button onClick={() => answer("once")}>Разрешить</Button>
-              <Button
-                variant="secondary"
-                onClick={() => answer("always")}
-                title="Разрешать все такие вызовы до конца сессии"
-              >
-                Всегда
-              </Button>
-            </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+            <Button
+              variant="ghost"
+              onClick={() => answer("reject")}
+              aria-label="Отклонить этот запрос"
+            >
+              Отклонить
+            </Button>
+            {/* "once" — безопасный дефолт: только этот вызов */}
+            <Button
+              onClick={() => answer("once")}
+              aria-label="Разрешить только этот вызов"
+            >
+              Разрешить
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => answer("always")}
+              aria-label="Разрешать такие вызовы до конца текущей сессии"
+            >
+              Всегда — до конца сессии
+            </Button>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            «Разрешить» — только этот вызов, «Всегда» — до конца сессии.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

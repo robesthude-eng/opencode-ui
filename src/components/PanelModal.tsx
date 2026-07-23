@@ -97,6 +97,20 @@ export default function PanelModal({
   const [full, setFull] = useState(false);
   const [rect, setRect] = useState<Rect | null>(null);
   const [interacting, setInteracting] = useState(false);
+  // Мобильный UX-fix: на узких экранах окно всегда полноэкранное —
+  // 7px драг-ручки пальцем не поймать, а драг шапки конфликтует со скроллом.
+  const [isMobile, setIsMobile] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 767px)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const effectiveFull = full || isMobile;
   const rectRef = useRef<Rect | null>(null);
   rectRef.current = rect;
 
@@ -122,7 +136,7 @@ export default function PanelModal({
     e: React.PointerEvent,
     onMove: (dx: number, dy: number, start: Rect) => Rect,
   ) => {
-    if (full || !rectRef.current) return;
+    if (effectiveFull || !rectRef.current) return;
     e.preventDefault();
     e.stopPropagation();
     const start = rectRef.current;
@@ -182,11 +196,11 @@ export default function PanelModal({
       <div
         className={cn(
           "absolute flex flex-col overflow-hidden border border-border bg-background shadow-[0_16px_60px_rgba(0,0,0,0.5)]",
-          full ? "inset-0 rounded-none" : "rounded-xl",
+          effectiveFull ? "inset-0 rounded-none" : "rounded-xl",
           interacting && "select-none",
         )}
         style={
-          full
+          effectiveFull
             ? undefined
             : { left: rect.x, top: rect.y, width: rect.w, height: rect.h }
         }
@@ -195,36 +209,38 @@ export default function PanelModal({
         <header
           className={cn(
             "flex h-10 shrink-0 items-center gap-1 border-b border-border px-3",
-            !full && "cursor-grab active:cursor-grabbing",
+            !effectiveFull && "cursor-grab active:cursor-grabbing",
           )}
           onPointerDown={startDrag}
           onDoubleClick={() => setFull((f) => !f)}
         >
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {title}
           </span>
           <span className="flex-1" />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-            onClick={() => setFull((f) => !f)}
-            title={full ? "Exit fullscreen" : "Fullscreen"}
-            aria-label={full ? "Exit fullscreen" : "Fullscreen"}
-          >
-            {full ? (
-              <ExitFullscreenIcon size={14} />
-            ) : (
-              <FullscreenIcon size={14} />
-            )}
-          </Button>
+          {!isMobile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              onClick={() => setFull((f) => !f)}
+              title={full ? "Свернуть из полного экрана" : "На весь экран"}
+              aria-label={full ? "Свернуть из полного экрана" : "На весь экран"}
+            >
+              {full ? (
+                <ExitFullscreenIcon size={14} />
+              ) : (
+                <FullscreenIcon size={14} />
+              )}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             onClick={onClose}
-            title="Close"
-            aria-label="Close"
+            title="Закрыть"
+            aria-label="Закрыть"
           >
             <CloseIcon size={14} />
           </Button>
@@ -241,7 +257,7 @@ export default function PanelModal({
         </div>
 
         {/* Драг-ручки по всем краям и углам */}
-        {!full &&
+        {!effectiveFull &&
           HANDLES.map((h) => (
             <div
               key={h.dir}

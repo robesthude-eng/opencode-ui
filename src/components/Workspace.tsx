@@ -35,6 +35,10 @@ import {
   toTree,
 } from "./workspace/workspaceTreeHelpers";
 
+function statusColor(status?: string): string {
+  return STATUS_COLORS[status ?? ""] || "var(--color-muted-foreground)";
+}
+
 export default function Workspace() {
   const workspaceOpen = useStore((s) => s.workspaceOpen);
   const setWorkspaceOpen = useStore((s) => s.setWorkspaceOpen);
@@ -433,7 +437,8 @@ export default function Workspace() {
               downloadWorkspaceItem(node.path);
             }}
             className="opacity-0 group-hover:opacity-100 hover:text-foreground transition flex-shrink-0"
-            title="Download"
+            title="Скачать файл"
+            aria-label="Скачать файл"
           >
             <DownloadIcon size={14} />
           </button>
@@ -487,7 +492,7 @@ export default function Workspace() {
         )}
       >
         <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3 safe-top">
-          <div className="flex gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <div className="flex gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             <span className="text-white">Files</span>
           </div>
           <div className="flex items-center gap-1">
@@ -498,7 +503,8 @@ export default function Workspace() {
               onClick={() => {
                 refresh().catch(() => {});
               }}
-              title="Refresh now"
+              title="Обновить"
+              aria-label="Обновить"
               disabled={loading}
             >
               <RefreshIcon size={15} />
@@ -508,8 +514,8 @@ export default function Workspace() {
               size="icon"
               className="h-7 w-7 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
               onClick={() => setWorkspaceOpen(false)}
-              title="Close workspace"
-              aria-label="Close workspace"
+              title="Закрыть файлы проекта"
+              aria-label="Закрыть файлы проекта"
             >
               <CloseIcon size={15} />
             </Button>
@@ -523,7 +529,7 @@ export default function Workspace() {
             </span>
             <Input
               className="h-8 rounded-lg border-border bg-card pl-8 text-[11px] text-foreground placeholder:text-muted-foreground"
-              placeholder="Filter files…"
+              placeholder="Фильтр файлов…"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
             />
@@ -549,7 +555,7 @@ export default function Workspace() {
                   <span
                     className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white"
                     style={{
-                      background: STATUS_COLORS[f.status ?? ""] || "#6b7280",
+                      background: statusColor(f.status),
                     }}
                   >
                     {(f.status ?? "?").charAt(0).toUpperCase()}

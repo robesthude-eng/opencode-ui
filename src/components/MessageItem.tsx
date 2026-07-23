@@ -215,10 +215,10 @@ function MessageItem({
   if (isUser) {
     return (
       <div className="group oc-msg-in flex flex-col items-end gap-1 px-3 py-1 md:px-6">
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 self-end mr-1">
+        <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 self-end mr-1">
           вы
         </div>
-        <div className="flex min-w-0 flex-col gap-1 items-end max-w-full border-r border-border/40 pr-3 md:pr-4">
+        <div className="flex min-w-0 flex-col gap-1 items-end max-w-full border-r border-primary/20 pr-3 md:pr-4">
           {msgArray.map((message, idx) => {
             const msgText = getMessageText(message);
             const { attLines, rest } = splitAttachmentLines(msgText);
@@ -253,7 +253,7 @@ function MessageItem({
             <div className="mt-0.5 flex opacity-0 transition-opacity focus-within:opacity-100 hover:opacity-100 group-hover:opacity-60 mr-1">
               <CopyButton
                 text={combinedText}
-                title="Copy"
+                title="Копировать"
                 className="h-7 w-7"
               />
             </div>
@@ -266,7 +266,7 @@ function MessageItem({
   // Assistant: мокап-стиль — метка «АГЕНТ» + акцентная линия слева, без пузыря.
   return (
     <div className="oc-msg-in flex flex-col gap-1.5 px-3 py-1 md:px-6">
-      <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">
+      <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/80">
         агент
       </div>
       <div className="flex min-w-0 flex-col gap-0.5 border-l border-primary/20 pl-3 md:pl-4">
@@ -360,7 +360,7 @@ function MessageItem({
             <div className="opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100">
               <CopyButton
                 text={combinedText}
-                title="Copy message"
+                title="Копировать сообщение"
                 className="h-7 w-7"
               />
             </div>
