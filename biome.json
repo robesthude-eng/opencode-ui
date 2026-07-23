@@ -12,8 +12,7 @@
     "formatter": { "enabled": true, "quoteStyle": "single" }
   },
   "files": {
-    "ignoreUnknown": true,
-    "ignore": ["cloudflare-proxy-worker.js"]
+    "ignoreUnknown": true
   },
   "vcs": {
     "enabled": true,
