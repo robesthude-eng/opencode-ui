@@ -25,7 +25,7 @@ services:
       - NODE_ENV=production
       - OPENCODE_WORKDIR=/app/workspace
       # Override with a managed Redis URL in .env for multi-host deployments.
-      - RATE_LIMIT_REDIS_URL=${RATE_LIMIT_REDIS_URL:-redis://redis:6379}
+      - RATE_LIMIT_REDIS_URL=${RATE_LIMIT_REDIS_URL:-}
       # --- изоляция через контейнеры-раннеры ---
       - RUNNER_ISOLATION=${RUNNER_ISOLATION:-1}
       - HOST_WORKSPACE_DIR=${OPENCODE_DATA_DIR:-/srv/opencode-data}
