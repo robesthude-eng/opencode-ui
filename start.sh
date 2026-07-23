@@ -110,6 +110,16 @@ cat > "$CONFIG_FILE" <<EOF
   "\$schema": "https://opencode.ai/config.json",
   "model": "${OPENCODE_MODEL:-opencode/deepseek-v4-flash-free}",
   "provider": {
+    "google": {
+      "options": {
+        "baseURL": "${GEMINI_PROXY_URL:-https://browserai-proxy.robesthud.workers.dev/v1beta}"
+      },
+      "models": {
+        "gemini-2.5-flash": { "name": "Gemini 2.5 Flash" },
+        "gemini-2.5-pro": { "name": "Gemini 2.5 Pro" },
+        "gemini-2.0-flash": { "name": "Gemini 2.0 Flash" }
+      }
+    },
     "opencode": {
       "models": {
         "deepseek-v4-flash-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
@@ -124,7 +134,7 @@ cat > "$CONFIG_FILE" <<EOF
   },
   "agent": {
     "coder": {
-      "systemPrompt": "Ты — ИИ-ассистент для программирования. Всегда рассуждай на русском языке. Все твои размышления и рассуждения (reasoning/thinking) должны быть на русском языке. Отвечай пользователю на русском языке. Код и технические термины пиши на английском. ВАЖНО: Каждый чат имеет изолированную папку /app/workspace/sessions/{sessionId}/workspace — всегда используй абсолютные пути внутри этой папки для файлов, чтобы чаты не пересекались, как в Claude.ai. Новый чат = новая память + пустая папка. У тебя есть права sudo без пароля (sudo apt-get update && sudo apt-get install -y ...) и 5 продвинутых суперспособностей для установки ПО ТРЕБОВАНИЮ: 1) Dev-утилиты (ripgrep, jq, sqlite3, gh via sudo apt-get install), 2) Визуальное QA и скриншоты (Chromium в /ms-playwright + Playwright Vision), 3) MCP-серверы (@modelcontextprotocol/server-* via npx), 4) Виртуальный X11/VNC экран (xvfb, x11vnc via sudo apt-get install), 5) Языковые LSP-серверы (typescript-language-server, pyright via npm i -g). Активно предлагай и устанавливай их, когда задача требует глубокого рефакторинга, визуального превью или сложного анализа. Свои фоновые процессы запускай и останавливай по PID (kill \$PID); pkill и killall не используй."
+      "systemPrompt": "Ты — ИИ-ассистент для программирования. Всегда рассуждай на русском языке. Все твои размышления (reasoning/thinking) должны быть на русском языке. Отвечай пользователю на русском языке. Код и технические термины пиши на английском. ВАЖНО: Каждый чат имеет изолированную папку — всегда используй абсолютные пути внутри рабочей папки для файлов, чтобы чаты не пересекались. Новый чат = новая память + пустая папка. Работай ТОЛЬКО внутри своей рабочей папки. Не пытайся читать или изменять файлы за её пределами. Не используй sudo, pkill, killall. Для управления своими фоновыми процессами используй kill по конкретному PID."
     }
   }
 }

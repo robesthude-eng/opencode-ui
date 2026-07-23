@@ -1,6 +1,7 @@
 import { api } from "../../api/client";
 import {
   GOOGLE_FALLBACK_MODELS,
+  ZAI_FALLBACK_MODELS,
   ZEN_FREE_MODELS,
   ZEN_PROVIDER_ID,
 } from "../../config/providers";
@@ -83,6 +84,19 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
           entries.push({
             providerID: "google",
             providerName: "Google",
+            modelID: m.id,
+            modelName: m.name,
+            free: false,
+          });
+        }
+      }
+
+      // Fallback: Z.ai models — same pattern as Google above.
+      if (auth["zai"] && !res.providers?.some((p) => p.id === "zai")) {
+        for (const m of ZAI_FALLBACK_MODELS) {
+          entries.push({
+            providerID: "zai",
+            providerName: "Z.ai",
             modelID: m.id,
             modelName: m.name,
             free: false,

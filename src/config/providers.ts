@@ -159,6 +159,24 @@ export const PROVIDERS: ProviderInfo[] = [
     keyHint: "key",
     docsUrl: "https://dashboard.cohere.com/api-keys",
   },
+  {
+    id: "zai",
+    name: "Z.ai",
+    color: "#4f46e5",
+    models: "GLM-5.2, GLM-5-Turbo",
+    keyHint: "key",
+    docsUrl: "https://z.ai",
+  },
+];
+
+/**
+ * Fallback Z.ai models — injected when OpenCode's /config/providers doesn't
+ * return a "zai" provider but the user has saved a Z.ai API key locally.
+ */
+export const ZAI_FALLBACK_MODELS: { id: string; name: string }[] = [
+  { id: "glm-5.2", name: "GLM-5.2" },
+  { id: "glm-5-turbo", name: "GLM-5-Turbo" },
+  { id: "glm-4-flash", name: "GLM-4-Flash" },
 ];
 
 /**

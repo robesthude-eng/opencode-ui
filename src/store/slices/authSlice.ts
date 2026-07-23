@@ -22,7 +22,7 @@ type AuthJson = {
  * returns 200) but does not always report it in GET /provider → connected[],
  * causing the UI to lose the "connected" state on loadAuth() refresh.
  */
-const CUSTOM_PROVIDERS = new Set<string>(["google"]);
+const CUSTOM_PROVIDERS = new Set<string>(["google", "zai"]);
 
 async function performAuthAction(
   endpoint: string,
