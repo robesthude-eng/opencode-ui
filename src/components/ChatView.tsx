@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import { statusText } from "../api/eventGuards";
-import type { Message } from "../api/types";
+import type { Message, ToolPart } from "../api/types";
+import { messageText } from "../lib/chatText";
 import { useStore } from "../store/useStore";
 import AgentIndicator from "./AgentIndicator";
 import { ChevronDownIcon, SendIcon } from "./icons";
@@ -130,6 +131,7 @@ export default function ChatView() {
   const testStatus = useStore((s) => s.selfImproveTestStatus);
   const testErrors = useStore((s) => s.selfImproveTestErrors);
   const send = useStore((s) => s.send);
+  const prefillComposer = useStore((s) => s.prefillComposer);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -253,6 +255,90 @@ export default function ChatView() {
     [groupedMessages, isWindowed, windowSize],
   );
 
+  // Поиск по сообщениям чата (Ctrl+F или кнопка в верхней панели).
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchIdx, setSearchIdx] = useState(0);
+
+  const searchMatches = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return (messages || [])
+      .filter((m) => messageText(m).toLowerCase().includes(q))
+      .map((m) => m.id);
+  }, [messages, searchQuery]);
+
+  const jumpToMessage = (mid: string) => {
+    const find = () =>
+      scrollRef.current?.querySelector(`[data-mids~="${mid}"]`);
+    const el = find();
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    // Сообщение за пределами окна — разворачиваем историю и скроллим.
+    setWindowSize(100000);
+    setTimeout(() => {
+      find()?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+  };
+
+  const goToMatch = (idx: number) => {
+    const total = searchMatches.length;
+    if (total === 0) return;
+    const n = ((idx % total) + total) % total;
+    setSearchIdx(n);
+    const mid = searchMatches[n];
+    if (mid) jumpToMessage(mid);
+  };
+
+  useEffect(() => {
+    const openSearch = () => setSearchOpen(true);
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyF") {
+        e.preventDefault();
+        openSearch();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("opencode:chat-search", openSearch);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("opencode:chat-search", openSearch);
+    };
+  }, []);
+
+  // Текст последнего запроса пользователя — для «Спросить ещё раз»
+  // и «Изменить последний запрос».
+  const lastUserText = useMemo(() => {
+    for (let i = (messages?.length ?? 0) - 1; i >= 0; i--) {
+      const m = messages?.[i];
+      if (m?.role === "user") {
+        const t = messageText(m).trim();
+        if (t) return t;
+      }
+    }
+    return null;
+  }, [messages]);
+
+  // Первый инструмент, завершившийся ошибкой, — для чипа перехода к сбою.
+  const failedToolMid = useMemo(() => {
+    for (const m of messages ?? []) {
+      for (const p of m.parts ?? []) {
+        if (p.type !== "tool") continue;
+        const st = (p as ToolPart).state;
+        const status =
+          typeof st === "string"
+            ? st
+            : st && typeof st === "object"
+              ? st.status
+              : undefined;
+        if (status === "error" || status === "failed") return m.id;
+      }
+    }
+    return null;
+  }, [messages]);
+
   if (!currentID) {
     return (
       <div className="flex-1 flex items-center justify-center p-4 md:p-6 min-h-0 overflow-y-auto">
@@ -302,6 +388,18 @@ export default function ChatView() {
               </Button>
             </div>
           )}
+          {failedToolMid && status !== "busy" && (
+            <div className="text-center py-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full border-red-500/40 text-red-400 hover:text-red-300"
+                onClick={() => jumpToMessage(failedToolMid)}
+              >
+                ⚠️ Инструмент завершился с ошибкой — показать
+              </Button>
+            </div>
+          )}
           <div>
             {renderedGroups.map((group, i) => {
               const isWorking =
@@ -309,14 +407,38 @@ export default function ChatView() {
                 group.role === "assistant" &&
                 i === renderedGroups.length - 1;
               const firstId = group.messages[0]?.id ?? `group-${i}`;
+              const mids = group.messages.map((m) => m.id).join(" ");
               return (
-                <MessageItem
-                  key={`${group.role}:${firstId}`}
-                  messages={group.messages}
-                  isWorking={isWorking}
-                />
+                <div key={`${group.role}:${firstId}`} data-mids={mids}>
+                  <MessageItem
+                    messages={group.messages}
+                    isWorking={isWorking}
+                  />
+                </div>
               );
             })}
+            {status !== "busy" &&
+              lastUserText &&
+              lastMsg?.role === "assistant" && (
+                <div className="flex flex-wrap gap-2 px-3 pb-3 md:px-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => send(lastUserText).catch(() => {})}
+                  >
+                    ↻ Спросить ещё раз
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => prefillComposer(lastUserText)}
+                  >
+                    ✏️ Изменить последний запрос
+                  </Button>
+                </div>
+              )}
             {status === "busy" && (
               <div className="flex gap-3 py-5 px-3 md:px-6">
                 <AgentIndicator
@@ -347,6 +469,60 @@ export default function ChatView() {
           </div>
         </div>
       </div>
+      {searchOpen && (
+        <div className="absolute right-3 top-2 z-20 flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 shadow-lg">
+          <input
+            ref={(el) => el?.focus()}
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSearchIdx(0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") goToMatch(searchIdx + 1);
+              if (e.key === "Escape") setSearchOpen(false);
+            }}
+            placeholder="Поиск по чату…"
+            aria-label="Поиск по сообщениям чата"
+            className="w-40 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
+          />
+          <span className="text-[11px] tabular-nums text-muted-foreground">
+            {searchMatches.length > 0
+              ? `${(searchIdx % searchMatches.length) + 1}/${searchMatches.length}`
+              : "0/0"}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            title="Предыдущее совпадение"
+            aria-label="Предыдущее совпадение"
+            onClick={() => goToMatch(searchIdx - 1)}
+          >
+            ↑
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            title="Следующее совпадение"
+            aria-label="Следующее совпадение"
+            onClick={() => goToMatch(searchIdx + 1)}
+          >
+            ↓
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            title="Закрыть поиск"
+            aria-label="Закрыть поиск"
+            onClick={() => setSearchOpen(false)}
+          >
+            ✕
+          </Button>
+        </div>
+      )}
       {showScrollBtn && (
         <button
           type="button"

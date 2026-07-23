@@ -55,12 +55,17 @@ export interface UiSlice {
   selfImproveSessionId: string | null;
   selfImproveTestStatus: "idle" | "running" | "success" | "failure";
   selfImproveTestErrors: string[];
+  // Закреплённые чаты и локальные переименования (персистятся на клиенте).
+  pinnedSessions: string[];
+  sessionTitleOverrides: Record<string, string>;
   toggleTheme: () => void;
   setSettingsOpen: (open: boolean) => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebar: () => void;
   setWorkspaceOpen: (open: boolean) => void;
+  togglePinnedSession: (id: string) => void;
+  renameSession: (id: string, title: string) => void;
   setSelfImproveSessionId: (id: string | null) => void;
   setSelfImproveEnabled: (enabled: boolean) => void;
   syncSelfImproveFromServer: () => Promise<void>;
@@ -115,6 +120,8 @@ export interface MessagesSlice {
   removeAttachment: (name: string) => void;
   clearAttachments: () => void;
   clearFailedSendText: () => void;
+  // Подставить текст в поле ввода (кнопка «Изменить последний запрос»).
+  prefillComposer: (text: string) => void;
   applyEvent: (e: AppEvent) => void;
   flushStreamDeltas: () => void;
 }

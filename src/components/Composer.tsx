@@ -7,6 +7,10 @@ import { processFile } from "../api/files";
 import { useStore } from "../store/useStore";
 import { CloseIcon, PaperclipIcon, SendIcon, StopIcon } from "./icons";
 
+// Черновики по сессиям: текст композера не теряется при переключении чатов.
+// Живёт в памяти вкладки — намеренно не персистится.
+const sessionDrafts = new Map<string, string>();
+
 export default function Composer() {
   const currentID = useStore((s) => s.currentID);
   const rawStatus = useStore((s) =>
@@ -64,6 +68,21 @@ export default function Composer() {
     }
   }, [failedSendText, clearFailedSendText]);
 
+  // Черновик на сессию: при переключении чата сохраняем набранный текст
+  // и восстанавливаем черновик выбранной сессии.
+  const textRef = useRef(text);
+  textRef.current = text;
+  const prevSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevSessionRef.current;
+    if (prev !== null && prev !== currentID) {
+      if (textRef.current) sessionDrafts.set(prev, textRef.current);
+      else sessionDrafts.delete(prev);
+      setText(sessionDrafts.get(currentID ?? "") ?? "");
+    }
+    prevSessionRef.current = currentID;
+  }, [currentID]);
+
   // P2-fix: сессия освободилась — отправляем следующее из очереди.
   // send() ставит busy синхронно, поэтому двойной отправки не будет.
   useEffect(() => {
@@ -83,10 +102,12 @@ export default function Composer() {
       if (value) {
         setQueued((q) => [...q, value]);
         setText("");
+        if (currentID) sessionDrafts.delete(currentID);
       }
       return;
     }
     setText("");
+    if (currentID) sessionDrafts.delete(currentID);
     await send(value);
   };
 

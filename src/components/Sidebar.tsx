@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -45,12 +45,40 @@ function SidebarUserEmail({ email }: { email: string }) {
 
 export default function Sidebar() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const sessions = useStore((s) => s.sessions);
   const currentID = useStore((s) => s.currentID);
   const select = useStore((s) => s.select);
   const newSession = useStore((s) => s.newSession);
   const ensureSelfImproveSession = useStore((s) => s.ensureSelfImproveSession);
   const removeSession = useStore((s) => s.removeSession);
+  const pinnedSessions = useStore((s) => s.pinnedSessions);
+  const togglePinnedSession = useStore((s) => s.togglePinnedSession);
+  const sessionTitleOverrides = useStore((s) => s.sessionTitleOverrides);
+  const renameSession = useStore((s) => s.renameSession);
+
+  const normalizedFilter = filter.trim().toLowerCase();
+  // Закреплённые чаты всплывают наверх, затем применяется текстовый фильтр.
+  const visibleSessions = useMemo(() => {
+    const byPin = [...sessions].sort(
+      (a, b) =>
+        Number(pinnedSessions.includes(b.id)) -
+        Number(pinnedSessions.includes(a.id)),
+    );
+    if (!normalizedFilter) return byPin;
+    return byPin.filter((x) =>
+      (sessionTitleOverrides[x.id] || x.title || "Новый чат")
+        .toLowerCase()
+        .includes(normalizedFilter),
+    );
+  }, [sessions, pinnedSessions, sessionTitleOverrides, normalizedFilter]);
+
+  const commitRename = (id: string) => {
+    renameSession(id, editText.trim());
+    setEditingId(null);
+  };
   const status = useStore((s) => s.status);
   const theme = useStore((s) => s.theme);
   const toggleTheme = useStore((s) => s.toggleTheme);
@@ -130,24 +158,35 @@ export default function Sidebar() {
         </div>
 
         {/* Chat list */}
+        <div className="px-2 pt-2">
+          <input
+            id="chat-filter-input"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Поиск чатов… (Ctrl+K)"
+            aria-label="Поиск по списку чатов"
+            className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-ring"
+          />
+        </div>
         <ScrollArea className="flex-1 w-full" style={{ width: "100%" }}>
           <nav
             className="space-y-1 p-2"
             style={{ width: "100%", overflowX: "hidden" }}
           >
-            {sessions.length === 0 && (
+            {visibleSessions.length === 0 && (
               <p className="px-3 py-8 text-sm text-muted-foreground text-center">
-                Пока нет диалогов
+                {normalizedFilter ? "Ничего не найдено" : "Пока нет диалогов"}
               </p>
             )}
-            {sessions.map((s) => {
+            {visibleSessions.map((s) => {
               const isActive = s.id === currentID;
               // The dedicated Self-Improvement chat keeps a stable label so the user
               // always finds it, even if OpenCode renames the underlying session.
               const displayTitle =
                 selfImproveEnabled && s.id === selfImproveSessionId
                   ? "🤖 Самоулучшение"
-                  : s.title || "Новый чат";
+                  : sessionTitleOverrides[s.id] || s.title || "Новый чат";
+              const isPinned = pinnedSessions.includes(s.id);
               const sStatus =
                 typeof status[s.id] === "string"
                   ? status[s.id]
@@ -172,54 +211,106 @@ export default function Sidebar() {
                     overflow: "hidden",
                   }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      select(s.id);
-                      close();
-                    }}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      paddingLeft: 12,
-                      paddingRight: 4,
-                      paddingTop: 10,
-                      paddingBottom: 10,
-                      background: "transparent",
-                      border: "none",
-                      color: "inherit",
-                      font: "inherit",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      borderRadius: 12,
-                    }}
-                  >
-                    {busy && (
-                      <span
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: "50%",
-                          background: "var(--color-success)",
-                          flexShrink: 0,
-                        }}
-                      />
-                    )}
-                    <span
+                  {editingId === s.id ? (
+                    <input
+                      ref={(el) => el?.focus()}
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onBlur={() => commitRename(s.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitRename(s.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      aria-label="Новое название чата"
+                      style={{ flex: 1, minWidth: 0 }}
+                      className="mx-2 my-1.5 self-center rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        select(s.id);
+                        close();
+                      }}
                       style={{
                         flex: 1,
                         minWidth: 0,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        paddingLeft: 12,
+                        paddingRight: 4,
+                        paddingTop: 10,
+                        paddingBottom: 10,
+                        background: "transparent",
+                        border: "none",
+                        color: "inherit",
+                        font: "inherit",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        borderRadius: 12,
                       }}
                     >
-                      {displayTitle}
-                    </span>
-                  </button>
+                      {busy && (
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: "50%",
+                            background: "var(--color-success)",
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                      <span
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {displayTitle}
+                      </span>
+                    </button>
+                  )}
+                  {editingId !== s.id && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePinnedSession(s.id);
+                        }}
+                        title={isPinned ? "Открепить чат" : "Закрепить чат"}
+                        aria-label={`${isPinned ? "Открепить" : "Закрепить"} чат ${displayTitle}`}
+                        className={cn(
+                          "inline-flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-lg border-none bg-transparent p-0 text-current transition-all duration-150 hover:bg-accent active:scale-90",
+                          isPinned
+                            ? "opacity-90"
+                            : "opacity-45 hover:opacity-100",
+                        )}
+                      >
+                        <span aria-hidden="true">📌</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingId(s.id);
+                          setEditText(
+                            sessionTitleOverrides[s.id] || s.title || "",
+                          );
+                        }}
+                        title="Переименовать чат"
+                        aria-label={`Переименовать чат ${displayTitle}`}
+                        className="inline-flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-lg border-none bg-transparent p-0 text-current opacity-45 transition-all duration-150 hover:bg-accent hover:opacity-100 active:scale-90"
+                      >
+                        <span aria-hidden="true">✏️</span>
+                      </button>
+                    </>
+                  )}
                   {confirmDeleteId === s.id ? (
                     <div className="flex items-center gap-1 bg-red-500/10 rounded-lg mr-1 self-center py-0.5 border border-red-500/20">
                       <span className="text-[11px] font-semibold text-red-500/90 pl-1.5 pr-0.5">

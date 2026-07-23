@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import type { Message, Part, ToolOutput, ToolPart } from "../api/types";
+import type { Message, Part, ToolPart } from "../api/types";
+import { messageText as getMessageText } from "../lib/chatText";
 import {
   AttachmentChip,
   splitAttachmentLines,
@@ -9,35 +10,6 @@ import {
 import CopyButton from "./CopyButton";
 import PartView from "./PartView";
 import ToolGroup from "./ToolGroup";
-
-function getMessageText(message: Message): string {
-  if (!message.parts) return "";
-  return message.parts
-    .map((p) => {
-      if ((p.type === "text" || p.type === "reasoning") && "text" in p)
-        return typeof p.text === "string" ? p.text : "";
-      if (p.type === "tool") {
-        const toolP = p as ToolPart;
-        const state = typeof toolP.state === "object" ? toolP.state : undefined;
-        const stateOut = state?.output;
-        const out: unknown =
-          typeof stateOut === "string"
-            ? stateOut
-            : ((stateOut as ToolOutput | undefined) ?? toolP.output);
-        if (typeof out === "string") return out;
-        if (
-          out &&
-          typeof out === "object" &&
-          "text" in out &&
-          typeof out.text === "string"
-        )
-          return out.text;
-      }
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n\n");
-}
 
 /** Приводит путь из инструмента/ответа к относительному пути workspace. */
 function normalizeWorkspacePath(value: string): string | null {
@@ -212,6 +184,10 @@ function MessageItem({
     .filter(Boolean)
     .join("\n\n");
 
+  const createdAt = firstMsg?.time?.created
+    ? new Date(firstMsg.time.created)
+    : null;
+
   if (isUser) {
     return (
       <div className="group oc-msg-in flex flex-col items-end gap-1 px-3 py-1 md:px-6">
@@ -364,6 +340,17 @@ function MessageItem({
                 className="h-7 w-7"
               />
             </div>
+          )}
+          {createdAt && (
+            <span
+              className="text-[11px] text-muted-foreground/70"
+              title={createdAt.toLocaleString("ru-RU")}
+            >
+              {createdAt.toLocaleTimeString("ru-RU", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
           )}
         </div>
       </div>

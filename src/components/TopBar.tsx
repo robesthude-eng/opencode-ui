@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/toast";
+import { buildChatMarkdown, downloadTextFile } from "../lib/chatText";
 import { isTmpSession } from "../lib/ids";
 import { useStore } from "../store/useStore";
 import {
@@ -31,6 +33,99 @@ export default function TopBar() {
   const [showTerminal, setShowTerminal] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const sessionReady = !!currentID && !isTmpSession(currentID);
+
+  // Горячие клавиши: Ctrl/Cmd+K — поиск по списку чатов,
+  // Ctrl/Cmd+Shift+O — новый чат. e.code не зависит от раскладки.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.code === "KeyK" && !e.shiftKey) {
+        e.preventDefault();
+        const st = useStore.getState();
+        st.setSidebarOpen(true);
+        if (st.sidebarCollapsed) st.setSidebarCollapsed(false);
+        setTimeout(() => {
+          document.getElementById("chat-filter-input")?.focus();
+        }, 50);
+      } else if (e.code === "KeyO" && e.shiftKey) {
+        e.preventDefault();
+        useStore
+          .getState()
+          .newSession()
+          .catch(() => {});
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const chatBusy = (): boolean => {
+    const st = useStore.getState();
+    const sid = st.currentID;
+    const raw = sid ? st.status[sid] : undefined;
+    const v = typeof raw === "string" ? raw : (raw as { type?: string })?.type;
+    return v === "busy";
+  };
+
+  const handleExportChat = () => {
+    const st = useStore.getState();
+    const sid = st.currentID;
+    if (!sid) return;
+    const msgs = st.messages[sid] ?? [];
+    if (msgs.length === 0) {
+      toast("info", "В этом чате пока нет сообщений");
+      return;
+    }
+    const title =
+      st.sessionTitleOverrides[sid] ||
+      st.sessions.find((x) => x.id === sid)?.title ||
+      "Чат OpenCode";
+    downloadTextFile(
+      `opencode-chat-${sid.slice(0, 8)}.md`,
+      buildChatMarkdown(msgs, title),
+    );
+    toast("success", "Чат сохранён в Markdown-файл");
+  };
+
+  const handleSummarize = () => {
+    if (chatBusy()) {
+      toast("info", "Дождитесь окончания текущей генерации");
+      return;
+    }
+    const prompt =
+      "Сделай краткое резюме нашего диалога: ключевые решения, изменённые файлы, открытые вопросы и следующие шаги.";
+    useStore
+      .getState()
+      .send(prompt)
+      .catch(() => {});
+  };
+
+  const handleBranch = async () => {
+    if (chatBusy()) {
+      toast("info", "Дождитесь окончания текущей генерации");
+      return;
+    }
+    const st = useStore.getState();
+    const sid = st.currentID;
+    if (!sid) return;
+    const msgs = st.messages[sid] ?? [];
+    if (msgs.length === 0) {
+      toast("info", "В этом чате пока нечего продолжать");
+      return;
+    }
+    const md = buildChatMarkdown(msgs, "Контекст предыдущего чата");
+    const context = md.length > 8000 ? `…${md.slice(-8000)}` : md;
+    const prompt =
+      "Это продолжение другого диалога. Вот его содержание для контекста:" +
+      `\n\n${context}\n\n` +
+      "Подтверди, что готов продолжить с этого места.";
+    await st.newSession();
+    await useStore
+      .getState()
+      .send(prompt)
+      .catch(() => {});
+    toast("success", "Создана ветка — контекст передан в новый чат");
+  };
 
   useEffect(() => {
     if (selfImproveEnabled && currentID === selfImproveSessionId) {
@@ -109,6 +204,56 @@ export default function TopBar() {
             </div>
           )}
         </div>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 md:inline-flex"
+          onClick={handleExportChat}
+          disabled={!sessionReady}
+          title="Скачать чат в Markdown"
+          aria-label="Скачать чат в Markdown"
+        >
+          <span aria-hidden="true">💾</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 md:inline-flex"
+          onClick={handleSummarize}
+          disabled={!sessionReady}
+          title="Суммировать диалог"
+          aria-label="Суммировать диалог"
+        >
+          <span aria-hidden="true">📝</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 md:inline-flex"
+          onClick={() => handleBranch()}
+          disabled={!sessionReady}
+          title="Продолжить в новом чате (ветка)"
+          aria-label="Продолжить в новом чате"
+        >
+          <span aria-hidden="true">🌿</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 md:inline-flex"
+          onClick={() => {
+            window.dispatchEvent(new Event("opencode:chat-search"));
+          }}
+          disabled={!sessionReady}
+          title="Поиск по чату (Ctrl+F)"
+          aria-label="Поиск по сообщениям чата"
+        >
+          <span aria-hidden="true">🔍</span>
+        </Button>
 
         <Button
           variant="ghost"

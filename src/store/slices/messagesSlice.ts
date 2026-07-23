@@ -203,6 +203,9 @@ export const createMessagesSlice: Slice<MessagesSlice> = (set, get) => {
     clearAttachments: () => set({ attachments: [] }),
 
     clearFailedSendText: () => set({ failedSendText: null }),
+    // Подставляет текст в Composer через существующий механизм failedSendText:
+    // Composer забирает его в поле ввода и сразу очищает.
+    prefillComposer: (text) => set({ failedSendText: text }),
 
     send: async (text) => {
       const { currentID, newSession, selectedModel } = get();

@@ -23,6 +23,8 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
     : null) as string | null,
   selfImproveTestStatus: "idle",
   selfImproveTestErrors: [],
+  pinnedSessions: [],
+  sessionTitleOverrides: {},
 
   toggleTheme: () => {
     // тёмная → средняя → светлая → тёмная
@@ -35,6 +37,23 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
   setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
   setWorkspaceOpen: (workspaceOpen) => set({ workspaceOpen }),
+
+  togglePinnedSession: (id) =>
+    set((s) => ({
+      pinnedSessions: s.pinnedSessions.includes(id)
+        ? s.pinnedSessions.filter((x) => x !== id)
+        : [...s.pinnedSessions, id],
+    })),
+
+  // Переименование — клиентский оверлей над серверным заголовком:
+  // пустая строка убирает оверлей и возвращает исходное название.
+  renameSession: (id, title) =>
+    set((s) => {
+      const overrides = { ...s.sessionTitleOverrides };
+      if (title) overrides[id] = title;
+      else delete overrides[id];
+      return { sessionTitleOverrides: overrides };
+    }),
 
   setSelfImproveSessionId: (id) => {
     if (typeof window !== "undefined") {

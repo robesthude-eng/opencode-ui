@@ -61,6 +61,8 @@ export const useStore = create<State>()(
         sidebarCollapsed: s.sidebarCollapsed,
         workspaceOpen: s.workspaceOpen,
         selectedModel: s.selectedModel,
+        pinnedSessions: s.pinnedSessions,
+        sessionTitleOverrides: s.sessionTitleOverrides,
       }),
     },
   ),
