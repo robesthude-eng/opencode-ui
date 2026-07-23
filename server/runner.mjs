@@ -26,7 +26,9 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { WORKDIR } from "./config.mjs";
+import { OWNERS_FILE, WORKDIR } from "./config.mjs";
+import { loadUserKeys } from "./auth.mjs";
+import { loadJson } from "./db.mjs";
 import { isValidSessionId } from "./isolation.mjs";
 import { logger } from "./logger.mjs";
 
@@ -177,7 +179,33 @@ async function publishedPorts(name) {
   }
 }
 
-function runnerEnvArgs() {
+// Map provider IDs (from .user_keys/) to env variable names that AI SDK reads.
+const PROVIDER_ENV_MAP = {
+  anthropic: "ANTHROPIC_API_KEY",
+  openai: "OPENAI_API_KEY",
+  google: "GOOGLE_GENERATIVE_AI_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
+  xai: "XAI_API_KEY",
+  groq: "GROQ_API_KEY",
+  mistral: "MISTRAL_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+  together: "TOGETHER_API_KEY",
+  cohere: "COHERE_API_KEY",
+  zai: "ZAI_API_KEY",
+};
+
+function getUserKeysForSession(sid) {
+  try {
+    const owners = loadJson(OWNERS_FILE, {});
+    const email = owners[sid];
+    if (!email) return {};
+    return loadUserKeys(email);
+  } catch {
+    return {};
+  }
+}
+
+function runnerEnvArgs(userKeys = {}) {
   const args = [];
   const env = {
     OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY || "",
@@ -201,11 +229,21 @@ function runnerEnvArgs() {
     GROQ_API_KEY: process.env.GROQ_API_KEY || "",
     MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || "",
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
+    ZAI_API_KEY: process.env.ZAI_API_KEY || "",
     GITHUB_TOKEN: process.env.GITHUB_TOKEN || "",
     UI_API_BASE: "http://opencode-ui:3000",
     // Единая таймзона для таймстемпов и бэкапов независимо от хоста/ДЦ.
     TZ: process.env.TZ || "UTC",
   };
+  // Overlay user's per-provider API keys (from Settings -> Connect)
+  for (const [provider, keyData] of Object.entries(userKeys)) {
+    const envName = PROVIDER_ENV_MAP[provider];
+    if (envName && keyData && keyData.key) {
+      env[envName] = keyData.key;
+      if (provider === "google") env.GEMINI_API_KEY = keyData.key;
+    }
+  }
+
   for (const [k, v] of Object.entries(env)) args.push("-e", `${k}=${v}`);
   return args;
 }
@@ -243,9 +281,10 @@ function chownForRunner(localSessionDir) {
   chownRecursive(localSessionDir, uid, Number.isInteger(gid) ? gid : uid);
 }
 
-async function runRunnerContainer(name, hostSessionDir, localSessionDir) {
+async function runRunnerContainer(name, hostSessionDir, localSessionDir, sid) {
   requireHostDir();
   chownForRunner(localSessionDir);
+  const userKeys = sid ? getUserKeysForSession(sid) : {};
   const args = [
     "run",
     "-d",
@@ -269,7 +308,7 @@ async function runRunnerContainer(name, hostSessionDir, localSessionDir) {
     "no",
     "-v",
     `${hostSessionDir}:${RUNNER_SESSION_MOUNT}`,
-    ...runnerEnvArgs(),
+    ...runnerEnvArgs(userKeys),
   ];
   for (const p of RUNNER_PUBLISH_PORTS)
     args.push("-p", `${RUNNER_PUBLISH_HOST}::${p}`);
@@ -326,7 +365,7 @@ async function ensureRunnerInner(sid) {
       if (!fs.existsSync(sessDir)) {
         throw new Error(`session directory missing for ${sid}`);
       }
-      await runRunnerContainer(name, hostSessionDir(sid), sessDir);
+      await runRunnerContainer(name, hostSessionDir(sid), sessDir, sid);
       await waitHealthy(name);
     }
   } else {
@@ -388,6 +427,7 @@ export async function createSessionInNewRunner(rawBody) {
       tmpName,
       path.posix.join(HOST_WORKSPACE_DIR, "sessions", tmpId),
       tmpDir,
+      null,
     );
     await waitHealthy(tmpName);
 
@@ -426,7 +466,7 @@ export async function createSessionInNewRunner(rawBody) {
 
     const name = containerName(sid);
     await docker(["rm", "-f", name]).catch(() => {});
-    await runRunnerContainer(name, hostSessionDir(sid), finalDir);
+    await runRunnerContainer(name, hostSessionDir(sid), finalDir, sid);
     await waitHealthy(name);
 
     const reg = loadRegistry();

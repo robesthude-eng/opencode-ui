@@ -120,6 +120,18 @@ cat > "$CONFIG_FILE" <<EOF
         "gemini-2.0-flash": { "name": "Gemini 2.0 Flash" }
       }
     },
+    "zai": {
+      "api": "openai",
+      "name": "Z.ai",
+      "options": {
+        "baseURL": "https://api.z.ai/api/paas/v4"
+      },
+      "models": {
+        "glm-5.2": { "name": "GLM-5.2" },
+        "glm-5-turbo": { "name": "GLM-5-Turbo" },
+        "glm-4-flash": { "name": "GLM-4-Flash" }
+      }
+    },
     "opencode": {
       "models": {
         "deepseek-v4-flash-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
