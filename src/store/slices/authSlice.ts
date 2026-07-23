@@ -13,16 +13,28 @@ type AuthJson = {
 };
 
 /**
- * Providers whose API keys are persisted in the UI's own database (per-user
- * key file) IN ADDITION to being forwarded to OpenCode. This ensures keys
- * survive Settings panel reopen cycles even when OpenCode's /provider endpoint
- * doesn't echo them back as "connected".
+ * All third-party providers use the UI's own key database (.user_keys/).
+ * This ensures: (1) keys survive Settings panel reopens, (2) loadAuth()
+ * reports accurate "connected" state based on actual stored keys rather
+ * than OpenCode's /provider endpoint (which reports all providers in
+ * opencode.jsonc as "connected" even without keys).
  *
- * Google is included because OpenCode 1.18.x accepts the key (PUT /auth/google
- * returns 200) but does not always report it in GET /provider → connected[],
- * causing the UI to lose the "connected" state on loadAuth() refresh.
+ * "opencode" (Zen) is excluded — its key comes from OPENCODE_ZEN_API_KEY
+ * env var and is always available.
  */
-const CUSTOM_PROVIDERS = new Set<string>(["google", "zai"]);
+const CUSTOM_PROVIDERS = new Set<string>([
+  "google",
+  "zai",
+  "anthropic",
+  "openai",
+  "xai",
+  "deepseek",
+  "groq",
+  "mistral",
+  "openrouter",
+  "together",
+  "cohere",
+]);
 
 async function performAuthAction(
   endpoint: string,
@@ -119,10 +131,16 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
 
   loadAuth: async () => {
     try {
-      const data = await api.listConnected();
-      const connected = data.connected ?? [];
+      // Only trust the UI's own key database (.user_keys/) for "connected"
+      // state. OpenCode's /provider endpoint reports all providers defined
+      // in opencode.jsonc as "connected" even without API keys, which causes
+      // false positives in the Settings panel.
       const authed: Record<string, boolean> = {};
-      for (const id of connected) authed[id] = true;
+
+      // OpenCode Zen is always available (env var OPENCODE_ZEN_API_KEY)
+      authed["opencode"] = true;
+
+      // Load actual user-connected keys from UI database
       try {
         const custom = await api.listCustomKeys();
         for (const id of custom) authed[id] = true;
@@ -131,7 +149,7 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
       }
       set({ authed });
     } catch {
-      set({ authed: {} });
+      set({ authed: { opencode: true } });
     }
   },
 
