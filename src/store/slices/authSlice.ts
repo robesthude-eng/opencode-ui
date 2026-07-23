@@ -155,20 +155,10 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
 
   saveKey: async (providerId, key) => {
     try {
-      if (CUSTOM_PROVIDERS.has(providerId)) {
-        // Persist in the UI's own database so the key survives Settings
-        // reopen cycles (loadAuth → GET /provider may not echo it back).
-        await api.saveCustomKey(providerId, key);
-        // Best-effort: also forward to OpenCode so it can make API calls.
-        try {
-          await api.setAuth(providerId, key);
-        } catch {
-          // Non-fatal: key is already saved in the UI DB; OpenCode may
-          // not support this provider natively (e.g. needs a plugin).
-        }
-      } else {
-        await api.setAuth(providerId, key);
-      }
+      // All keys are persisted in the UI's own database (.user_keys/).
+      // The server automatically syncs to active.json and signals runners
+      // to reload via SIGHUP (handled in customAuth.mjs).
+      await api.saveCustomKey(providerId, key);
       set((s) => ({
         authed: { ...s.authed, [providerId]: true },
         modelsLoaded: false,
@@ -185,18 +175,9 @@ export const createAuthSlice: Slice<AuthSlice> = (set, get) => ({
 
   removeKey: async (providerId) => {
     try {
-      if (CUSTOM_PROVIDERS.has(providerId)) {
-        // Remove from UI DB
-        await api.removeCustomKey(providerId);
-        // Best-effort: also remove from OpenCode
-        try {
-          await api.removeAuth(providerId);
-        } catch {
-          // Non-fatal
-        }
-      } else {
-        await api.removeAuth(providerId);
-      }
+      // Remove from UI's key database. Server syncs active.json and
+      // signals runners to reload (handled in customAuth.mjs).
+      await api.removeCustomKey(providerId);
       set((s) => {
         const authed = { ...s.authed };
         delete authed[providerId];

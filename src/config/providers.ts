@@ -174,9 +174,10 @@ export const PROVIDERS: ProviderInfo[] = [
  * return a "zai" provider but the user has saved a Z.ai API key locally.
  */
 export const ZAI_FALLBACK_MODELS: { id: string; name: string }[] = [
-  { id: "glm-5.2", name: "GLM-5.2" },
+  { id: "glm-4.5-flash", name: "GLM-4.5 Flash (Free)" },
+  { id: "glm-4.7-flash", name: "GLM-4.7 Flash (Free)" },
   { id: "glm-5-turbo", name: "GLM-5-Turbo" },
-  { id: "glm-4-flash", name: "GLM-4-Flash" },
+  { id: "glm-4.5-air", name: "GLM-4.5 Air" },
 ];
 
 /**

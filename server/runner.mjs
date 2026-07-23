@@ -205,45 +205,15 @@ function getUserKeysForSession(sid) {
   }
 }
 
-function runnerEnvArgs(userKeys = {}) {
+function runnerEnvArgs() {
   const args = [];
   const env = {
     OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY || "",
     OPENCODE_MODEL: process.env.OPENCODE_MODEL || "",
-    // Provider API keys — forwarded so runner containers can use models
-    // from providers configured via environment variables. OpenCode's Google
-    // provider uses AI SDK, which requires GOOGLE_GENERATIVE_AI_API_KEY.
-    // Keep GEMINI_API_KEY as a backwards-compatible deployment alias.
-    GOOGLE_GENERATIVE_AI_API_KEY:
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      process.env.GEMINI_API_KEY ||
-      "",
-    GEMINI_API_KEY:
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
-      "",
-    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
-    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || "",
-    XAI_API_KEY: process.env.XAI_API_KEY || "",
-    GROQ_API_KEY: process.env.GROQ_API_KEY || "",
-    MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || "",
-    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
-    ZAI_API_KEY: process.env.ZAI_API_KEY || "",
     GITHUB_TOKEN: process.env.GITHUB_TOKEN || "",
     UI_API_BASE: "http://opencode-ui:3000",
-    // Единая таймзона для таймстемпов и бэкапов независимо от хоста/ДЦ.
     TZ: process.env.TZ || "UTC",
   };
-  // Overlay user's per-provider API keys (from Settings -> Connect)
-  for (const [provider, keyData] of Object.entries(userKeys)) {
-    const envName = PROVIDER_ENV_MAP[provider];
-    if (envName && keyData && keyData.key) {
-      env[envName] = keyData.key;
-      if (provider === "google") env.GEMINI_API_KEY = keyData.key;
-    }
-  }
-
   for (const [k, v] of Object.entries(env)) args.push("-e", `${k}=${v}`);
   return args;
 }
@@ -284,7 +254,13 @@ function chownForRunner(localSessionDir) {
 async function runRunnerContainer(name, hostSessionDir, localSessionDir, sid) {
   requireHostDir();
   chownForRunner(localSessionDir);
-  const userKeys = sid ? getUserKeysForSession(sid) : {};
+
+  // Mount user keys file (read-only) so runner can read API keys dynamically.
+  // The keys file is written by the UI when user connects/removes a provider.
+  // Runner reads it on startup and can reload via SIGHUP without container restart.
+  const keysFileHost = path.posix.join(HOST_WORKSPACE_DIR, ".user_keys", "active.json");
+  const keysVolume = `${keysFileHost}:/run/user-keys/keys.json:ro`;
+
   const args = [
     "run",
     "-d",
@@ -308,7 +284,9 @@ async function runRunnerContainer(name, hostSessionDir, localSessionDir, sid) {
     "no",
     "-v",
     `${hostSessionDir}:${RUNNER_SESSION_MOUNT}`,
-    ...runnerEnvArgs(userKeys),
+    "-v",
+    keysVolume,
+    ...runnerEnvArgs(),
   ];
   for (const p of RUNNER_PUBLISH_PORTS)
     args.push("-p", `${RUNNER_PUBLISH_HOST}::${p}`);
@@ -540,6 +518,41 @@ export async function removeRunner(sid) {
   delete reg[sid];
   saveRegistry(reg);
   logger.info({ sid }, "[runner] container removed");
+}
+
+/**
+ * Sync the active user's keys to .user_keys/active.json (the file mounted
+ * read-only into all runner containers). Call this on login, saveKey, removeKey.
+ */
+export function syncActiveKeysFile(email) {
+  try {
+    const keys = loadUserKeys(email);
+    const activeFile = path.join(WORKDIR, ".user_keys", "active.json");
+    fs.writeFileSync(activeFile, JSON.stringify(keys, null, 2));
+  } catch (e) {
+    logger.warn({ err: e.message }, "[runner] syncActiveKeysFile failed");
+  }
+}
+
+/**
+ * Send SIGHUP to all running runner containers, triggering them to
+ * regenerate auth.json from the mounted keys file and restart opencode serve.
+ * This makes key changes (add/remove) effective in existing chats within ~2s.
+ */
+export async function reloadAllRunners() {
+  const reg = loadRegistry();
+  const promises = [];
+  for (const [sid, entry] of Object.entries(reg)) {
+    const name = entry.container || containerName(sid);
+    promises.push(
+      docker(["kill", "--signal", "HUP", name])
+        .then(() => logger.info({ sid }, "[runner] SIGHUP sent for key reload"))
+        .catch((e) =>
+          logger.warn({ sid, err: e.message }, "[runner] SIGHUP failed"),
+        ),
+    );
+  }
+  await Promise.allSettled(promises);
 }
 
 export async function getRunnerInfo(sid) {

@@ -18,93 +18,62 @@ ln -sfn /session/.config_opencode "$HOME/.config/opencode"
 
 AUTH_FILE="/session/.opencode_data/auth.json"
 CONFIG_FILE="/session/.config_opencode/opencode.jsonc"
+USER_KEYS_FILE="/run/user-keys/keys.json"
 
-# Build auth.json with ALL available provider keys (from env vars forwarded by runner.mjs).
-# OpenCode reads auth.json to authenticate providers. Without this, user-connected
-# keys (Google, Z.ai, Anthropic, etc.) are invisible to the runner's OpenCode instance.
-{
-  echo "{"
-  FIRST=1
+# Generate auth.json from user keys file (mounted read-only from .user_keys/).
+# This function can be called again to reload keys without restarting the container.
+generate_auth_json() {
+  {
+    echo "{"
+    FIRST=1
 
-  if [ -n "$OPENCODE_ZEN_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "opencode": { "type": "api", "key": "%s" }' "$OPENCODE_ZEN_API_KEY"
-    FIRST=0
+    # Always include OpenCode Zen key from env
+    if [ -n "$OPENCODE_ZEN_API_KEY" ]; then
+      printf '  "opencode": { "type": "api", "key": "%s" }' "$OPENCODE_ZEN_API_KEY"
+      FIRST=0
+    fi
+
+    # Read user-connected keys from mounted file
+    if [ -f "$USER_KEYS_FILE" ]; then
+      # Parse JSON: extract provider_id and key pairs
+      # Format: {"google": {"type":"api","key":"..."}, "zai": {"type":"api","key":"..."}}
+      KEYS=$(cat "$USER_KEYS_FILE" 2>/dev/null)
+      if [ -n "$KEYS" ] && [ "$KEYS" != "{}" ]; then
+        # Use node to safely parse and extract keys
+        PROVIDER_ENTRIES=$(node -e "
+          try {
+            const keys = JSON.parse(process.argv[1]);
+            const entries = [];
+            for (const [id, data] of Object.entries(keys)) {
+              if (data && data.key) {
+                entries.push('  \"' + id + '\": { \"type\": \"api\", \"key\": \"' + data.key + '\" }');
+              }
+            }
+            process.stdout.write(entries.join(',\n'));
+          } catch(e) { process.stdout.write(''); }
+        " "$KEYS" 2>/dev/null)
+
+        if [ -n "$PROVIDER_ENTRIES" ]; then
+          [ "$FIRST" = "0" ] && echo ","
+          printf '%s' "$PROVIDER_ENTRIES"
+          FIRST=0
+        fi
+      fi
+    fi
+
+    echo ""
+    echo "}"
+  } > "$AUTH_FILE"
+
+  if [ "$FIRST" = "1" ]; then
+    echo "[auth] WARNING: No API keys available."
+  else
+    echo "[auth] auth.json generated from user keys file."
   fi
+}
 
-  if [ -n "$GOOGLE_GENERATIVE_AI_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "google": { "type": "api", "key": "%s" }' "$GOOGLE_GENERATIVE_AI_API_KEY"
-    FIRST=0
-  fi
-
-  if [ -n "$ZAI_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "zai": { "type": "api", "key": "%s" }' "$ZAI_API_KEY"
-    FIRST=0
-  fi
-
-  if [ -n "$ANTHROPIC_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "anthropic": { "type": "api", "key": "%s" }' "$ANTHROPIC_API_KEY"
-    FIRST=0
-  fi
-
-  if [ -n "$OPENAI_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "openai": { "type": "api", "key": "%s" }' "$OPENAI_API_KEY"
-    FIRST=0
-  fi
-
-  if [ -n "$XAI_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "xai": { "type": "api", "key": "%s" }' "$XAI_API_KEY"
-    FIRST=0
-  fi
-
-  if [ -n "$DEEPSEEK_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "deepseek": { "type": "api", "key": "%s" }' "$DEEPSEEK_API_KEY"
-    FIRST=0
-  fi
-
-  if [ -n "$GROQ_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "groq": { "type": "api", "key": "%s" }' "$GROQ_API_KEY"
-    FIRST=0
-  fi
-
-  if [ -n "$MISTRAL_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "mistral": { "type": "api", "key": "%s" }' "$MISTRAL_API_KEY"
-    FIRST=0
-  fi
-
-  if [ -n "$OPENROUTER_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "openrouter": { "type": "api", "key": "%s" }' "$OPENROUTER_API_KEY"
-    FIRST=0
-  fi
-
-  if [ -n "$TOGETHER_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "together": { "type": "api", "key": "%s" }' "$TOGETHER_API_KEY"
-    FIRST=0
-  fi
-
-  if [ -n "$COHERE_API_KEY" ]; then
-    [ "$FIRST" = "0" ] && echo ","
-    printf '  "cohere": { "type": "api", "key": "%s" }' "$COHERE_API_KEY"
-    FIRST=0
-  fi
-
-  echo ""
-  echo "}"
-} > "$AUTH_FILE"
-
-if [ "$FIRST" = "1" ]; then
-  echo "WARNING: No API keys available — no models will work."
-fi
+# Generate initial auth.json
+generate_auth_json
 
 cat > "$CONFIG_FILE" <<CONFIG_EOF
 {
@@ -118,9 +87,10 @@ cat > "$CONFIG_FILE" <<CONFIG_EOF
         "baseURL": "https://api.z.ai/api/paas/v4"
       },
       "models": {
+        "glm-4.5-flash": { "name": "GLM-4.5 Flash (Free)" },
         "glm-5.2": { "name": "GLM-5.2" },
         "glm-5-turbo": { "name": "GLM-5-Turbo" },
-        "glm-4-flash": { "name": "GLM-4-Flash" }
+        "glm-4.5-air": { "name": "GLM-4.5 Air" }
       }
     },
     "openai": {
@@ -240,4 +210,28 @@ echo "Runner workdir: $WORK"
 echo "Model: ${OPENCODE_MODEL:-opencode/deepseek-v4-flash-free}"
 
 cd "$WORK"
-exec opencode serve --port 4096 --hostname 0.0.0.0
+
+# Run opencode serve in a loop so it auto-restarts on kill.
+# SIGHUP triggers a key reload (regenerate auth.json) before restart.
+OPENCODE_PID=""
+RELOAD_KEYS=0
+
+trap 'RELOAD_KEYS=1; [ -n "$OPENCODE_PID" ] && kill "$OPENCODE_PID" 2>/dev/null' HUP
+trap '[ -n "$OPENCODE_PID" ] && kill "$OPENCODE_PID" 2>/dev/null; exit 0' TERM INT
+
+while true; do
+  if [ "$RELOAD_KEYS" = "1" ]; then
+    echo "[runner] SIGHUP received — reloading keys..."
+    generate_auth_json
+    RELOAD_KEYS=0
+  fi
+
+  opencode serve --port 4096 --hostname 0.0.0.0 &
+  OPENCODE_PID=$!
+  echo "[runner] opencode serve started (PID $OPENCODE_PID)"
+  wait "$OPENCODE_PID" 2>/dev/null
+  EXIT_CODE=$?
+  OPENCODE_PID=""
+  echo "[runner] opencode serve exited (code $EXIT_CODE) — restarting in 1s..."
+  sleep 1
+done

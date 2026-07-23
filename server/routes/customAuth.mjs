@@ -1,3 +1,5 @@
+import { syncActiveKeysFile, reloadAllRunners } from "../runner.mjs";
+
 export function handleCustomAuthRoute(
   req,
   res,
@@ -42,6 +44,10 @@ export function handleCustomAuthRoute(
           const keys = loadUserKeys(userEmail);
           keys[providerId] = { type: "api", key };
           saveUserKeys(userEmail, keys);
+          // Sync keys to the file mounted into runner containers and
+          // signal all active runners to reload auth.json (SIGHUP).
+          syncActiveKeysFile(userEmail);
+          reloadAllRunners().catch(() => {});
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ status: "success" }));
         } catch (_e) {
@@ -74,6 +80,9 @@ export function handleCustomAuthRoute(
           const keys = loadUserKeys(userEmail);
           delete keys[providerId];
           saveUserKeys(userEmail, keys);
+          // Sync and reload runners (same as saveKey)
+          syncActiveKeysFile(userEmail);
+          reloadAllRunners().catch(() => {});
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ status: "success" }));
         } catch (_e) {
