@@ -63,7 +63,7 @@ export default function TopBar() {
     const st = useStore.getState();
     const sid = st.currentID;
     const raw = sid ? st.status[sid] : undefined;
-    const v = typeof raw === "string" ? raw : (raw as { type?: string })?.type;
+    const v = typeof raw === "string" ? raw : (raw as any)?.type;
     return v === "busy";
   };
 
