@@ -3,6 +3,7 @@ import {
   api,
   isSessionDead,
   markSessionDead,
+  unmarkSessionDead,
   SessionGoneError,
 } from "../../api/client";
 import type { SessionInfo, SessionStatus } from "../../api/types";
@@ -217,6 +218,7 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
         }
       }
     } catch (e) {
+      unmarkSessionDead(id);
       // Rollback on error — функциональная форма: возвращаем только
       // удалённую сессию, не трогая остальное текущее состояние.
       set((s) => ({

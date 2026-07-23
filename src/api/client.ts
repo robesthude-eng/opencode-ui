@@ -70,10 +70,11 @@ async function req<T>(
   init?: RequestInit,
   timeoutMs: number | null = DEFAULT_REQUEST_TIMEOUT_MS,
 ): Promise<T> {
-  // guard: обрываем запрос, если sessionID в пути уже в blacklist
+  // guard: обрываем запрос, если sessionID в пути уже в blacklist (и это не запрос удаления)
   const sidMatch = path.match(/\/session\/(ses_[A-Za-z0-9]+)/);
   const deadSid = sidMatch?.[1];
-  if (deadSid && __deadSessions.has(deadSid)) {
+  const isDelete = init?.method === "DELETE";
+  if (deadSid && __deadSessions.has(deadSid) && !isDelete) {
     throw new SessionGoneError(deadSid, "session in local dead-list");
   }
 
@@ -162,6 +163,9 @@ function _markSessionDead(sid: string) {
 }
 
 export { _markSessionDead as markSessionDead };
+export function unmarkSessionDead(sid: string) {
+  if (sid) __deadSessions.delete(sid);
+}
 export function isSessionDead(sid: string): boolean {
   return __deadSessions.has(sid);
 }
