@@ -17,18 +17,19 @@
  */
 
 const ROUTES = {
-  "/v1beta":    "https://generativelanguage.googleapis.com",
-  "/openai":    "https://api.openai.com",
+  "/v1beta": "https://generativelanguage.googleapis.com",
+  "/openai": "https://api.openai.com",
   "/anthropic": "https://api.anthropic.com",
-  "/xai":       "https://api.x.ai",
-  "/mistral":   "https://api.mistral.ai",
-  "/cohere":    "https://api.cohere.ai",
+  "/xai": "https://api.x.ai",
+  "/mistral": "https://api.mistral.ai",
+  "/cohere": "https://api.cohere.ai",
 };
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key, anthropic-version, api-key",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, x-api-key, anthropic-version, api-key",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -61,7 +62,10 @@ export default {
           hint: `Valid prefixes: ${Object.keys(ROUTES).join(", ")}`,
           path,
         }),
-        { status: 404, headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+        },
       );
     }
 
@@ -80,7 +84,10 @@ export default {
     const response = await fetch(upstreamUrl.toString(), {
       method: request.method,
       headers,
-      body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
+      body:
+        request.method !== "GET" && request.method !== "HEAD"
+          ? request.body
+          : undefined,
       redirect: "follow",
     });
 
