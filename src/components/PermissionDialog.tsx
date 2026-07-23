@@ -21,7 +21,7 @@ type ToolPresentation = {
   /** Человечное описание — отвечает, чему именно даётся разрешение. */
   action: string;
   /** Главная деталь (команда, путь, URL) из input. */
-  detail?: string;
+  detail?: string | undefined;
 };
 
 function presentTool(tool: string, input: unknown): ToolPresentation {
