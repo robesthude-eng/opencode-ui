@@ -28,7 +28,7 @@ export function ProvidersTabContent() {
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="font-semibold">Bring your own API key</h3>
+        <h3 className="font-semibold">Свой API-ключ (BYOK)</h3>
         <p className="text-xs text-muted-foreground">
           Paid providers with zero data retention.
         </p>

@@ -123,17 +123,19 @@ describe("SettingsPanel", () => {
     fireEvent.click(within(nav).getByText("OpenCode Zen"));
     expect(screen.getByText("Free Models")).toBeInTheDocument();
     fireEvent.click(within(nav).getByText("API Провайдеры"));
-    expect(screen.getByText("Bring your own API key")).toBeInTheDocument();
+    expect(screen.getByText("Свой API-ключ (BYOK)")).toBeInTheDocument();
   });
 
   test("displays self-improvement toggle", () => {
     render(<SettingsPanel />);
+    fireEvent.click(within(desktopNav()).getByText("Саморазвитие"));
     expect(screen.getByText("○ Выключено")).toBeInTheDocument();
   });
 
   test("displays self-improvement toggle as enabled", () => {
     setState({ selfImproveEnabled: true });
     render(<SettingsPanel />);
+    fireEvent.click(within(desktopNav()).getByText("Саморазвитие"));
     expect(screen.getByText("● Включено")).toBeInTheDocument();
   });
 
@@ -142,6 +144,7 @@ describe("SettingsPanel", () => {
       jsonResponse({ status: "success" }),
     );
     render(<SettingsPanel />);
+    fireEvent.click(within(desktopNav()).getByText("Саморазвитие"));
     fireEvent.click(screen.getByText("○ Выключено"));
     await waitFor(() => {
       expect(mockSetSelfImproveEnabled).toHaveBeenCalledWith(true);
@@ -151,6 +154,7 @@ describe("SettingsPanel", () => {
   test("creates checkpoint when button clicked", async () => {
     setState({ selfImproveEnabled: true });
     render(<SettingsPanel />);
+    fireEvent.click(within(desktopNav()).getByText("Саморазвитие"));
     fireEvent.click(screen.getByRole("button", { name: /Создать чекпоинт/i }));
     await waitFor(() => {
       expect(screen.getByText("✔ abc123")).toBeInTheDocument();

@@ -1,0 +1,7 @@
+# Runner isolation is ON — each chat session gets its own container.
+# The override file is kept empty; RUNNER_ISOLATION=1 is set in .env.
+# Uncomment below ONLY if you need to temporarily disable isolation:
+# services:
+#   opencode-ui:
+#     environment:
+#       - RUNNER_ISOLATION=0

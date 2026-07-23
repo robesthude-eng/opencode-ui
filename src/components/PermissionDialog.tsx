@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useStore } from "../store/useStore";
@@ -85,6 +86,23 @@ export default function PermissionDialog() {
 
   const req = permissions[0];
   const queueLen = permissions.length;
+
+  // A11y: переводим фокус на «Разрешить» при появлении карточки
+  // и возвращаем обратно, когда очередь запросов опустела.
+  const allowRef = useRef<HTMLButtonElement | null>(null);
+  const prevFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (req) {
+      if (!prevFocusRef.current) {
+        prevFocusRef.current = document.activeElement as HTMLElement | null;
+      }
+      allowRef.current?.focus();
+    } else if (prevFocusRef.current) {
+      prevFocusRef.current.focus();
+      prevFocusRef.current = null;
+    }
+  }, [req]);
+
   if (!req) return null;
 
   const tool = typeof req.tool === "string" && req.tool ? req.tool : "tool";
@@ -142,6 +160,7 @@ export default function PermissionDialog() {
             </Button>
             {/* "once" — безопасный дефолт: только этот вызов */}
             <Button
+              ref={allowRef}
               onClick={() => answer("once")}
               aria-label="Разрешить только этот вызов"
             >

@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { useStore } from "../store/useStore";
 import {
@@ -16,32 +17,23 @@ import {
 } from "./icons";
 
 function SidebarUserEmail({ email }: { email: string }) {
-  const [showFull, setShowFull] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const handleClick = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setShowFull(true);
-    timerRef.current = setTimeout(() => setShowFull(false), 5000);
+    if (!navigator.clipboard) {
+      toast("error", "Буфер обмена недоступен в этом браузере");
+      return;
+    }
+    navigator.clipboard
+      .writeText(email)
+      .then(() => toast("success", `Email скопирован: ${email}`))
+      .catch(() => toast("error", "Не удалось скопировать email"));
   };
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
 
   return (
     <div className="relative flex-1 min-w-0">
-      {showFull && (
-        <div className="absolute bottom-full left-0 mb-2 rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs shadow-lg z-50 max-w-[240px] break-all">
-          {email}
-        </div>
-      )}
       <button
         className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted transition text-left"
         onClick={handleClick}
-        title="Нажмите, чтобы увидеть полный email"
+        title={`Скопировать email: ${email}`}
         type="button"
       >
         <span className="text-sm shrink-0">👤</span>

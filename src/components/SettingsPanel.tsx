@@ -34,7 +34,7 @@ export default function SettingsPanel() {
   const setOpen = useStore((s) => s.setSettingsOpen);
   const loadAuth = useStore((s) => s.loadAuth);
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>("self-improve");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("providers");
   // Mobile: "menu" shows nav list; "content" shows selected tab with Back
   const [mobileView, setMobileView] = useState<"menu" | "content">("menu");
 

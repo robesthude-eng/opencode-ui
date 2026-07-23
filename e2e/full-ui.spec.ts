@@ -159,9 +159,7 @@ test.describe("2. Sidebar", () => {
   test("2.2 Settings button opens panel", async ({ page }) => {
     await page.getByRole("button", { name: /Settings|Настройки/i }).click();
     await expect(
-      page
-        .locator("text=/Self-Improvement|self-improve|Self-improve/i")
-        .first(),
+      page.locator("text=/Свой API-ключ|API Провайдеры/i").first(),
     ).toBeVisible({ timeout: 3000 });
   });
 

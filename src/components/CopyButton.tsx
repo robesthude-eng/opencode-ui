@@ -2,6 +2,7 @@ import { Check, Copy } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 export default function CopyButton({
@@ -36,7 +37,7 @@ export default function CopyButton({
         timerRef.current = setTimeout(() => setCopied(false), 1500);
       })
       .catch(() => {
-        // нет разрешения/фокуса — молча игнорируем, как и раньше
+        toast("error", "Не удалось скопировать — нет доступа к буферу");
       });
   };
 

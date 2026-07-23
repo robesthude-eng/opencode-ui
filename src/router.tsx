@@ -17,6 +17,7 @@ import LoginPage from "./components/LoginPage";
 import PermissionDialog from "./components/PermissionDialog";
 import SettingsPanel from "./components/SettingsPanel";
 import Sidebar from "./components/Sidebar";
+import ToastHost from "./components/ToastHost";
 import TopBar from "./components/TopBar";
 import Workspace from "./components/Workspace";
 import { applyTheme } from "./config/theme";
@@ -279,6 +280,7 @@ function AppShell() {
       </div>
       <PermissionDialog />
       <SettingsPanel />
+      <ToastHost />
     </div>
   );
 }
