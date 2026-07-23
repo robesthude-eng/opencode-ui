@@ -3,8 +3,8 @@ import {
   api,
   isSessionDead,
   markSessionDead,
-  unmarkSessionDead,
   SessionGoneError,
+  unmarkSessionDead,
 } from "../../api/client";
 import type { SessionInfo, SessionStatus } from "../../api/types";
 import { isTmpSession } from "../../lib/ids";
