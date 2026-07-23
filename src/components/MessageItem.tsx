@@ -213,13 +213,12 @@ function MessageItem({
     .join("\n\n");
 
   if (isUser) {
-    // Мокап-стиль: метка «ВЫ» + линия слева, без пузыря.
     return (
-      <div className="group oc-msg-in flex flex-col gap-1.5 px-3 py-2 md:px-6">
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+      <div className="group oc-msg-in flex flex-col items-end gap-1.5 px-3 py-2 md:px-6">
+        <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70 self-end mr-1">
           вы
         </div>
-        <div className="flex min-w-0 flex-col gap-1 border-l border-border pl-3 md:pl-4">
+        <div className="flex min-w-0 flex-col gap-2 items-end max-w-full">
           {msgArray.map((message, idx) => {
             const msgText = getMessageText(message);
             const { attLines, rest } = splitAttachmentLines(msgText);
@@ -229,10 +228,10 @@ function MessageItem({
             return (
               <div
                 key={message.id || idx}
-                className="flex max-w-[min(100%,800px)] flex-col gap-1.5"
+                className="flex flex-col gap-2 bg-muted/65 border border-border/40 dark:bg-muted/30 rounded-2xl px-4 py-2.5 rounded-tr-none shadow-sm max-w-[min(100%,700px)] self-end"
               >
                 {(attLines.length > 0 || realAttParts.length > 0) && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 justify-end">
                     {attLines.map((l, i) => (
                       <AttachmentChip key={`att-${i}`} line={l} />
                     ))}
@@ -243,7 +242,7 @@ function MessageItem({
                 )}
                 {(rest ||
                   (attLines.length === 0 && realAttParts.length === 0)) && (
-                  <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-foreground">
+                  <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-foreground/95">
                     {rest || "…"}
                   </div>
                 )}
@@ -251,7 +250,7 @@ function MessageItem({
             );
           })}
           {combinedText && (
-            <div className="mt-0.5 flex opacity-0 transition-opacity focus-within:opacity-100 hover:opacity-100 group-hover:opacity-60">
+            <div className="mt-0.5 flex opacity-0 transition-opacity focus-within:opacity-100 hover:opacity-100 group-hover:opacity-60 mr-1">
               <CopyButton
                 text={combinedText}
                 title="Copy"
