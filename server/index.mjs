@@ -429,7 +429,7 @@ const server = http.createServer(async (req, res) => {
   const isSelfImproveSession =
     isSelfImproveEnabled(WORKDIR) && !!siSessionId && sessionId === siSessionId;
   const selfImproveDir = isSelfImproveSession
-    ? getSessionWorkspace(sessionId, WORKDIR)
+    ? path.join(WORKDIR, "opencode-ui")
     : null;
   const sessionMatch = urlPath.match(/^\/api\/session\/([^/?]+)$/);
   if (req.method === "DELETE" && sessionMatch) {
