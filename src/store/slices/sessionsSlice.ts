@@ -1,5 +1,10 @@
 import { abortSessionRequests } from "../../api/abortRegistry";
-import { api, isSessionDead, SessionGoneError } from "../../api/client";
+import {
+  api,
+  isSessionDead,
+  markSessionDead,
+  SessionGoneError,
+} from "../../api/client";
 import type { SessionInfo, SessionStatus } from "../../api/types";
 import { isTmpSession } from "../../lib/ids";
 import { normalizeMessages } from "../helpers";
@@ -170,6 +175,11 @@ export const createSessionsSlice: Slice<SessionsSlice> = (set, get) => ({
 
   // Claude-like delete: delete everything - messages, files, workspace, no recovery
   removeSession: async (id) => {
+    // Cancel any in-flight requests and mark the session as dead so that
+    // stale SSE / polling / select() calls are suppressed immediately.
+    abortSessionRequests(id);
+    markSessionDead(id);
+
     // Optimistic delete like Claude — immediately remove from UI.
     // Релиз 4: снимаем только удаляемую сессию, а не целые коллекции —
     // откат не должен затирать сессии/сообщения, пришедшие по SSE
