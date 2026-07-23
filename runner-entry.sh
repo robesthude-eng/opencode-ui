@@ -65,17 +65,13 @@ generate_auth_json() {
   } > "$AUTH_FILE"
 
   # Google AI SDK reads key from env var, not auth.json.
-  # Extract Google key from user keys file and export it.
+  # Extract Google key from user keys file using grep/sed (node -e has quoting issues in sh).
   if [ -r "$USER_KEYS_FILE" ]; then
-    GOOGLE_KEY=$(node -e "
-      try {
-        const k = JSON.parse(require('fs').readFileSync('$USER_KEYS_FILE','utf8'));
-        if (k.google && k.google.key) process.stdout.write(k.google.key);
-      } catch(e) {}
-    " 2>/dev/null)
+    GOOGLE_KEY=$(grep -A2 '"google"' "$USER_KEYS_FILE" 2>/dev/null | grep '"key"' | sed 's/.*"key":[[:space:]]*"\([^"]*\)".*/\1/')
     if [ -n "$GOOGLE_KEY" ]; then
       export GOOGLE_GENERATIVE_AI_API_KEY="$GOOGLE_KEY"
       export GEMINI_API_KEY="$GOOGLE_KEY"
+      echo "[auth] Google API key exported to env."
     fi
   fi
 
