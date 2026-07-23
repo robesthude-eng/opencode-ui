@@ -132,6 +132,99 @@ cat > "$CONFIG_FILE" <<EOF
         "glm-4-flash": { "name": "GLM-4-Flash" }
       }
     },
+    "openai": {
+      "api": "openai",
+      "options": {
+        "baseURL": "https://browserai-proxy.robesthud.workers.dev/openai/v1"
+      },
+      "models": {
+        "gpt-4o": { "name": "GPT-4o" },
+        "gpt-4o-mini": { "name": "GPT-4o Mini" },
+        "o3-mini": { "name": "o3 Mini" }
+      }
+    },
+    "anthropic": {
+      "api": "anthropic",
+      "options": {
+        "baseURL": "https://browserai-proxy.robesthud.workers.dev/anthropic"
+      },
+      "models": {
+        "claude-sonnet-4-20250514": { "name": "Claude Sonnet 4" },
+        "claude-opus-4-20250514": { "name": "Claude Opus 4" },
+        "claude-3-5-haiku-20241022": { "name": "Claude 3.5 Haiku" }
+      }
+    },
+    "xai": {
+      "api": "openai",
+      "options": {
+        "baseURL": "https://browserai-proxy.robesthud.workers.dev/xai/v1"
+      },
+      "models": {
+        "grok-3": { "name": "Grok 3" },
+        "grok-3-mini": { "name": "Grok 3 Mini" }
+      }
+    },
+    "deepseek": {
+      "api": "openai",
+      "options": {
+        "baseURL": "https://api.deepseek.com/v1"
+      },
+      "models": {
+        "deepseek-chat": { "name": "DeepSeek V3" },
+        "deepseek-reasoner": { "name": "DeepSeek R1" }
+      }
+    },
+    "groq": {
+      "api": "openai",
+      "options": {
+        "baseURL": "https://api.groq.com/openai/v1"
+      },
+      "models": {
+        "llama-3.3-70b-versatile": { "name": "Llama 3.3 70B" },
+        "llama-3.1-8b-instant": { "name": "Llama 3.1 8B" }
+      }
+    },
+    "mistral": {
+      "api": "openai",
+      "options": {
+        "baseURL": "https://browserai-proxy.robesthud.workers.dev/mistral/v1"
+      },
+      "models": {
+        "mistral-large-latest": { "name": "Mistral Large" },
+        "codestral-latest": { "name": "Codestral" }
+      }
+    },
+    "openrouter": {
+      "api": "openai",
+      "options": {
+        "baseURL": "https://openrouter.ai/api/v1"
+      },
+      "models": {
+        "anthropic/claude-sonnet-4": { "name": "Claude Sonnet 4" },
+        "openai/gpt-4o": { "name": "GPT-4o" },
+        "google/gemini-2.5-flash": { "name": "Gemini 2.5 Flash" }
+      }
+    },
+    "together": {
+      "api": "openai",
+      "options": {
+        "baseURL": "https://api.together.xyz/v1"
+      },
+      "models": {
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo": { "name": "Llama 3.3 70B" },
+        "Qwen/Qwen2.5-Coder-32B-Instruct": { "name": "Qwen 2.5 Coder 32B" }
+      }
+    },
+    "cohere": {
+      "api": "openai",
+      "options": {
+        "baseURL": "https://browserai-proxy.robesthud.workers.dev/cohere/v2"
+      },
+      "models": {
+        "command-r-plus": { "name": "Command R+" },
+        "command-r": { "name": "Command R" }
+      }
+    },
     "opencode": {
       "models": {
         "deepseek-v4-flash-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
