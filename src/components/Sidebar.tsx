@@ -52,6 +52,7 @@ function SidebarUserEmail({ email }: { email: string }) {
 }
 
 export default function Sidebar() {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const sessions = useStore((s) => s.sessions);
   const currentID = useStore((s) => s.currentID);
   const select = useStore((s) => s.select);
@@ -226,34 +227,86 @@ export default function Sidebar() {
                       {displayTitle}
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm(`Удалить чат «${displayTitle}»?`)) {
-                        removeSession(s.id);
-                      }
-                    }}
-                    title="Удалить чат"
-                    aria-label={`Удалить чат ${displayTitle}`}
-                    className="mr-1 inline-flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-lg border-none bg-transparent p-0 text-current opacity-45 transition-all duration-150 hover:bg-red-500/12 hover:text-red-500 hover:opacity-100 active:scale-90"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.75"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
+                  {confirmDeleteId === s.id ? (
+                    <div className="flex items-center gap-1 bg-red-500/10 rounded-lg mr-1 self-center py-0.5 border border-red-500/20">
+                      <span className="text-[10px] font-semibold text-red-500/90 pl-1.5 pr-0.5">
+                        Удалить?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeSession(s.id);
+                          setConfirmDeleteId(null);
+                        }}
+                        title="Подтвердить удаление"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-red-500 text-white hover:bg-red-600 transition"
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteId(null);
+                        }}
+                        title="Отмена"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-muted hover:bg-muted-foreground/20 text-muted-foreground transition mr-1"
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDeleteId(s.id);
+                      }}
+                      title="Удалить чат"
+                      aria-label={`Удалить чат ${displayTitle}`}
+                      className="mr-1 inline-flex h-8 w-8 shrink-0 self-center items-center justify-center rounded-lg border-none bg-transparent p-0 text-current opacity-45 transition-all duration-150 hover:bg-red-500/12 hover:text-red-500 hover:opacity-100 active:scale-90"
                     >
-                      <path d="M3 6h18" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                  </button>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.75"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               );
             })}
