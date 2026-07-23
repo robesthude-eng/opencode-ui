@@ -4,12 +4,47 @@ import { cn } from "@/lib/utils";
 import { api } from "../api/client";
 import { statusText } from "../api/eventGuards";
 import { processFile } from "../api/files";
+import type { FileNode } from "../api/types";
 import { useStore } from "../store/useStore";
 import { CloseIcon, PaperclipIcon, SendIcon, StopIcon } from "./icons";
 
 // Черновики по сессиям: текст композера не теряется при переключении чатов.
 // Живёт в памяти вкладки — намеренно не персистится.
 const sessionDrafts = new Map<string, string>();
+
+// Slash-команды: быстрые шаблоны запросов, дропдаун открывается по «/».
+const SLASH_COMMANDS: Array<{ cmd: string; hint: string; insert: string }> = [
+  {
+    cmd: "/резюме",
+    hint: "Краткое резюме диалога",
+    insert:
+      "Сделай краткое резюме нашего диалога: ключевые решения, изменённые файлы, открытые вопросы и следующие шаги.",
+  },
+  {
+    cmd: "/тесты",
+    hint: "Запустить тесты",
+    insert:
+      "Запусти тесты и покажи результат. Если есть падения — объясни причину и предложи фикс.",
+  },
+  {
+    cmd: "/фикс",
+    hint: "Починить последнюю ошибку",
+    insert:
+      "Найди причину последней ошибки и предложи минимальный фикс с диффом.",
+  },
+  {
+    cmd: "/ревью",
+    hint: "Код-ревью изменений",
+    insert:
+      "Сделай код-ревью последних изменений: ошибки, риски, стиль, что можно улучшить.",
+  },
+  {
+    cmd: "/коммит",
+    hint: "Сообщение коммита",
+    insert:
+      "Сформулируй сообщение коммита для текущих изменений в стиле Conventional Commits.",
+  },
+];
 
 export default function Composer() {
   const currentID = useStore((s) => s.currentID);
@@ -38,6 +73,10 @@ export default function Composer() {
     {},
   );
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [caret, setCaret] = useState(0);
+  const [slashIdx, setSlashIdx] = useState(0);
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const [mentionFiles, setMentionFiles] = useState<FileNode[] | null>(null);
 
   const busy =
     status === "busy" ||
@@ -63,7 +102,7 @@ export default function Composer() {
   // пользователь не набирал его заново.
   useEffect(() => {
     if (failedSendText) {
-      setText((t) => (t ? t : failedSendText));
+      setText((t) => (t ? `${t}\n${failedSendText}` : failedSendText));
       clearFailedSendText();
     }
   }, [failedSendText, clearFailedSendText]);
@@ -111,7 +150,7 @@ export default function Composer() {
     await send(value);
   };
 
-  const handleFiles = async (fileList: FileList | null) => {
+  const handleFiles = async (fileList: FileList | File[] | null) => {
     if (!fileList) return;
     for (const file of Array.from(fileList)) {
       const name = file.name;
@@ -166,11 +205,70 @@ export default function Composer() {
 
   const canSend = text.trim().length > 0 || attachments.length > 0;
 
+  // --- Slash-команды и @-упоминания файлов workspace ---
+  const slashQuery = /^\/[^\s\n]*$/.test(text) ? text.toLowerCase() : null;
+  const slashMatches = slashQuery
+    ? SLASH_COMMANDS.filter((c) => c.cmd.startsWith(slashQuery))
+    : [];
+
+  const mentionMatch = /(^|\s)@([\w./-]*)$/.exec(text.slice(0, caret));
+  const mentionQuery = mentionMatch
+    ? (mentionMatch[2] ?? "").toLowerCase()
+    : null;
+
+  const mentionMatches =
+    mentionQuery !== null && mentionFiles
+      ? mentionFiles
+          .filter((f) => f.path.toLowerCase().includes(mentionQuery))
+          .slice(0, 8)
+      : [];
+
+  // Дерево файлов workspace грузим лениво при первом «@» и кэшируем.
+  useEffect(() => {
+    if (mentionQuery === null || mentionFiles !== null || !currentID) return;
+    let cancelled = false;
+    api
+      .listTree(currentID)
+      .then((nodes) => {
+        if (cancelled) return;
+        const files = nodes.filter(
+          (n) => n.type !== "directory" && !n.isDirectory,
+        );
+        setMentionFiles(files.slice(0, 2000));
+      })
+      .catch(() => {
+        if (!cancelled) setMentionFiles([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mentionQuery, mentionFiles, currentID]);
+
+  useEffect(() => {
+    setMentionFiles(null);
+  }, [currentID]);
+
+  const applySlash = (c: (typeof SLASH_COMMANDS)[number]) => {
+    setText(c.insert);
+    setSlashIdx(0);
+    textareaRef.current?.focus();
+  };
+
+  const applyMention = (f: FileNode) => {
+    if (!mentionMatch) return;
+    const start = caret - (mentionMatch[2] ?? "").length;
+    const next = `${text.slice(0, start)}${f.path} ${text.slice(caret)}`;
+    setText(next);
+    setMentionIdx(0);
+    setCaret(start + f.path.length + 1);
+    textareaRef.current?.focus();
+  };
+
   return (
     <div className="w-full max-w-3xl shrink-0 mx-auto px-3 md:px-6 pb-6 pointer-events-none">
       <div
         className={cn(
-          "pointer-events-auto w-full transition-all duration-200",
+          "pointer-events-auto relative w-full transition-all duration-200",
           "bg-card/95 backdrop-blur-md rounded-xl p-2 border border-border shadow-none",
           dragOver && "ring-2 ring-primary bg-primary/5",
         )}
@@ -178,6 +276,43 @@ export default function Composer() {
         onDragLeave={onDragLeave}
         onDrop={onDrop}
       >
+        {(slashMatches.length > 0 || mentionMatches.length > 0) && (
+          <div className="absolute bottom-full left-0 right-0 z-30 mb-2 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+            {slashMatches.map((c, i) => (
+              <button
+                key={c.cmd}
+                type="button"
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-2 text-left text-xs",
+                  i === slashIdx % slashMatches.length
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground",
+                )}
+                onClick={() => applySlash(c)}
+              >
+                <span className="font-mono font-semibold">{c.cmd}</span>
+                <span className="truncate opacity-70">{c.hint}</span>
+              </button>
+            ))}
+            {slashMatches.length === 0 &&
+              mentionMatches.map((f, i) => (
+                <button
+                  key={f.path}
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center gap-2 px-3 py-2 text-left text-xs",
+                    i === mentionIdx % mentionMatches.length
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground",
+                  )}
+                  onClick={() => applyMention(f)}
+                >
+                  <span aria-hidden="true">📄</span>
+                  <span className="truncate font-mono">{f.path}</span>
+                </button>
+              ))}
+          </div>
+        )}
         <div className="flex flex-col gap-1">
           {/* P2-fix: очередь сообщений, ожидающих окончания генерации */}
           {queued.length > 0 && (
@@ -271,12 +406,56 @@ export default function Composer() {
               value={text}
               onChange={(e) => {
                 setText(e.target.value);
+                setCaret(e.target.selectionStart ?? e.target.value.length);
                 grow(e.target);
               }}
               onKeyDown={(e) => {
+                if (slashMatches.length > 0) {
+                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const d = e.key === "ArrowDown" ? 1 : -1;
+                    const len = slashMatches.length;
+                    setSlashIdx((i) => (i + d + len) % len);
+                    return;
+                  }
+                  if (e.key === "Enter" || e.key === "Tab") {
+                    e.preventDefault();
+                    const c = slashMatches[slashIdx % slashMatches.length];
+                    if (c) applySlash(c);
+                    return;
+                  }
+                }
+                if (mentionMatches.length > 0) {
+                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const d = e.key === "ArrowDown" ? 1 : -1;
+                    const len = mentionMatches.length;
+                    setMentionIdx((i) => (i + d + len) % len);
+                    return;
+                  }
+                  if (e.key === "Enter" || e.key === "Tab") {
+                    e.preventDefault();
+                    const f =
+                      mentionMatches[mentionIdx % mentionMatches.length];
+                    if (f) applyMention(f);
+                    return;
+                  }
+                }
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   submit();
+                }
+              }}
+              onClick={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
+              onKeyUp={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
+              onPaste={(e) => {
+                const files = Array.from(e.clipboardData?.items ?? [])
+                  .filter((it) => it.kind === "file")
+                  .map((it) => it.getAsFile())
+                  .filter((f): f is File => f !== null);
+                if (files.length > 0) {
+                  e.preventDefault();
+                  handleFiles(files);
                 }
               }}
             />

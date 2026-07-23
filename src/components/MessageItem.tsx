@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { Message, Part, ToolPart } from "../api/types";
 import { messageText as getMessageText } from "../lib/chatText";
@@ -188,6 +188,12 @@ function MessageItem({
     ? new Date(firstMsg.time.created)
     : null;
 
+  // Сворачивание длинных ответов — экономит прокрутку длинных диалогов.
+  const [expanded, setExpanded] = useState(false);
+  const lineCount = combinedText.split("\n").length;
+  const isLong = lineCount > 60 || combinedText.length > 4000;
+  const collapsedNow = !isUser && isLong && !expanded && !isWorking;
+
   if (isUser) {
     return (
       <div className="group oc-msg-in flex flex-col items-end gap-1 px-3 py-1 md:px-6">
@@ -246,7 +252,13 @@ function MessageItem({
         агент
       </div>
       <div className="flex min-w-0 flex-col gap-0.5 border-l border-primary/20 pl-3 md:pl-4">
-        <div className="min-w-0 max-w-[min(100%,800px)] space-y-1">
+        <div
+          className={cn(
+            "min-w-0 max-w-[min(100%,800px)] space-y-1",
+            collapsedNow &&
+              "max-h-[420px] overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent)]",
+          )}
+        >
           {msgArray.map((message, msgIdx) => {
             const items = groupParts(message.parts || []);
             return (
@@ -318,6 +330,17 @@ function MessageItem({
           })}
         </div>
 
+        {isLong && !isWorking && (
+          <button
+            type="button"
+            className="self-start rounded-full border border-border px-3 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded
+              ? "Свернуть ответ"
+              : `Развернуть ответ — ~${lineCount} строк`}
+          </button>
+        )}
         {/* Arena-style Footer: Avatar and Copy Button */}
         <div className="flex items-center gap-1.5 mt-0.5 pl-1">
           {/* Пока агент работает, процесс показывает аура-индикатор в ленте;

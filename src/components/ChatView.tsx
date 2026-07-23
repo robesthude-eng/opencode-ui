@@ -339,6 +339,46 @@ export default function ChatView() {
     return null;
   }, [messages]);
 
+  // Цитирование выделенного текста: кнопка появляется под выделением.
+  const [quoteSel, setQuoteSel] = useState<{
+    x: number;
+    y: number;
+    text: string;
+  } | null>(null);
+
+  const handleSelectionEnd = () => {
+    const sel = window.getSelection();
+    const textSel = sel?.toString().trim() ?? "";
+    if (!sel || sel.isCollapsed || !textSel) {
+      setQuoteSel(null);
+      return;
+    }
+    const node = sel.anchorNode;
+    const host = scrollRef.current;
+    if (!node || !host || !host.contains(node)) {
+      setQuoteSel(null);
+      return;
+    }
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    const hostRect = host.getBoundingClientRect();
+    setQuoteSel({
+      x: Math.min(Math.max(rect.left - hostRect.left, 8), hostRect.width - 200),
+      y: Math.min(rect.bottom - hostRect.top + 6, hostRect.height - 40),
+      text: textSel.slice(0, 2000),
+    });
+  };
+
+  const quoteToComposer = () => {
+    if (!quoteSel) return;
+    const quoted = quoteSel.text
+      .split("\n")
+      .map((l) => `> ${l}`)
+      .join("\n");
+    prefillComposer(`${quoted}\n\n`);
+    setQuoteSel(null);
+    window.getSelection()?.removeAllRanges();
+  };
+
   if (!currentID) {
     return (
       <div className="flex-1 flex items-center justify-center p-4 md:p-6 min-h-0 overflow-y-auto">
@@ -361,6 +401,7 @@ export default function ChatView() {
         className="oc-chat-in scrollbar-none h-full overflow-y-auto pb-[180px]"
         ref={scrollRef}
         onScroll={onScroll}
+        onMouseUp={handleSelectionEnd}
       >
         {error && (
           <div className="mx-auto max-w-3xl px-3 md:px-6 pt-3">
@@ -469,6 +510,16 @@ export default function ChatView() {
           </div>
         </div>
       </div>
+      {quoteSel && (
+        <button
+          type="button"
+          className="absolute z-20 rounded-full border border-border bg-card px-3 py-1 text-xs shadow-lg hover:bg-accent"
+          style={{ left: quoteSel.x, top: quoteSel.y }}
+          onClick={quoteToComposer}
+        >
+          💬 Ответить с цитатой
+        </button>
+      )}
       {searchOpen && (
         <div className="absolute right-3 top-2 z-20 flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 shadow-lg">
           <input
