@@ -160,6 +160,7 @@ const __deadSessions = new Set<string>();
 function _markSessionDead(sid: string) {
   if (sid) __deadSessions.add(sid);
 }
+
 export { _markSessionDead as markSessionDead };
 export function isSessionDead(sid: string): boolean {
   return __deadSessions.has(sid);
