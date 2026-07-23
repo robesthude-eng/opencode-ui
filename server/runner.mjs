@@ -533,6 +533,8 @@ export function syncActiveKeysFile(email) {
     const keys = loadUserKeys(email);
     const activeFile = path.join(WORKDIR, ".user_keys", "active.json");
     fs.writeFileSync(activeFile, JSON.stringify(keys, null, 2));
+    // Ensure runner user (uid 1000) can read the file
+    fs.chmodSync(activeFile, 0o644);
   } catch (e) {
     logger.warn({ err: e.message }, "[runner] syncActiveKeysFile failed");
   }

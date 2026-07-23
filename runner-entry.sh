@@ -33,11 +33,10 @@ generate_auth_json() {
       FIRST=0
     fi
 
-    # Read user-connected keys from mounted file
-    if [ -f "$USER_KEYS_FILE" ]; then
-      # Parse JSON: extract provider_id and key pairs
-      # Format: {"google": {"type":"api","key":"..."}, "zai": {"type":"api","key":"..."}}
-      KEYS=$(cat "$USER_KEYS_FILE" 2>/dev/null)
+    # Read user-connected keys from mounted file (read-only volume).
+    # If the file is missing or unreadable, continue with just the Zen key.
+    if [ -r "$USER_KEYS_FILE" ]; then
+      KEYS=$(cat "$USER_KEYS_FILE" 2>/dev/null || echo "")
       if [ -n "$KEYS" ] && [ "$KEYS" != "{}" ]; then
         # Use node to safely parse and extract keys
         PROVIDER_ENTRIES=$(node -e "
