@@ -223,19 +223,26 @@ function MessageItem({
           {msgArray.map((message, idx) => {
             const msgText = getMessageText(message);
             const { attLines, rest } = splitAttachmentLines(msgText);
+            const realAttParts = (message.parts || []).filter(
+              (p) => p.type === "attachment" || p.type === "file",
+            );
             return (
               <div
                 key={message.id || idx}
                 className="flex max-w-[min(100%,800px)] flex-col gap-1.5"
               >
-                {attLines.length > 0 && (
+                {(attLines.length > 0 || realAttParts.length > 0) && (
                   <div className="flex flex-wrap gap-2">
                     {attLines.map((l, i) => (
                       <AttachmentChip key={`att-${i}`} line={l} />
                     ))}
+                    {realAttParts.map((part, i) => (
+                      <PartView key={`real-att-${i}`} part={part} />
+                    ))}
                   </div>
                 )}
-                {(rest || attLines.length === 0) && (
+                {(rest ||
+                  (attLines.length === 0 && realAttParts.length === 0)) && (
                   <div className="whitespace-pre-wrap break-words text-[14.5px] leading-relaxed text-foreground">
                     {rest || "…"}
                   </div>
