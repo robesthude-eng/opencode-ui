@@ -91,7 +91,7 @@ jobs:
         run: npm run build
 
       - name: Install Chromium for Playwright
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Run E2E against mock OpenCode
         shell: bash
