@@ -112,7 +112,7 @@ cat > "$CONFIG_FILE" <<EOF
   "provider": {
     "google": {
       "options": {
-        "baseURL": "${GEMINI_PROXY_URL:-https://browserai-proxy.robesthud.workers.dev/v1beta}"
+        "baseURL": "${GEMINI_PROXY_URL:-https://browserai-proxy.robesthud.workers.dev/v1beta/v1beta}"
       },
       "models": {
         "gemini-2.5-flash": { "name": "Gemini 2.5 Flash" },
