@@ -258,7 +258,11 @@ async function runRunnerContainer(name, hostSessionDir, localSessionDir, sid) {
   // Mount user keys file (read-only) so runner can read API keys dynamically.
   // The keys file is written by the UI when user connects/removes a provider.
   // Runner reads it on startup and can reload via SIGHUP without container restart.
-  const keysFileHost = path.posix.join(HOST_WORKSPACE_DIR, ".user_keys", "active.json");
+  const keysFileHost = path.posix.join(
+    HOST_WORKSPACE_DIR,
+    ".user_keys",
+    "active.json",
+  );
   const keysVolume = `${keysFileHost}:/run/user-keys/keys.json:ro`;
 
   const args = [
