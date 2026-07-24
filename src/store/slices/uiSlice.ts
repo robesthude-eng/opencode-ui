@@ -32,6 +32,10 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
     applyTheme(next);
     set({ theme: next });
   },
+  setTheme: (theme) => {
+    applyTheme(theme);
+    set({ theme });
+  },
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
   setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),

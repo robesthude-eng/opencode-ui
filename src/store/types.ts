@@ -59,6 +59,7 @@ export interface UiSlice {
   pinnedSessions: string[];
   sessionTitleOverrides: Record<string, string>;
   toggleTheme: () => void;
+  setTheme: (theme: Theme) => void;
   setSettingsOpen: (open: boolean) => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;

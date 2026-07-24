@@ -1,53 +1,96 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useStore } from "../store/useStore";
-import { CloseIcon } from "./icons";
+import { CloseIcon, SearchIcon } from "./icons";
 import { AboutTabContent } from "./settings/AboutTabContent";
-import { FreeModelsTabContent } from "./settings/FreeModelsTabContent";
-import { ProvidersTabContent } from "./settings/ProvidersTabContent";
+import { AppearanceTabContent } from "./settings/AppearanceTabContent";
+import { ModelsTabContent } from "./settings/ModelsTabContent";
 import { SelfImproveTabContent } from "./settings/SelfImproveTabContent";
 import { useSelfImproveOps } from "./settings/useSelfImproveOps";
 
-type SettingsTab = "self-improve" | "free-models" | "providers" | "about";
+type SettingsTab = "appearance" | "models" | "self-improve" | "about";
+
+type TabDef = {
+  id: SettingsTab;
+  label: string;
+  title: string;
+  /** Синонимы и ключевые слова раздела для поиска по настройкам. */
+  keywords: string;
+  /** Раздел виден только администратору. */
+  adminOnly?: boolean;
+};
+
+type TabGroup = { label: string; items: TabDef[] };
 
 /**
- * Единый реестр разделов настроек — источник правды для навигации
- * (десктоп и мобильная) и заголовка контента.
+ * Реестр разделов настроек, сгруппированный по смыслу:
+ * Аккаунт · Чат · Администрирование · Справка.
  *
- * Как добавить новый раздел (например, «Настройки чата» или
- * «Подключение MCP»):
+ * Как добавить раздел (например «Настройки чата» в группу «Чат»
+ * или «Подключение MCP» новой группой «Подключения»):
  * 1. Расширьте тип SettingsTab новым id.
- * 2. Добавьте запись в этот массив (label — пункт меню, title —
- *    заголовок страницы раздела).
- * 3. Создайте компонент в ./settings/ и подключите его в блоке
- *    рендера контента внизу этого файла.
+ * 2. Добавьте TabDef в нужную группу (label — пункт меню,
+ *    title — заголовок страницы, keywords — слова для поиска).
+ * 3. Соберите контент из атомов ./settings/primitives.tsx
+ *    (SettingsSection, SettingsRow) и подключите в блоке рендера
+ *    контента внизу этого файла.
  */
-const tabs: Array<{ id: SettingsTab; label: string; title: string }> = [
+const TAB_GROUPS: TabGroup[] = [
   {
-    id: "self-improve",
-    label: "Саморазвитие",
-    title: "Режим саморазвития (Self-Improvement)",
+    label: "Аккаунт",
+    items: [
+      {
+        id: "appearance",
+        label: "Внешний вид",
+        title: "Внешний вид",
+        keywords: "тема цвет тёмная светлая средняя оформление theme dark light",
+      },
+    ],
   },
   {
-    id: "free-models",
-    label: "OpenCode Zen",
-    title: "Бесплатные модели (OpenCode Zen)",
+    label: "Чат",
+    items: [
+      {
+        id: "models",
+        label: "Модели",
+        title: "Модели и API-ключи",
+        keywords:
+          "модели бесплатные ключ провайдеры zen api byok free models providers openai anthropic openrouter",
+      },
+    ],
   },
   {
-    id: "providers",
-    label: "API провайдеры",
-    title: "Подключение сторонних API провайдеров",
+    label: "Администрирование",
+    items: [
+      {
+        id: "self-improve",
+        label: "Саморазвитие",
+        title: "Режим саморазвития (Self-Improvement)",
+        keywords:
+          "саморазвитие бэкап чекпоинт откат сброс сервер логи git self-improve rollback backup",
+        adminOnly: true,
+      },
+    ],
   },
   {
-    id: "about",
-    label: "О системе",
-    title: "О системе и архитектуре",
+    label: "Справка",
+    items: [
+      {
+        id: "about",
+        label: "О системе",
+        title: "О системе и архитектуре",
+        keywords: "версия стек архитектура справка about version",
+      },
+    ],
   },
 ];
 
+const ALL_TABS: TabDef[] = TAB_GROUPS.flatMap((g) => g.items);
+
 /**
- * Thin shell: owns only tab/mobile-nav UI state and the modal shell markup.
+ * Thin shell: owns only nav/search/mobile UI state and the modal markup.
  * All domain logic and presentational card markup live in `./settings/*`.
  */
 export default function SettingsPanel() {
@@ -55,7 +98,8 @@ export default function SettingsPanel() {
   const setOpen = useStore((s) => s.setSettingsOpen);
   const loadAuth = useStore((s) => s.loadAuth);
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>("providers");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("models");
+  const [query, setQuery] = useState("");
   // Mobile: "menu" shows nav list; "content" shows selected tab with Back
   const [mobileView, setMobileView] = useState<"menu" | "content">("menu");
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -64,13 +108,15 @@ export default function SettingsPanel() {
     open,
     isActiveTab: activeTab === "self-improve",
   });
+  const isAdminUser = ops.isAdminUser;
 
-  // UX-fix: reset mobileView + reload auth ТОЛЬКО когда open переключается
+  // UX-fix: reset mobileView/search + reload auth ТОЛЬКО когда open переключается
   // false→true, а НЕ на каждый ре-рендер стора.
   const prevOpenRef = useRef(false);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
       setMobileView("menu");
+      setQuery("");
       loadAuth();
     }
     prevOpenRef.current = open;
@@ -87,9 +133,47 @@ export default function SettingsPanel() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, setOpen]);
 
+  // Группы меню: скрываем админские разделы у обычных пользователей
+  // и фильтруем по поисковому запросу (label + title + keywords).
+  const visibleGroups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return TAB_GROUPS.map((g) => ({
+      ...g,
+      items: g.items.filter(
+        (t) =>
+          (!t.adminOnly || isAdminUser) &&
+          (!q ||
+            t.label.toLowerCase().includes(q) ||
+            t.title.toLowerCase().includes(q) ||
+            t.keywords.includes(q)),
+      ),
+    })).filter((g) => g.items.length > 0);
+  }, [query, isAdminUser]);
+
   if (!open) return null;
 
-  const tabTitle = tabs.find((t) => t.id === activeTab)?.title ?? "";
+  const tabTitle = ALL_TABS.find((t) => t.id === activeTab)?.title ?? "";
+
+  const searchBox = (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+        <SearchIcon size={14} />
+      </span>
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Поиск настроек"
+        aria-label="Поиск по настройкам"
+        className="h-8 pl-8 text-sm"
+      />
+    </div>
+  );
+
+  const emptyResults = (
+    <p className="px-3 py-2 text-xs text-muted-foreground">
+      Ничего не найдено
+    </p>
+  );
 
   return (
     <div
@@ -106,7 +190,7 @@ export default function SettingsPanel() {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Desktop sidebar */}
-        <aside className="hidden md:flex w-60 border-r border-border bg-muted/20 p-4 flex-col gap-4 shrink-0">
+        <aside className="hidden md:flex w-60 border-r border-border bg-muted/20 p-4 flex-col gap-3 shrink-0">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-lg font-semibold">Настройки</h2>
             <Button
@@ -120,22 +204,31 @@ export default function SettingsPanel() {
               <CloseIcon />
             </Button>
           </div>
-          <nav className="flex flex-col gap-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                className={cn(
-                  "w-full text-left px-3 py-2.5 rounded-xl text-sm transition",
-                  activeTab === tab.id
-                    ? "bg-muted text-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
-                )}
-                onClick={() => setActiveTab(tab.id)}
-                aria-current={activeTab === tab.id ? "page" : undefined}
-                type="button"
-              >
-                {tab.label}
-              </button>
+          {searchBox}
+          <nav className="flex flex-col gap-4 overflow-y-auto">
+            {visibleGroups.length === 0 && emptyResults}
+            {visibleGroups.map((g) => (
+              <div key={g.label} className="flex flex-col gap-1">
+                <div className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {g.label}
+                </div>
+                {g.items.map((tab) => (
+                  <button
+                    key={tab.id}
+                    className={cn(
+                      "w-full text-left px-3 py-2 rounded-xl text-sm transition",
+                      activeTab === tab.id
+                        ? "bg-muted text-foreground font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    )}
+                    onClick={() => setActiveTab(tab.id)}
+                    aria-current={activeTab === tab.id ? "page" : undefined}
+                    type="button"
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             ))}
           </nav>
         </aside>
@@ -160,20 +253,29 @@ export default function SettingsPanel() {
               <CloseIcon />
             </Button>
           </header>
-          <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left text-[15px] hover:bg-muted/60 active:bg-muted transition"
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setMobileView("content");
-                }}
-              >
-                <span className="flex-1 font-medium">{tab.label}</span>
-                <span className="text-muted-foreground">›</span>
-              </button>
+          <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+            {searchBox}
+            {visibleGroups.length === 0 && emptyResults}
+            {visibleGroups.map((g) => (
+              <div key={g.label} className="space-y-1">
+                <div className="px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {g.label}
+                </div>
+                {g.items.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] hover:bg-muted/60 active:bg-muted transition"
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setMobileView("content");
+                    }}
+                  >
+                    <span className="flex-1 font-medium">{tab.label}</span>
+                    <span className="text-muted-foreground">›</span>
+                  </button>
+                ))}
+              </div>
             ))}
           </nav>
         </div>
@@ -211,11 +313,11 @@ export default function SettingsPanel() {
           </header>
 
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 pb-10">
+            {activeTab === "appearance" && <AppearanceTabContent />}
+            {activeTab === "models" && <ModelsTabContent />}
             {activeTab === "self-improve" && (
               <SelfImproveTabContent ops={ops} />
             )}
-            {activeTab === "free-models" && <FreeModelsTabContent />}
-            {activeTab === "providers" && <ProvidersTabContent />}
             {activeTab === "about" && <AboutTabContent />}
           </div>
         </div>
