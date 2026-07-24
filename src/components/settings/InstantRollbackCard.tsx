@@ -58,14 +58,14 @@ export function InstantRollbackCard({
                   groupColor || "border-border bg-background/60",
                 )}
               >
-                <div className="min-w-0">
-                  <span className="font-mono text-primary mr-2">
+                <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                  <span className="shrink-0 font-mono text-primary">
                     {s.current ? "текущая" : `−${i}`}
                   </span>
-                  <span className="text-muted-foreground truncate">
+                  <span className="min-w-0 truncate text-muted-foreground">
                     {s.name}
                   </span>
-                  <span className="text-muted-foreground ml-2">
+                  <span className="shrink-0 text-muted-foreground">
                     {s.time ? new Date(s.time).toLocaleString() : ""}
                   </span>
                 </div>
@@ -76,11 +76,9 @@ export function InstantRollbackCard({
                     className="h-6 text-[11px] shrink-0"
                     disabled={!!instantStatus}
                     onClick={() => {
-                      const currentIndex = distSnapshots.findIndex(
-                        (item) => item.current,
-                      );
-                      const cur = currentIndex >= 0 ? currentIndex : 0;
-                      handleInstantRollback(cur - i - 1);
+                      // Сервер всегда ставит current первым и берёт
+                      // entries[index + 1], поэтому для строки i — ровно i - 1.
+                      handleInstantRollback(i - 1);
                     }}
                   >
                     Восстановить

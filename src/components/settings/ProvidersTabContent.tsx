@@ -30,7 +30,7 @@ export function ProvidersTabContent() {
       <div>
         <h3 className="font-semibold">Свой API-ключ (BYOK)</h3>
         <p className="text-xs text-muted-foreground">
-          Paid providers with zero data retention.
+          Платные провайдеры без хранения ваших данных (zero retention).
         </p>
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
@@ -63,7 +63,7 @@ export function ProvidersTabContent() {
               {configured && !editingProviders[p.id] ? (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-emerald-400 flex items-center gap-1">
-                    🔑 API key connected
+                    🔑 API-ключ подключён
                   </span>
                   <div className="flex gap-3">
                     <button
@@ -77,14 +77,14 @@ export function ProvidersTabContent() {
                       }}
                       type="button"
                     >
-                      Change
+                      Изменить
                     </button>
                     <button
                       className="text-muted-foreground hover:text-foreground"
                       onClick={() => removeKey(p.id)}
                       type="button"
                     >
-                      Remove
+                      Удалить
                     </button>
                   </div>
                 </div>
@@ -128,8 +128,8 @@ export function ProvidersTabContent() {
                     {saving === p.id
                       ? "…"
                       : editingProviders[p.id]
-                        ? "Save"
-                        : "Connect"}
+                        ? "Сохранить"
+                        : "Подключить"}
                   </Button>
                   {editingProviders[p.id] && (
                     <button
@@ -143,7 +143,7 @@ export function ProvidersTabContent() {
                       }}
                       type="button"
                     >
-                      Cancel
+                      Отмена
                     </button>
                   )}
                 </div>
@@ -154,7 +154,7 @@ export function ProvidersTabContent() {
                 target="_blank"
                 rel="noreferrer"
               >
-                Get a key →
+                Получить ключ →
               </a>
             </div>
           );

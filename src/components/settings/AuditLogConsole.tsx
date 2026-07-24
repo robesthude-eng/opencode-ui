@@ -33,12 +33,12 @@ export function AuditLogConsole({
           auditLogs.map((log, index) => {
             let color = "text-zinc-300";
             if (log.includes("SUCCESS")) color = "text-emerald-400";
-            else if (log.includes("FAILED") || log.includes("WARNING"))
-              color = "text-red-400";
+            else if (log.includes("FAILED")) color = "text-red-400";
+            else if (log.includes("WARNING")) color = "text-amber-400";
             else if (log.includes("START")) color = "text-sky-400";
             return (
               <div
-                key={index}
+                key={`${index}:${log.slice(0, 32)}`}
                 className={cn("whitespace-pre-wrap break-all", color)}
               >
                 {log}

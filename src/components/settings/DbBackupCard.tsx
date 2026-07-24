@@ -3,6 +3,14 @@ import { cn } from "@/lib/utils";
 import { getDeployGroupColor } from "./deployGroupColor";
 import type { DbBackup } from "./useSelfImproveOps";
 
+/** ≥1 МБ показываем в MB, иначе в KB. */
+function formatSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
 export function DbBackupCard({
   dbBackups,
   backupStatus,
@@ -62,7 +70,7 @@ export function DbBackupCard({
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-muted-foreground">
-                    {(b.bytes / 1024).toFixed(1)} KB
+                    {formatSize(b.bytes)}
                   </span>
                   <a
                     className="text-primary hover:underline mr-1"

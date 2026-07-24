@@ -37,6 +37,7 @@ export default function SettingsPanel() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("providers");
   // Mobile: "menu" shows nav list; "content" shows selected tab with Back
   const [mobileView, setMobileView] = useState<"menu" | "content">("menu");
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   const ops = useSelfImproveOps({
     open,
@@ -54,6 +55,17 @@ export default function SettingsPanel() {
     prevOpenRef.current = open;
   }, [open, loadAuth]);
 
+  // Закрытие по Escape (как у PanelModal) + перенос фокуса внутрь модалки (a11y).
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, setOpen]);
+
   if (!open) return null;
 
   const tabTitle = tabTitles[activeTab];
@@ -64,7 +76,12 @@ export default function SettingsPanel() {
       onClick={() => setOpen(false)}
     >
       <div
-        className="bg-background border-0 sm:border border-border rounded-none sm:rounded-xl shadow-lg w-full sm:max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[85vh] flex overflow-hidden"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Настройки"
+        tabIndex={-1}
+        className="bg-background border-0 sm:border border-border rounded-none sm:rounded-xl shadow-lg w-full sm:max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[85vh] flex overflow-hidden outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Desktop sidebar */}
@@ -93,6 +110,7 @@ export default function SettingsPanel() {
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
                 )}
                 onClick={() => setActiveTab(tab.id)}
+                aria-current={activeTab === tab.id ? "page" : undefined}
                 type="button"
               >
                 <span>{tab.icon}</span> {tab.label}

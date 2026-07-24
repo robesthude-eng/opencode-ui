@@ -27,6 +27,20 @@ import CopyButton from "./CopyButton";
 import { ThinkIcon } from "./icons";
 import ToolCard from "./ToolCard";
 
+/** Рекурсивно собирает текст из React-узлов (подсвеченный код и т.п.). */
+function nodeToText(node: unknown): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
+  }
+  if (Array.isArray(node)) return node.map(nodeToText).join("");
+  if (typeof node === "object" && "props" in node) {
+    const el = node as { props?: { children?: unknown } };
+    return nodeToText(el.props?.children);
+  }
+  return "";
+}
+
 const SAFE_MD_COMPONENTS = {
   a: ({ href, children }: { href?: string; children?: ReactNode }) => {
     if (typeof href === "string" && /^javascript:/i.test(href.trim())) {
@@ -54,10 +68,8 @@ const SAFE_MD_COMPONENTS = {
       if (match) {
         language = match[1] ?? "plaintext";
       }
-      if (child?.props && typeof child.props.children === "string") {
-        codeText = child.props.children;
-      } else if (child?.props && Array.isArray(child.props.children)) {
-        codeText = child.props.children.join("");
+      if (child?.props) {
+        codeText = nodeToText(child.props.children);
       }
     } catch {
       // fallback
@@ -78,7 +90,7 @@ const SAFE_MD_COMPONENTS = {
               {language}
             </span>
             <CopyButton
-              text={codeText || String(children)}
+              text={codeText || nodeToText(children)}
               title="Копировать код"
               className="h-6 w-6"
             />

@@ -9,6 +9,8 @@ import {
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { copyText } from "@/lib/clipboard";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { api } from "../api/client";
 import type { ToolPart, ToolState } from "../api/types";
@@ -442,13 +444,14 @@ function CodeBlock({
   const [copied, setCopied] = useState(false);
   const copy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard
-      ?.writeText(text)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1400);
-      })
-      .catch(() => {});
+    copyText(text).then((ok) => {
+      if (!ok) {
+        toast("error", "Не удалось скопировать — нет доступа к буферу");
+        return;
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    });
   };
   return (
     <div

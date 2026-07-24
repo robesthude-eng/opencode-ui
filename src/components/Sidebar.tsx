@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import { api } from "../api/client";
@@ -22,14 +23,10 @@ type DeepHit = { id: string; title: string; snippet: string };
 
 function SidebarUserEmail({ email }: { email: string }) {
   const handleClick = () => {
-    if (!navigator.clipboard) {
-      toast("error", "Буфер обмена недоступен в этом браузере");
-      return;
-    }
-    navigator.clipboard
-      .writeText(email)
-      .then(() => toast("success", `Email скопирован: ${email}`))
-      .catch(() => toast("error", "Не удалось скопировать email"));
+    copyText(email).then((ok) => {
+      if (ok) toast("success", `Email скопирован: ${email}`);
+      else toast("error", "Не удалось скопировать email");
+    });
   };
 
   return (

@@ -33,10 +33,10 @@ export function FreeModelsTabContent() {
             🎁
           </div>
           <div>
-            <div className="font-semibold">Free Models</div>
+            <div className="font-semibold">Бесплатные модели</div>
             <div className="text-xs text-muted-foreground">
-              {ZEN_FREE_MODELS.length} free AI models via OpenCode Zen — one key
-              unlocks all.
+              {ZEN_FREE_MODELS.length} бесплатных моделей через OpenCode Zen —
+              один ключ открывает все.
             </div>
           </div>
         </div>
@@ -46,15 +46,15 @@ export function FreeModelsTabContent() {
           target="_blank"
           rel="noreferrer"
         >
-          Get a free key →
+          Получить бесплатный ключ →
         </a>
       </div>
 
       {zenConfigured && !editingZen ? (
         <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm">
           <span className="flex items-center gap-2 text-emerald-300">
-            <CheckIcon size={16} /> OpenCode Zen connected — all free models
-            available
+            <CheckIcon size={16} /> OpenCode Zen подключён — все бесплатные
+            модели доступны
           </span>
           <div className="flex gap-3 text-xs">
             <button
@@ -65,14 +65,14 @@ export function FreeModelsTabContent() {
               }}
               type="button"
             >
-              Change key
+              Сменить ключ
             </button>
             <button
               className="text-muted-foreground hover:text-foreground"
               onClick={() => removeKey(ZEN_PROVIDER_ID)}
               type="button"
             >
-              Remove
+              Удалить
             </button>
           </div>
         </div>
@@ -107,10 +107,10 @@ export function FreeModelsTabContent() {
             }}
           >
             {saving === ZEN_PROVIDER_ID
-              ? "Connecting…"
+              ? "Подключение…"
               : editingZen
-                ? "Save key"
-                : "Connect free models"}
+                ? "Сохранить ключ"
+                : "Подключить бесплатные модели"}
           </Button>
           {editingZen && (
             <Button
@@ -121,7 +121,7 @@ export function FreeModelsTabContent() {
               }}
               type="button"
             >
-              Cancel
+              Отмена
             </Button>
           )}
         </div>
@@ -154,8 +154,8 @@ export function FreeModelsTabContent() {
       <div className="flex gap-2 text-xs text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">
         <span>⚠️</span>
         <span>
-          Free models may use your data for training during the free period.
-          Avoid using them for sensitive or commercial code.
+          Бесплатные модели могут использовать ваши данные для обучения.
+          Не отправляйте им чувствительный или коммерческий код.
         </span>
       </div>
     </div>

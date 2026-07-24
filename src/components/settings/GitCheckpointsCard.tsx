@@ -81,7 +81,12 @@ export function GitCheckpointsCard({
         <Button
           variant="destructive"
           size="sm"
-          disabled={!!resetStatus || !isAdminUser}
+          disabled={!!resetStatus || !isAdminUser || !selfImproveEnabled}
+          title={
+            selfImproveEnabled
+              ? "Сброс исходников UI к версии из Git с пересборкой"
+              : "Включите саморазвитие, чтобы разрешить заводской сброс"
+          }
           onClick={handleResetUI}
         >
           🔄{" "}

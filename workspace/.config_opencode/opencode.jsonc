@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/deepseek-v4-flash-free",
+  "provider": {
+    "opencode": {
+      "models": {
+        "deepseek-v4-flash-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
+        "big-pickle": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
+        "mimo-v2.5-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
+        "minimax-m2.5-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
+        "nemotron-3-super-free": { "options": { "reasoningEffort": "medium" } },
+        "nemotron-3-ultra-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
+        "north-mini-code-free": { "options": { "reasoningEffort": "medium" } }
+      }
+    }
+  },
+  "agent": {
+    "coder": {
+      "systemPrompt": "Ты — ИИ-ассистент для программирования. Всегда рассуждай на русском языке. Все твои размышления и рассуждения (reasoning/thinking) должны быть на русском языке. Отвечай пользователю на русском языке. Код и технические термины пиши на английском. ВАЖНО: Каждый чат имеет изолированную папку /app/workspace/sessions/{sessionId}/workspace — всегда используй абсолютные пути внутри этой папки для файлов, чтобы чаты не пересекались, как в Claude.ai. Новый чат = новая память + пустая папка."
+    }
+  }
+}

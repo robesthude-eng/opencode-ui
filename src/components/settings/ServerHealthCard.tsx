@@ -4,6 +4,16 @@ import type { HealthInfo } from "./useSelfImproveOps";
 
 type CurrentUser = { email?: string; role?: string } | null | undefined;
 
+/** Форматирует аптайм: 93784с → «1д 2ч 3м». */
+function formatUptime(totalSec: number): string {
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  if (d > 0) return `${d}д ${h}ч ${m}м`;
+  if (h > 0) return `${h}ч ${m}м`;
+  return `${m}м ${Math.floor(totalSec % 60)}с`;
+}
+
 export function ServerHealthCard({
   health,
   healthError,
@@ -68,7 +78,7 @@ export function ServerHealthCard({
           <div className="text-muted-foreground mb-0.5">Uptime</div>
           <div className="font-medium font-mono">
             {typeof health?.uptime === "number"
-              ? `${Math.floor(health.uptime / 60)}м ${Math.floor(health.uptime % 60)}с`
+              ? formatUptime(health.uptime)
               : "—"}
           </div>
         </div>

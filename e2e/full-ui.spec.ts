@@ -159,7 +159,9 @@ test.describe("2. Sidebar", () => {
   test("2.2 Settings button opens panel", async ({ page }) => {
     await page.getByRole("button", { name: /Settings|Настройки/i }).click();
     await expect(
-      page.locator("text=/Свой API-ключ|API Провайдеры/i").first(),
+      page
+        .locator("text=/Свой API-ключ|API Провайдеры/i")
+        .first(),
     ).toBeVisible({ timeout: 3000 });
   });
 
@@ -233,17 +235,13 @@ test.describe("2. Sidebar", () => {
   });
 
   test("2.8 Hide sidebar (desktop)", async ({ page }) => {
-    const hideBtn = page
-      .locator('button[title="Скрыть боковую панель"]')
-      .first();
+    const hideBtn = page.locator('button[title="Скрыть боковую панель"]').first();
     if (await hideBtn.isVisible().catch(() => false)) {
       await hideBtn.click();
       await page.waitForTimeout(500);
       // A "show sidebar" button should appear (title may be "Show sidebar")
       const showBtn = page
-        .locator(
-          'button[title="Показать боковую панель"], button[title="Show chats"]',
-        )
+        .locator('button[title="Показать боковую панель"], button[title="Show chats"]')
         .first();
       await expect(showBtn).toBeVisible({ timeout: 2000 });
       // Click to show again
