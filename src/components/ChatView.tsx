@@ -362,10 +362,7 @@ export default function ChatView() {
     const rect = sel.getRangeAt(0).getBoundingClientRect();
     const hostRect = host.getBoundingClientRect();
     setQuoteSel({
-      x: Math.min(
-        Math.max(rect.left - hostRect.left, 8),
-        hostRect.width - 200,
-      ),
+      x: Math.min(Math.max(rect.left - hostRect.left, 8), hostRect.width - 200),
       y: Math.min(rect.bottom - hostRect.top + 6, hostRect.height - 40),
       text: textSel.slice(0, 2000),
     });

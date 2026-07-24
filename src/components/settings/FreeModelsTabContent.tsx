@@ -154,8 +154,8 @@ export function FreeModelsTabContent() {
       <div className="flex gap-2 text-xs text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">
         <span>⚠️</span>
         <span>
-          Бесплатные модели могут использовать ваши данные для обучения.
-          Не отправляйте им чувствительный или коммерческий код.
+          Бесплатные модели могут использовать ваши данные для обучения. Не
+          отправляйте им чувствительный или коммерческий код.
         </span>
       </div>
     </div>

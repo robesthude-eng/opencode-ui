@@ -49,7 +49,10 @@ export default function TopBar() {
         }, 50);
       } else if (e.code === "KeyO" && e.shiftKey) {
         e.preventDefault();
-        useStore.getState().newSession().catch(() => {});
+        useStore
+          .getState()
+          .newSession()
+          .catch(() => {});
       }
     };
     window.addEventListener("keydown", onKey);
@@ -60,7 +63,7 @@ export default function TopBar() {
     const st = useStore.getState();
     const sid = st.currentID;
     const raw = sid ? st.status[sid] : undefined;
-    const v = typeof raw === "string" ? raw : (raw as { type?: string })?.type;
+    const v = typeof raw === "string" ? raw : (raw as any)?.type;
     return v === "busy";
   };
 
@@ -91,7 +94,10 @@ export default function TopBar() {
     }
     const prompt =
       "Сделай краткое резюме нашего диалога: ключевые решения, изменённые файлы, открытые вопросы и следующие шаги.";
-    useStore.getState().send(prompt).catch(() => {});
+    useStore
+      .getState()
+      .send(prompt)
+      .catch(() => {});
   };
 
   const handleBranch = async () => {
@@ -114,7 +120,10 @@ export default function TopBar() {
       `\n\n${context}\n\n` +
       "Подтверди, что готов продолжить с этого места.";
     await st.newSession();
-    await useStore.getState().send(prompt).catch(() => {});
+    await useStore
+      .getState()
+      .send(prompt)
+      .catch(() => {});
     toast("success", "Создана ветка — контекст передан в новый чат");
   };
 

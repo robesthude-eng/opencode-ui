@@ -4,12 +4,37 @@
   "provider": {
     "opencode": {
       "models": {
-        "deepseek-v4-flash-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
-        "big-pickle": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
-        "mimo-v2.5-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
-        "minimax-m2.5-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
+        "deepseek-v4-flash-free": {
+          "options": {
+            "reasoningEffort": "high",
+            "thinking": { "type": "enabled" }
+          }
+        },
+        "big-pickle": {
+          "options": {
+            "reasoningEffort": "high",
+            "thinking": { "type": "enabled" }
+          }
+        },
+        "mimo-v2.5-free": {
+          "options": {
+            "reasoningEffort": "high",
+            "thinking": { "type": "enabled" }
+          }
+        },
+        "minimax-m2.5-free": {
+          "options": {
+            "reasoningEffort": "high",
+            "thinking": { "type": "enabled" }
+          }
+        },
         "nemotron-3-super-free": { "options": { "reasoningEffort": "medium" } },
-        "nemotron-3-ultra-free": { "options": { "reasoningEffort": "high", "thinking": { "type": "enabled" } } },
+        "nemotron-3-ultra-free": {
+          "options": {
+            "reasoningEffort": "high",
+            "thinking": { "type": "enabled" }
+          }
+        },
         "north-mini-code-free": { "options": { "reasoningEffort": "medium" } }
       }
     }
