@@ -45,7 +45,8 @@ const TAB_GROUPS: TabGroup[] = [
         id: "appearance",
         label: "Внешний вид",
         title: "Внешний вид",
-        keywords: "тема цвет тёмная светлая средняя оформление theme dark light",
+        keywords:
+          "тема цвет тёмная светлая средняя оформление theme dark light",
       },
     ],
   },
@@ -170,9 +171,7 @@ export default function SettingsPanel() {
   );
 
   const emptyResults = (
-    <p className="px-3 py-2 text-xs text-muted-foreground">
-      Ничего не найдено
-    </p>
+    <p className="px-3 py-2 text-xs text-muted-foreground">Ничего не найдено</p>
   );
 
   return (
