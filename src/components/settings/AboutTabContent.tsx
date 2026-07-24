@@ -17,17 +17,12 @@ const ABOUT_ROWS: Array<[string, string]> = [
 export function AboutTabContent() {
   return (
     <div className="space-y-3 text-sm">
-      <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-full bg-sky-600 flex items-center justify-center text-white">
-          ℹ️
-        </div>
-        <div>
-          <div className="font-semibold">OpenCode UI (Cloud Edition)</div>
-          <div className="text-xs text-muted-foreground">
-            Веб-интерфейс для AI-агента OpenCode — админка, чаты, workspace,
-            self-improve.
-          </div>
-        </div>
+      <div>
+        <h3 className="font-semibold">OpenCode UI (Cloud Edition)</h3>
+        <p className="text-xs text-muted-foreground">
+          Веб-интерфейс для AI-агента OpenCode — админка, чаты, workspace,
+          self-improve.
+        </p>
       </div>
       {ABOUT_ROWS.map(([k, v]) => (
         <div

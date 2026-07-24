@@ -11,19 +11,40 @@ import { useSelfImproveOps } from "./settings/useSelfImproveOps";
 
 type SettingsTab = "self-improve" | "free-models" | "providers" | "about";
 
-const tabs = [
-  { id: "self-improve" as const, label: "Саморазвитие", icon: "🤖" },
-  { id: "free-models" as const, label: "OpenCode Zen", icon: "🎁" },
-  { id: "providers" as const, label: "API Провайдеры", icon: "🔑" },
-  { id: "about" as const, label: "О системе", icon: "ℹ️" },
+/**
+ * Единый реестр разделов настроек — источник правды для навигации
+ * (десктоп и мобильная) и заголовка контента.
+ *
+ * Как добавить новый раздел (например, «Настройки чата» или
+ * «Подключение MCP»):
+ * 1. Расширьте тип SettingsTab новым id.
+ * 2. Добавьте запись в этот массив (label — пункт меню, title —
+ *    заголовок страницы раздела).
+ * 3. Создайте компонент в ./settings/ и подключите его в блоке
+ *    рендера контента внизу этого файла.
+ */
+const tabs: Array<{ id: SettingsTab; label: string; title: string }> = [
+  {
+    id: "self-improve",
+    label: "Саморазвитие",
+    title: "Режим саморазвития (Self-Improvement)",
+  },
+  {
+    id: "free-models",
+    label: "OpenCode Zen",
+    title: "Бесплатные модели (OpenCode Zen)",
+  },
+  {
+    id: "providers",
+    label: "API провайдеры",
+    title: "Подключение сторонних API провайдеров",
+  },
+  {
+    id: "about",
+    label: "О системе",
+    title: "О системе и архитектуре",
+  },
 ];
-
-const tabTitles: Record<SettingsTab, string> = {
-  "self-improve": "Режим саморазвития (Self-Improvement)",
-  "free-models": "Бесплатные модели (OpenCode Zen)",
-  providers: "Подключение сторонних API провайдеров",
-  about: "О системе и архитектуре",
-};
 
 /**
  * Thin shell: owns only tab/mobile-nav UI state and the modal shell markup.
@@ -68,7 +89,7 @@ export default function SettingsPanel() {
 
   if (!open) return null;
 
-  const tabTitle = tabTitles[activeTab];
+  const tabTitle = tabs.find((t) => t.id === activeTab)?.title ?? "";
 
   return (
     <div
@@ -104,7 +125,7 @@ export default function SettingsPanel() {
               <button
                 key={tab.id}
                 className={cn(
-                  "flex items-center gap-2 w-full text-left px-3 py-2.5 rounded-xl text-sm transition",
+                  "w-full text-left px-3 py-2.5 rounded-xl text-sm transition",
                   activeTab === tab.id
                     ? "bg-muted text-foreground font-medium"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
@@ -113,7 +134,7 @@ export default function SettingsPanel() {
                 aria-current={activeTab === tab.id ? "page" : undefined}
                 type="button"
               >
-                <span>{tab.icon}</span> {tab.label}
+                {tab.label}
               </button>
             ))}
           </nav>
@@ -150,7 +171,6 @@ export default function SettingsPanel() {
                   setMobileView("content");
                 }}
               >
-                <span className="text-lg">{tab.icon}</span>
                 <span className="flex-1 font-medium">{tab.label}</span>
                 <span className="text-muted-foreground">›</span>
               </button>
