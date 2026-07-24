@@ -39,7 +39,11 @@ function fetchSystemSessions() {
   });
 }
 
-export async function handleSessionList(_req, res, { userEmail, OWNERS_FILE }) {
+export async function handleSessionList(
+  _req,
+  res,
+  { userEmail, OWNERS_FILE, TITLES_FILE },
+) {
   try {
     // Системный инстанс отдаёт legacy-сессии (созданные до включения
     // RUNNER_ISOLATION); контейнеры-раннеры — по одной сессии на контейнер.
@@ -55,14 +59,64 @@ export async function handleSessionList(_req, res, { userEmail, OWNERS_FILE }) {
     const filtered = userEmail
       ? sessions.filter((s) => owners[s.id] === userEmail)
       : sessions;
+    // Серверные переименования: оверлей заголовков поверх названий движка,
+    // чтобы новое имя чата было видно из любого браузера.
+    const titles = TITLES_FILE ? loadJson(TITLES_FILE, {}) : {};
+    const withTitles = filtered.map((s) =>
+      titles[s.id] ? { ...s, title: titles[s.id] } : s,
+    );
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(filtered));
+    res.end(JSON.stringify(withTitles));
   } catch (e) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({ error: "Failed to list sessions", detail: e.message }),
     );
   }
+}
+
+/**
+ * PATCH /api/session/:id — переименование чата.
+ * Название хранится в TITLES_FILE как оверлей поверх заголовка движка
+ * (движок OpenCode генерирует title автоматически). Пустой title
+ * убирает оверлей и возвращает исходное название. Владелец сессии
+ * проверяется в index.mjs (checkSessionOwnership) до вызова роута.
+ */
+export function handleSessionRename(req, res, { TITLES_FILE, sessionMatch }) {
+  const sid = decodeURIComponent(sessionMatch[1]);
+  if (!isValidSessionId(sid)) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Invalid session ID format." }));
+    return;
+  }
+  let body = "";
+  req.on("data", (chunk) => {
+    body += chunk;
+  });
+  req.on("end", () => {
+    let title;
+    try {
+      title = JSON.parse(body || "{}").title;
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid JSON body." }));
+      return;
+    }
+    if (typeof title !== "string" || title.length > 200) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({ error: "title must be a string (max 200 chars)." }),
+      );
+      return;
+    }
+    const trimmed = title.trim();
+    const titles = loadJson(TITLES_FILE, {});
+    if (trimmed) titles[sid] = trimmed;
+    else delete titles[sid];
+    saveJson(TITLES_FILE, titles);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true, id: sid, title: trimmed }));
+  });
 }
 
 export function handleSessionCreate(
@@ -231,6 +285,7 @@ export function handleSessionDelete(
   {
     WORKDIR,
     OWNERS_FILE,
+    TITLES_FILE,
     userEmail,
     sessionMatch,
     selfImproveDir,
@@ -271,6 +326,18 @@ export function handleSessionDelete(
     const owners = loadJson(OWNERS_FILE, {});
     delete owners[sid];
     saveJson(OWNERS_FILE, owners);
+  } catch (e) {
+    console.warn("Ignored error:", e);
+  }
+  // Убираем серверное переименование удалённого чата.
+  try {
+    if (TITLES_FILE) {
+      const titles = loadJson(TITLES_FILE, {});
+      if (titles[sid]) {
+        delete titles[sid];
+        saveJson(TITLES_FILE, titles);
+      }
+    }
   } catch (e) {
     console.warn("Ignored error:", e);
   }

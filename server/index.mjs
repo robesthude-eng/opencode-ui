@@ -25,6 +25,7 @@ import {
   PORT,
   SESSIONS_FILE,
   SYSTEM_PORT,
+  TITLES_FILE,
   USER_KEYS_DIR,
   USERS_FILE,
   WORKDIR,
@@ -389,7 +390,7 @@ const server = http.createServer(async (req, res) => {
   const urlPathNoQuery = urlPath;
   if (urlPathNoQuery === "/api/session" && req.method === "GET") {
     import("./routes/session.mjs").then((m) => {
-      m.handleSessionList(req, res, { userEmail, OWNERS_FILE });
+      m.handleSessionList(req, res, { userEmail, OWNERS_FILE, TITLES_FILE });
     });
     return;
   }
@@ -437,11 +438,20 @@ const server = http.createServer(async (req, res) => {
       m.handleSessionDelete(req, res, {
         WORKDIR,
         OWNERS_FILE,
+        TITLES_FILE,
         userEmail,
         sessionMatch,
         selfImproveDir,
         systemProxy,
       });
+    });
+    return;
+  }
+  // Переименование чата: владелец сессии уже проверен выше
+  // (checkSessionOwnership), чужой чат переименовать нельзя.
+  if (req.method === "PATCH" && sessionMatch) {
+    import("./routes/session.mjs").then((m) => {
+      m.handleSessionRename(req, res, { TITLES_FILE, sessionMatch });
     });
     return;
   }

@@ -1,10 +1,11 @@
-import { jsonOrNull } from "../../api/client";
+import { api, jsonOrNull } from "../../api/client";
 import {
   applyTheme,
   getInitialTheme,
   nextTheme,
   type Theme,
 } from "../../config/theme";
+import { isTmpSession } from "../../lib/ids";
 import type { Slice, UiSlice } from "../types";
 
 export const createUiSlice: Slice<UiSlice> = (set, get) => ({
@@ -51,13 +52,28 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
 
   // Переименование — клиентский оверлей над серверным заголовком:
   // пустая строка убирает оверлей и возвращает исходное название.
-  renameSession: (id, title) =>
+  renameSession: (id, title) => {
+    const prev = get().sessionTitleOverrides[id];
+    // Оптимистично показываем новое имя сразу…
     set((s) => {
       const overrides = { ...s.sessionTitleOverrides };
       if (title) overrides[id] = title;
       else delete overrides[id];
       return { sessionTitleOverrides: overrides };
-    }),
+    });
+    // …и сохраняем на сервере, чтобы название было видно с любого
+    // устройства. Оптимистичные tmp_-сессии на сервере ещё не существуют.
+    if (isTmpSession(id)) return;
+    api.renameSession(id, title).catch(() => {
+      // Сервер недоступен — откатываем к прежнему имени.
+      set((s) => {
+        const overrides = { ...s.sessionTitleOverrides };
+        if (prev !== undefined) overrides[id] = prev;
+        else delete overrides[id];
+        return { sessionTitleOverrides: overrides };
+      });
+    });
+  },
 
   setSelfImproveSessionId: (id) => {
     if (typeof window !== "undefined") {

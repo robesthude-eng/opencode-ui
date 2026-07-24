@@ -198,6 +198,12 @@ export const api = {
   getSession: (id: string) => req<SessionInfo>(`/session/${id}`),
   deleteSession: (id: string) =>
     req<void>(`/session/${id}`, { method: "DELETE" }),
+  // Переименование чата — сохраняется на сервере и видно с любого устройства.
+  renameSession: (id: string, title: string) =>
+    req<{ ok: boolean; id: string; title: string }>(`/session/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
   abortSession: (id: string) =>
     req<void>(`/session/${id}/abort`, { method: "POST" }),
   listMessages: (id: string) => req<Message[]>(`/session/${id}/message`),
