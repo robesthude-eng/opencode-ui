@@ -378,12 +378,12 @@ export default function ChatView() {
           {isWindowed && (
             <div className="text-center py-3">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="rounded-full"
+                className="rounded-full text-muted-foreground hover:text-foreground"
                 onClick={() => setWindowSize((s) => s + 40)}
               >
-                ↑ Показать предыдущие сообщения (
+                Показать предыдущие сообщения (
                 {visibleMessages.length - windowSize})
               </Button>
             </div>
@@ -391,12 +391,12 @@ export default function ChatView() {
           {failedToolMid && status !== "busy" && (
             <div className="text-center py-1">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="rounded-full border-red-500/40 text-red-400 hover:text-red-300"
+                className="rounded-full text-red-400 hover:bg-red-500/10 hover:text-red-300"
                 onClick={() => jumpToMessage(failedToolMid)}
               >
-                ⚠️ Инструмент завершился с ошибкой — показать
+                Инструмент завершился с ошибкой — показать
               </Button>
             </div>
           )}
@@ -422,20 +422,20 @@ export default function ChatView() {
               lastMsg?.role === "assistant" && (
                 <div className="flex flex-wrap gap-2 px-3 pb-3 md:px-6">
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="rounded-full"
+                    className="rounded-full text-muted-foreground hover:text-foreground"
                     onClick={() => send(lastUserText).catch(() => {})}
                   >
-                    ↻ Спросить ещё раз
+                    Спросить ещё раз
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="rounded-full"
+                    className="rounded-full text-muted-foreground hover:text-foreground"
                     onClick={() => prefillComposer(lastUserText)}
                   >
-                    ✏️ Изменить последний запрос
+                    Изменить последний запрос
                   </Button>
                 </div>
               )}

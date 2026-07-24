@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { PROVIDERS } from "../../config/providers";
 import { useStore } from "../../store/useStore";
-import { CheckIcon } from "../icons";
+import { CheckIcon, KeyIcon } from "../icons";
 import { useApiKeyForm } from "./useApiKeyForm";
 
 /**
@@ -62,8 +62,8 @@ export function ProvidersTabContent() {
               </div>
               {configured && !editingProviders[p.id] ? (
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-emerald-400 flex items-center gap-1">
-                    🔑 API-ключ подключён
+                  <span className="text-emerald-400 flex items-center gap-1.5">
+                    <KeyIcon size={13} /> API-ключ подключён
                   </span>
                   <div className="flex gap-3">
                     <button

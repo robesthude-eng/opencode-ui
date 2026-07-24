@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
+import { GitBranchIcon } from "./icons";
 
 type PR = Awaited<ReturnType<typeof api.listSelfImprovePRs>>["prs"][number];
 
@@ -41,7 +42,7 @@ export default function SelfImprovePRsList({ visible }: { visible: boolean }) {
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <span>🔀</span>
+            <GitBranchIcon size={15} />
             <span>Автоматические Pull Requests</span>
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -54,7 +55,7 @@ export default function SelfImprovePRsList({ visible }: { visible: boolean }) {
             load().catch(() => {});
           }}
           disabled={loading}
-          className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition disabled:opacity-50 shrink-0"
+          className="text-xs px-3 py-1.5 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition disabled:opacity-50 shrink-0"
         >
           {loading ? "Обновляю…" : "Обновить"}
         </button>
@@ -76,11 +77,11 @@ export default function SelfImprovePRsList({ visible }: { visible: boolean }) {
       {prs.length > 0 && (
         <ul className="space-y-1">
           {prs.map((pr) => {
-            const stateIcon = pr.merged
-              ? "🟣"
+            const stateColor = pr.merged
+              ? "bg-violet-400"
               : pr.state === "open"
-                ? "🟢"
-                : "🔴";
+                ? "bg-emerald-400"
+                : "bg-red-400";
             const stateLabel = pr.merged
               ? "merged"
               : pr.state === "open"
@@ -96,9 +97,10 @@ export default function SelfImprovePRsList({ visible }: { visible: boolean }) {
                   rel="noopener noreferrer"
                   className="flex items-start gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/60 transition group"
                 >
-                  <span className="text-sm shrink-0 mt-0.5" title={stateLabel}>
-                    {stateIcon}
-                  </span>
+                  <span
+                    className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${stateColor}`}
+                    title={stateLabel}
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-medium truncate group-hover:text-primary">
                       #{pr.number} · {pr.title}

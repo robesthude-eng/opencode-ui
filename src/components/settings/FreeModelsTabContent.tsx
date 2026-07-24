@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ZEN_FREE_MODELS, ZEN_PROVIDER_ID } from "../../config/providers";
 import { useStore } from "../../store/useStore";
-import { CheckIcon } from "../icons";
+import { CheckIcon, WarningIcon } from "../icons";
 import { useApiKeyForm } from "./useApiKeyForm";
 
 /**
@@ -28,17 +28,12 @@ export function FreeModelsTabContent() {
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-amber-500 flex items-center justify-center">
-            🎁
-          </div>
-          <div>
-            <div className="font-semibold">Бесплатные модели</div>
-            <div className="text-xs text-muted-foreground">
-              {ZEN_FREE_MODELS.length} бесплатных моделей через OpenCode Zen —
-              один ключ открывает все.
-            </div>
-          </div>
+        <div>
+          <h3 className="font-semibold">Бесплатные модели</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {ZEN_FREE_MODELS.length} бесплатных моделей через OpenCode Zen —
+            один ключ открывает все.
+          </p>
         </div>
         <a
           className="text-sm text-primary hover:underline"
@@ -144,15 +139,17 @@ export function FreeModelsTabContent() {
             </div>
             <p className="text-xs text-muted-foreground mt-1">{m.best}</p>
             <div className="text-[11px] text-muted-foreground mt-2 flex gap-3">
-              <span>⏷ {m.context} ctx</span>
-              {m.sweBench && <span>◆ {m.sweBench} SWE</span>}
+              <span>{m.context} ctx</span>
+              {m.sweBench && <span>{m.sweBench} SWE</span>}
             </div>
           </div>
         ))}
       </div>
 
       <div className="flex gap-2 text-xs text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2">
-        <span>⚠️</span>
+        <span className="mt-0.5 shrink-0">
+          <WarningIcon size={14} />
+        </span>
         <span>
           Бесплатные модели могут использовать ваши данные для обучения. Не
           отправляйте им чувствительный или коммерческий код.

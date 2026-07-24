@@ -78,11 +78,11 @@ export default class ErrorBoundary extends Component<Props, State> {
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
-                  className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  variant="ghost"
+                  className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
                   onClick={this.handleResetUI}
                 >
-                  🔄 Reset UI to Git
+                  Reset UI to Git
                 </Button>
               </div>
             </CardContent>

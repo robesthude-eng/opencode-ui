@@ -31,7 +31,7 @@ export function DbBackupCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h4 className="font-semibold text-sm flex items-center gap-2">
-            💾 Бэкап базы (SQLite)
+            Бэкап базы (SQLite)
           </h4>
           <p className="text-xs text-muted-foreground mt-1">
             Снимок users/sessions на volume. Автоматически раз в сутки +
@@ -40,7 +40,7 @@ export function DbBackupCard({
         </div>
         <Button
           size="sm"
-          variant="outline"
+          variant="ghost"
           className="shrink-0"
           disabled={!!backupStatus}
           onClick={handleCreateBackup}
@@ -81,7 +81,7 @@ export function DbBackupCard({
                   </a>
                   {selfImproveEnabled && (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       className="h-5 text-[11px] shrink-0"
                       disabled={!!restoreStatus}

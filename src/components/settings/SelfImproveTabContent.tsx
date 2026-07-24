@@ -39,7 +39,7 @@ export function SelfImproveTabContent({ ops }: { ops: SelfImproveOps }) {
 
       {!ops.isAdminUser && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
-          🔒 Саморазвитие меняет исходный код интерфейса для всех пользователей
+          Саморазвитие меняет исходный код интерфейса для всех пользователей
           этого сервера, поэтому доступно только администратору. Ваш аккаунт:{" "}
           {ops.currentUser?.role || "user"}.
         </div>

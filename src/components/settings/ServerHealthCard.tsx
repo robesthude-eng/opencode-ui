@@ -31,7 +31,7 @@ export function ServerHealthCard({
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-3 mb-3">
         <h4 className="font-semibold text-sm flex items-center gap-2">
-          🩺 Состояние сервера
+          Состояние сервера
         </h4>
         <Button
           variant="ghost"
@@ -89,7 +89,7 @@ export function ServerHealthCard({
         <span className="font-medium text-foreground">
           {currentUser?.role || "user"}
         </span>
-        {selfImproveEnabled ? " · саморазвитие ●" : " · саморазвитие ○"}
+        {selfImproveEnabled ? " · саморазвитие: вкл" : " · саморазвитие: выкл"}
       </p>
     </div>
   );

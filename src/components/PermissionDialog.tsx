@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useStore } from "../store/useStore";
+import { KeyIcon } from "./icons";
 
 // OpenCode 1.18+ expects "once" | "always" | "reject" for permission responses
 // (older versions used "allow" | "deny"). We send the new enum; the server
@@ -118,7 +119,9 @@ export default function PermissionDialog() {
     >
       <div className="pointer-events-auto mx-auto w-full max-w-3xl rounded-xl border border-warning/50 bg-card shadow-xl animate-in fade-in slide-in-from-bottom-2">
         <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-          <span aria-hidden="true">🔐</span>
+          <span aria-hidden="true" className="text-warning">
+            <KeyIcon size={15} />
+          </span>
           <span className="text-sm font-semibold">Запрос разрешения</span>
           <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
             {tool}
@@ -167,7 +170,7 @@ export default function PermissionDialog() {
               Разрешить
             </Button>
             <Button
-              variant="secondary"
+              variant="ghost"
               onClick={() => answer("always")}
               aria-label="Разрешать такие вызовы до конца текущей сессии"
             >

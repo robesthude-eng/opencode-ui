@@ -302,8 +302,8 @@ function ConnectionBanner({ onRetry }: { onRetry: () => void }) {
       </span>
       <Button
         size="sm"
-        variant="outline"
-        className="h-7 border-amber-500/40 text-amber-100 hover:bg-amber-500/15"
+        variant="ghost"
+        className="h-7 text-amber-100 hover:bg-amber-500/15 hover:text-amber-50"
         onClick={onRetry}
       >
         Повторить
@@ -326,8 +326,8 @@ function SseReconnectBanner({ onRetry }: { onRetry: () => void }) {
       </span>
       <Button
         size="sm"
-        variant="outline"
-        className="h-7 border-sky-500/40 text-sky-100 hover:bg-sky-500/15"
+        variant="ghost"
+        className="h-7 text-sky-100 hover:bg-sky-500/15 hover:text-sky-50"
         onClick={onRetry}
       >
         Переподключить

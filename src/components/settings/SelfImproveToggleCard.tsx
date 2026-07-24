@@ -15,14 +15,6 @@ export function SelfImproveToggleCard({
   return (
     <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
       <div className="flex items-center gap-3">
-        <div
-          className={cn(
-            "h-9 w-9 rounded-full flex items-center justify-center text-white",
-            selfImproveEnabled ? "bg-emerald-600" : "bg-muted-foreground",
-          )}
-        >
-          🤖
-        </div>
         <div>
           <div className="font-semibold text-sm">
             Саморазвитие агента (Self-Improvement)
@@ -50,7 +42,15 @@ export function SelfImproveToggleCard({
           }}
           disabled={!isAdminUser || toggleBusy}
         >
-          {toggleBusy ? "…" : selfImproveEnabled ? "● Включено" : "○ Выключено"}
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                selfImproveEnabled ? "bg-emerald-400" : "bg-muted-foreground",
+              )}
+            />
+            {toggleBusy ? "…" : selfImproveEnabled ? "Включено" : "Выключено"}
+          </span>
         </button>
       </div>
     </div>

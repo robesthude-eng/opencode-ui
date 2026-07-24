@@ -41,7 +41,7 @@ export function GitCheckpointsCard({
     <div className="rounded-xl border border-border bg-card p-4 space-y-4">
       <div>
         <h4 className="font-semibold text-sm flex items-center gap-2">
-          📸 Чекпоинты Git и тяжёлые операции
+          Чекпоинты Git и тяжёлые операции
         </h4>
         <p className="text-xs text-muted-foreground mt-1">
           Снимки исходников и пересборка (дольше, чем мгновенный откат). Перед
@@ -51,31 +51,30 @@ export function GitCheckpointsCard({
 
       <div className="flex flex-wrap gap-2">
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           disabled={!isAdminUser}
           onClick={loadSourceDiff}
         >
-          🔎 Просмотреть diff
+          Просмотреть diff
         </Button>
         <Button
           size="sm"
           disabled={!!checkpointStatus || !selfImproveEnabled || !isAdminUser}
           onClick={handleCreateCheckpoint}
         >
-          {checkpointStatus ? checkpointStatus : <>📸 Создать чекпоинт</>}
+          {checkpointStatus ? checkpointStatus : "Создать чекпоинт"}
         </Button>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           disabled={!!rebuildStatus || !isAdminUser}
           onClick={handleRebuild}
         >
-          ⚡{" "}
           {rebuildStatus === "building..."
             ? "Билд…"
             : rebuildStatus === "success"
-              ? "✓ Готово"
+              ? "Готово"
               : "Пересобрать UI"}
         </Button>
         <Button
@@ -89,11 +88,10 @@ export function GitCheckpointsCard({
           }
           onClick={handleResetUI}
         >
-          🔄{" "}
           {resetStatus === "resetting..."
             ? "Сброс…"
             : resetStatus === "success"
-              ? "✓ Сброшено"
+              ? "Сброшено"
               : "Заводской сброс"}
         </Button>
       </div>
@@ -120,7 +118,7 @@ export function GitCheckpointsCard({
 
       <div className="border-t border-border pt-3">
         <div className="text-xs font-semibold text-muted-foreground mb-2">
-          История чекпоинтов:
+          История чекпоинтов
         </div>
         <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
           {checkpoints.length === 0 ? (
@@ -146,13 +144,13 @@ export function GitCheckpointsCard({
                 </div>
                 {selfImproveEnabled && isAdminUser && (
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="h-7 text-[11px] text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-300 shrink-0"
+                    className="h-7 text-[11px] text-red-400 hover:bg-red-500/10 hover:text-red-300 shrink-0"
                     onClick={() => handleRollback(cp.hash)}
                     title={`Откатить UI к коммиту ${cp.hash}`}
                   >
-                    🔄 Откатить
+                    Откатить
                   </Button>
                 )}
               </div>

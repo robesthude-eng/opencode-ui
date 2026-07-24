@@ -74,7 +74,7 @@ export function PreviewPanel({ url }: PreviewPanelProps) {
         {error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-red-500 bg-background/80">
             <span>{error}</span>
-            <Button size="sm" variant="outline" onClick={handleRefresh}>
+            <Button size="sm" variant="ghost" onClick={handleRefresh}>
               Повторить
             </Button>
           </div>

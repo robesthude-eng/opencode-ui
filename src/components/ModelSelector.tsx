@@ -91,7 +91,7 @@ export default function ModelSelector() {
           {free.length > 0 && (
             <div className="mb-2">
               <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                🎁 Free · OpenCode Zen
+                Free · OpenCode Zen
               </div>
               <div className="space-y-0.5">{free.map(renderOption)}</div>
             </div>

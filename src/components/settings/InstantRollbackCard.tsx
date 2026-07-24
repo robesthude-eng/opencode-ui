@@ -19,7 +19,7 @@ export function InstantRollbackCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h4 className="font-semibold text-sm flex items-center gap-2">
-            ⚡ Мгновенный откат UI
+            Мгновенный откат UI
           </h4>
           <p className="text-xs text-muted-foreground mt-1">
             Возвращает последнюю удачную сборку без npm/vite (обычно &lt;1 с).
@@ -39,7 +39,7 @@ export function InstantRollbackCard({
               : "Откатить на предыдущую сборку"
           }
         >
-          {instantStatus || "↩ Предыдущая сборка"}
+          {instantStatus || "Предыдущая сборка"}
         </Button>
       </div>
       <div className="max-h-28 overflow-y-auto space-y-1">
@@ -71,7 +71,7 @@ export function InstantRollbackCard({
                 </div>
                 {!s.current && selfImproveEnabled && (
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     className="h-6 text-[11px] shrink-0"
                     disabled={!!instantStatus}

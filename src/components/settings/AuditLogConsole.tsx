@@ -12,7 +12,7 @@ export function AuditLogConsole({
     <div className="border-t border-border pt-3">
       <div className="flex items-center justify-between mb-2">
         <div className="text-xs font-semibold text-muted-foreground">
-          🖥️ Консоль событий (Логи самоулучшения):
+          Консоль событий (логи самоулучшения)
         </div>
         <Button
           variant="ghost"
@@ -21,7 +21,7 @@ export function AuditLogConsole({
           onClick={loadAuditLogs}
           type="button"
         >
-          Обновить 🔄
+          Обновить
         </Button>
       </div>
       <div className="max-h-44 overflow-y-auto rounded-lg bg-zinc-950 text-zinc-300 font-mono text-[11px] leading-relaxed p-3 border border-border">

@@ -594,7 +594,7 @@ export default function Workspace() {
                     </div>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
                       className="h-7 text-xs"
                       onClick={() => {
                         refresh().catch(() => {});
@@ -613,7 +613,7 @@ export default function Workspace() {
                     </p>
                     <Button
                       size="sm"
-                      variant="secondary"
+                      variant="ghost"
                       className="h-8"
                       onClick={() => {
                         refresh().catch(() => {});
