@@ -6,9 +6,11 @@ import { isTmpSession } from "../lib/ids";
 import { useStore } from "../store/useStore";
 import {
   BashIcon,
+  DownloadIcon,
   FolderIcon,
   MenuIcon,
   PreviewIcon,
+  SearchIcon,
   SidebarLeftCollapseIcon,
   SidebarLeftExpandIcon,
   WorkspaceClosedIcon,
@@ -59,14 +61,6 @@ export default function TopBar() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const chatBusy = (): boolean => {
-    const st = useStore.getState();
-    const sid = st.currentID;
-    const raw = sid ? st.status[sid] : undefined;
-    const v = typeof raw === "string" ? raw : (raw as any)?.type;
-    return v === "busy";
-  };
-
   const handleExportChat = () => {
     const st = useStore.getState();
     const sid = st.currentID;
@@ -85,46 +79,6 @@ export default function TopBar() {
       buildChatMarkdown(msgs, title),
     );
     toast("success", "Чат сохранён в Markdown-файл");
-  };
-
-  const handleSummarize = () => {
-    if (chatBusy()) {
-      toast("info", "Дождитесь окончания текущей генерации");
-      return;
-    }
-    const prompt =
-      "Сделай краткое резюме нашего диалога: ключевые решения, изменённые файлы, открытые вопросы и следующие шаги.";
-    useStore
-      .getState()
-      .send(prompt)
-      .catch(() => {});
-  };
-
-  const handleBranch = async () => {
-    if (chatBusy()) {
-      toast("info", "Дождитесь окончания текущей генерации");
-      return;
-    }
-    const st = useStore.getState();
-    const sid = st.currentID;
-    if (!sid) return;
-    const msgs = st.messages[sid] ?? [];
-    if (msgs.length === 0) {
-      toast("info", "В этом чате пока нечего продолжать");
-      return;
-    }
-    const md = buildChatMarkdown(msgs, "Контекст предыдущего чата");
-    const context = md.length > 8000 ? `…${md.slice(-8000)}` : md;
-    const prompt =
-      "Это продолжение другого диалога. Вот его содержание для контекста:" +
-      `\n\n${context}\n\n` +
-      "Подтверди, что готов продолжить с этого места.";
-    await st.newSession();
-    await useStore
-      .getState()
-      .send(prompt)
-      .catch(() => {});
-    toast("success", "Создана ветка — контекст передан в новый чат");
   };
 
   useEffect(() => {
@@ -214,31 +168,7 @@ export default function TopBar() {
           title="Скачать чат в Markdown"
           aria-label="Скачать чат в Markdown"
         >
-          <span aria-hidden="true">💾</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 md:inline-flex"
-          onClick={handleSummarize}
-          disabled={!sessionReady}
-          title="Суммировать диалог"
-          aria-label="Суммировать диалог"
-        >
-          <span aria-hidden="true">📝</span>
-        </Button>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden h-8 w-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 md:inline-flex"
-          onClick={() => handleBranch()}
-          disabled={!sessionReady}
-          title="Продолжить в новом чате (ветка)"
-          aria-label="Продолжить в новом чате"
-        >
-          <span aria-hidden="true">🌿</span>
+          <DownloadIcon size={16} />
         </Button>
 
         <Button
@@ -252,7 +182,7 @@ export default function TopBar() {
           title="Поиск по чату (Ctrl+F)"
           aria-label="Поиск по сообщениям чата"
         >
-          <span aria-hidden="true">🔍</span>
+          <SearchIcon size={16} />
         </Button>
 
         <Button
