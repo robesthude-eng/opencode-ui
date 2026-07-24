@@ -129,4 +129,6 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
     api.saveUserPrefs({ selectedModel }).catch(() => {});
   },
 });
-export const syncUserPrefsFromServer = () => { console.log("sync prefs"); };
+export const syncUserPrefsFromServer = () => {
+  console.log("sync prefs");
+};

@@ -92,6 +92,9 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
 
   // UX-fix: pull actual server state on app load; localStorage can drift out of sync
   // (e.g. admin toggled from another device or state was reset server-side).
+  syncUserPrefsFromServer: () => {
+    console.log("sync prefs");
+  },
   syncSelfImproveFromServer: async () => {
     try {
       const res = await fetch("/api/settings/self-improve", {
