@@ -204,6 +204,20 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ title }),
     }),
+  // Настройки пользователя (пины, выбранная модель) — синхронизация
+  // между браузерами и устройствами. PUT — частичное обновление.
+  getUserPrefs: () =>
+    req<{ pinnedSessions?: string[]; selectedModel?: PromptModel | null }>(
+      `/user/prefs`,
+    ),
+  saveUserPrefs: (prefs: {
+    pinnedSessions?: string[];
+    selectedModel?: PromptModel | null;
+  }) =>
+    req<{ ok: boolean }>(`/user/prefs`, {
+      method: "PUT",
+      body: JSON.stringify(prefs),
+    }),
   abortSession: (id: string) =>
     req<void>(`/session/${id}/abort`, { method: "POST" }),
   listMessages: (id: string) => req<Message[]>(`/session/${id}/message`),

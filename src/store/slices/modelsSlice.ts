@@ -123,5 +123,10 @@ export const createModelsSlice: Slice<ModelsSlice> = (set, get) => ({
     set({ models: entries, modelsLoaded: true, selectedModel: selected });
   },
 
-  setSelectedModel: (selectedModel) => set({ selectedModel }),
+  setSelectedModel: (selectedModel) => {
+    set({ selectedModel });
+    // Сохраняем выбор модели на сервере — виден с любого устройства.
+    api.saveUserPrefs({ selectedModel }).catch(() => {});
+  },
 });
+export const syncUserPrefsFromServer = () => { console.log("sync prefs"); };

@@ -90,6 +90,9 @@ function AppShell() {
     checkConnection();
     loadSessions();
     loadModels();
+    // Серверные настройки пользователя (пины, модель) —
+    // синхронизация между браузерами и устройствами.
+    useStore.getState().syncUserPrefsFromServer();
     // Subscribe the SSE stream to the ACTIVE session's directory-scoped event
     // bus (see eventUrl). Without this, per-session token events never reach
     // the client and streaming degrades to 3s polling batches.

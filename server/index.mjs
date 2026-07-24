@@ -23,6 +23,7 @@ import {
   MAX_JSON_BODY_BYTES,
   OWNERS_FILE,
   PORT,
+  PREFS_FILE,
   SESSIONS_FILE,
   SYSTEM_PORT,
   TITLES_FILE,
@@ -383,6 +384,14 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(500, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: e.message }));
       });
+    return;
+  }
+
+  // Настройки пользователя (пины, модель) — синхронизация между браузерами.
+  if (urlPath === "/api/user/prefs") {
+    import("./routes/prefs.mjs").then((m) => {
+      m.handleUserPrefs(req, res, { PREFS_FILE, userEmail });
+    });
     return;
   }
 
