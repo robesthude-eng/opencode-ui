@@ -67,6 +67,7 @@ export interface UiSlice {
   setWorkspaceOpen: (open: boolean) => void;
   togglePinnedSession: (id: string) => void;
   renameSession: (id: string, title: string) => void;
+  syncUserPrefsFromServer: () => void;
   setSelfImproveSessionId: (id: string | null) => void;
   setSelfImproveEnabled: (enabled: boolean) => void;
   syncSelfImproveFromServer: () => Promise<void>;
